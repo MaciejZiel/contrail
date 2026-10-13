@@ -3,7 +3,7 @@
 The tile cache always serves what viewers look at first (about every 10 s, anywhere in the world).
 Spare request budget goes to these regions, shared between priority classes by weight so a busy
 high-priority region cannot starve the others. Targets are best effort: with a public API that
-answers about 0.2 requests per second they are an ordering and a rate, not a promise.
+answers about 0.15 requests per second they are an ordering and a rate, not a promise.
 """
 
 from __future__ import annotations
@@ -30,14 +30,24 @@ class PrefetchSpec:
     interval_s: float
 
 
+# A public API that allows roughly 0.15 requests per second cannot keep a continent, let alone the world,
+# fresh, so the default plan is short: Europe first, then the two busiest US halves, then a few of the
+# busiest hubs of other continents. Everything else is fetched only when somebody looks at it.
 DEFAULT_REGIONS: tuple[Region, ...] = (
-    Region("europe", "35,72,-25,45", 1, 240.0),
+    Region("europe", "35,72,-25,45", 1, 300.0),
     Region("us_east", "24,50,-90,-65", 2, 900.0),
     Region("us_west", "30,50,-125,-100", 2, 900.0),
-    Region("middle_east", "12,42,34,62", 2, 900.0),
-    Region("east_asia", "20,45,100,145", 2, 900.0),
-    Region("india", "5,35,67,90", 2, 900.0),
-    Region("world", "all", 3, 3600.0),
+    Region("hub_dubai", "22,28,52,58", 3, 1800.0),
+    Region("hub_singapore", "-2,4,100,106", 3, 1800.0),
+    Region("hub_hong_kong", "20,26,111,117", 3, 1800.0),
+    Region("hub_shanghai", "28,34,118,124", 3, 1800.0),
+    Region("hub_beijing", "37,43,113,119", 3, 1800.0),
+    Region("hub_tokyo", "33,38,137,142", 3, 1800.0),
+    Region("hub_delhi", "26,31,75,80", 3, 1800.0),
+    Region("hub_mumbai", "17,22,70,75", 3, 1800.0),
+    Region("hub_sao_paulo", "-26,-20,-49,-43", 3, 1800.0),
+    Region("hub_johannesburg", "-29,-23,25,31", 3, 1800.0),
+    Region("hub_sydney", "-36,-31,148,153", 3, 1800.0),
 )
 
 
