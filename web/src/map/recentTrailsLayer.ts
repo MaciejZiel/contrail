@@ -6,6 +6,8 @@ import { altitudeRgb } from "./palette";
 /** Below this zoom there are too many aircraft for readable tracks; nothing is requested. */
 export const TRAILS_MIN_ZOOM = 6;
 const REFRESH_MS = 15_000;
+/** A pan or zoom asks for new tracks only once the map has been still this long. */
+export const MOVE_DEBOUNCE_MS = 300;
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
 
 export interface TrailsStatus {
@@ -49,6 +51,7 @@ export class RecentTrailsLayer {
   private abort: AbortController | undefined;
   private ready = false;
   private generation = 0;
+  private moveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private map: MapLibreMap,
@@ -74,7 +77,10 @@ export class RecentTrailsLayer {
     };
     if (map.isStyleLoaded()) add();
     else map.once("load", add);
-    map.on("moveend", () => void this.refresh());
+    map.on("moveend", () => {
+      clearTimeout(this.moveTimer);
+      this.moveTimer = setTimeout(() => void this.refresh(), MOVE_DEBOUNCE_MS);
+    });
   }
 
   setMinutes(minutes: number): void {
@@ -132,6 +138,7 @@ export class RecentTrailsLayer {
 
   destroy(): void {
     clearInterval(this.timer);
+    clearTimeout(this.moveTimer);
     this.abort?.abort();
   }
 }
