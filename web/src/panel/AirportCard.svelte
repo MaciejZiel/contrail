@@ -67,6 +67,9 @@
     return SURFACES.find(([re]) => re.test(c))?.[1] ?? (code ? code.toLowerCase() : "surface unknown");
   }
 
+  /** Both end names ("09 / 27"), or a numbered fallback for the runways the data leaves unnamed. */
+  const runwayName = (ends: readonly string[], i: number): string => ends.filter(Boolean).join(" / ") || `Runway ${i + 1}`;
+
   let heading: HTMLHeadingElement | undefined;
   onMount(() => heading?.focus({ preventScroll: true })); // a new panel takes keyboard focus
 </script>
@@ -109,8 +112,10 @@
       <code class="raw">{m.raw}</code>
     {:else if weather.metar.state === "error"}
       <p class="muted">Weather is temporarily unavailable.</p>
+    {:else if weather.metar.state === "none" && weather.metar.reason === "no_station"}
+      <p class="muted">This airport has no weather station.</p>
     {:else}
-      <p class="muted">No weather report for this airport.</p>
+      <p class="muted">No weather report for this airport right now.</p>
     {/if}
     {#if weather?.taf.state === "ok"}
       <details>
@@ -157,7 +162,7 @@
           <tbody>
             {#each airport.runways as r, i (i)}
               <tr>
-                <th scope="row">{r.ends.filter(Boolean).join(" / ")}</th>
+                <th scope="row">{runwayName(r.ends, i)}</th>
                 <td>{Math.round(r.length_ft * 0.3048).toLocaleString("en")} m <small>({r.length_ft.toLocaleString("en")} ft)</small></td>
                 <td>{surfaceName(r.surface)}{r.lighted ? ", lit" : ""}</td>
               </tr>

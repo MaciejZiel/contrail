@@ -159,6 +159,25 @@ test("the airport view lists runways, frequencies, links and nearby traffic", as
   await expect(card.getByText(/not a flight schedule/)).toBeVisible();
 });
 
+test("an airport without a weather station says so and causes no failed request or console error", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (m) => m.type() === "error" && problems.push(m.text()));
+  page.on("pageerror", (e) => problems.push(e.message));
+  const weather = page.waitForResponse((r) => r.url().includes("/api/v1/airports/HAGR/weather"));
+  await openMap(page, "c=8.16,35.55&z=9&a=HAGR", 0);
+  expect((await weather).status()).toBe(200);
+  const card = page.getByTestId("airport-card");
+  await expect(card.getByText("This airport has no weather station.")).toBeVisible();
+  await expect(card.getByText("Weather is temporarily unavailable.")).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
+test("runways the data leaves unnamed are numbered instead of shown blank", async ({ page }) => {
+  await openMap(page, "c=8.16,35.55&z=9&a=HAGR", 0);
+  const runways = page.getByTestId("airport-card").getByTestId("airport-info").getByRole("table", { name: "Runways" });
+  await expect(runways.getByRole("rowheader")).toHaveText(["Runway 1", "Runway 2"]);
+});
+
 test("clicking an aircraft in the airport list opens it", async ({ page }) => {
   await openMap(page, "c=50.03,8.57&z=9&a=EDDF");
   const card = page.getByTestId("airport-card");

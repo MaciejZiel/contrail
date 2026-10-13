@@ -216,6 +216,7 @@ export async function fetchAirport(code: string, signal: AbortSignal): Promise<L
 function part<T>(raw: unknown): Loaded<T> {
   const p = (raw ?? {}) as { ok?: boolean; data?: T; reason?: string };
   if (p.ok && p.data !== undefined) return { state: "ok", value: p.data };
+  // "no_station": the airport publishes no reports; "unavailable" and "busy": a station exists but the source did not answer
   return p.reason === "unavailable" || p.reason === "busy" ? { state: "error", reason: p.reason } : { state: "none", reason: p.reason ?? "no_report" };
 }
 

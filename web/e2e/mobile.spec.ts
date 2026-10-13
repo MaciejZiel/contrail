@@ -186,6 +186,7 @@ test.describe("filters, tracks and airports on a 400 x 800 phone", () => {
     const info = card.getByTestId("airport-info");
     await info.scrollIntoViewIfNeeded();
     await expect(info.getByRole("table", { name: "Runways" }).getByRole("row")).toHaveCount(3); // header and two runways
+    await expect(info.getByRole("table", { name: "Runways" }).getByRole("rowheader")).toHaveText(["Runway 1", "Runway 2"]);
     expect(errors).toEqual([]);
   });
 
