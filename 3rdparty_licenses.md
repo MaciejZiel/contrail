@@ -13,3 +13,14 @@
 | https://pypi.org/project/ruff/0.16.9/ | ruff (dev only) | MIT | https://github.com/astral-sh/ruff/blob/main/LICENSE |
 | https://www.npmjs.com/package/pyright/v/1.1.414 | pyright (dev only) | MIT | https://github.com/microsoft/pyright/blob/main/LICENSE.txt |
 | https://github.com/davidmegginson/ourairports-data | OurAirports data (airports.csv, used to derive server/flightmap/data/traffic_tiles.json) | Unlicense | https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE |
+| https://www.npmjs.com/package/maplibre-gl/v/6.11.2 | maplibre-gl | BSD-3-Clause | https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt |
+| https://www.npmjs.com/package/svelte/v/5.57.1 | svelte (build time; compiled into the app) | MIT | https://github.com/sveltejs/svelte/blob/main/LICENSE.md |
+| https://www.npmjs.com/package/vite/v/7.3.6 | vite (build only) | MIT | https://github.com/vitejs/vite/blob/main/LICENSE |
+| https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte/v/6.2.4 | @sveltejs/vite-plugin-svelte (build only) | MIT | https://github.com/sveltejs/vite-plugin-svelte/blob/main/LICENSE |
+| https://www.npmjs.com/package/svelte-check/v/4.7.6 | svelte-check (dev only) | MIT | https://github.com/sveltejs/language-tools/blob/master/LICENSE |
+| https://www.npmjs.com/package/typescript/v/5.9.3 | typescript (dev only) | Apache-2.0 | https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt |
+| https://www.npmjs.com/package/vitest/v/5.0.2 | vitest (dev only) | MIT | https://github.com/vitest-dev/vitest/blob/main/LICENSE |
+| https://www.npmjs.com/package/@playwright/test/v/1.63.0 | @playwright/test (dev only) | Apache-2.0 | https://github.com/microsoft/playwright/blob/main/LICENSE |
+| https://www.npmjs.com/package/@types/node/v/24.19.0 | @types/node (dev only) | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/LICENSE |
+| https://www.naturalearthdata.com/downloads/110m-physical-vectors/ | Natural Earth 1:110m land and boundary lines (web/src/assets, offline basemap) | Public domain | https://www.naturalearthdata.com/about/terms-of-use/ |
+| https://openfreemap.org | OpenFreeMap vector tiles and glyphs (hosted service, not vendored; OpenStreetMap data under ODbL) | ODbL-1.0 (data); free public instance | https://openfreemap.org/tos/ |
