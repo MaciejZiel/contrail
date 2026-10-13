@@ -145,6 +145,13 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  /* a wide, short picture in the phone sheet so it fits the half-open state next to the route */
+  :global(.sheet) img,
+  :global(.sheet) .skeleton,
+  :global(.sheet) .photo :global(.art) {
+    aspect-ratio: 16 / 7;
+    object-fit: cover;
+  }
   .chip {
     position: absolute;
     left: 8px;
