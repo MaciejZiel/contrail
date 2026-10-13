@@ -9,3 +9,6 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 temp/
+
+server/node_modules/
+server/data/

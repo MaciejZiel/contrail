@@ -1,0 +1,25 @@
+[project]
+name = "flightmap"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = ["starlette==1.7.0", "uvicorn==0.54.0"]
+
+[tool.setuptools.package-data]
+flightmap = ["data/*.json"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S", "RUF"]
+ignore = ["S101", "S311", "S324"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+"flightmap/demo.py" = ["E501"]
+
+[tool.pyright]
+include = ["flightmap", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
