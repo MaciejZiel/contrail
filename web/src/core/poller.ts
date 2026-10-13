@@ -10,6 +10,8 @@ export interface FeedStatus {
   medianAgeS: number;
   oldestAgeS: number;
   newestAgeS: number;
+  /** Areas refreshed within the last two minutes. */
+  freshTiles: number;
   tiles: number;
   pending: number;
   error: string;
@@ -20,6 +22,7 @@ export const INITIAL_STATUS: FeedStatus = {
   medianAgeS: 0,
   oldestAgeS: 0,
   newestAgeS: 0,
+  freshTiles: 0,
   tiles: 0,
   pending: 0,
   error: "",
@@ -55,6 +58,7 @@ export function summarize(snapshot: Snapshot, pending: number): FeedStatus {
     medianAgeS: median,
     oldestAgeS: ages[ages.length - 1] ?? 0,
     newestAgeS: ages[0] ?? 0,
+    freshTiles: ages.filter((a) => a < 120).length,
     tiles: ages.length,
     pending,
     error: "",

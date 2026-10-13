@@ -168,7 +168,7 @@
     <p class="alert" role="alert">Squawk {fmtSquawk(live.squawk)}: {emergency}</p>
   {/if}
 
-  <Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} />
+  <div class="photo-slot"><Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} /></div>
   <RouteBar {route} {progress} flownKm={live.flownKm} remainingKm={live.remainingKm} eta={live.eta} />
 
   <dl class="stats">
@@ -222,6 +222,31 @@
   }
   .panel > :global(*) {
     flex: none;
+  }
+  /* inside the phone bottom sheet the route and live numbers come first, the photo below */
+  :global(.sheet) .panel > header {
+    order: 0;
+  }
+  :global(.sheet) .panel > .alert {
+    order: 1;
+  }
+  :global(.sheet) .panel > :global(.route) {
+    order: 2;
+  }
+  :global(.sheet) .panel > .stats {
+    order: 3;
+  }
+  :global(.sheet) .panel > .photo-slot {
+    order: 4;
+  }
+  :global(.sheet) .panel > .charts {
+    order: 5;
+  }
+  :global(.sheet) .panel > .details {
+    order: 6;
+  }
+  :global(.sheet) .panel > footer {
+    order: 7;
   }
   header {
     display: flex;

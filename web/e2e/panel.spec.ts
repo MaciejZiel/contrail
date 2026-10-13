@@ -172,7 +172,7 @@ test("selecting an aircraft that the panel would cover pans it into view", async
   const target = (await handle.jsonValue()) as { hex: number; x: number; y: number };
   await page.mouse.click(target.x, target.y);
   await expect(page.getByTestId("aircraft-panel")).toBeVisible();
-  const panelRight = await page.locator(".panel-slot").evaluate((el) => el.getBoundingClientRect().right);
+  const panelRight = await page.locator(".side, .sheet").first().evaluate((el) => el.getBoundingClientRect().right);
   await expect
     .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 0)
     .toBeGreaterThan(panelRight);

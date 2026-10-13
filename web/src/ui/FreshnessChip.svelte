@@ -18,7 +18,7 @@
 
   const detail = $derived(
     status.tiles
-      ? `Position data is ${ageRange(status.newestAgeS, status.oldestAgeS)} old across ${status.tiles} ${status.tiles === 1 ? "area" : "areas"}` +
+      ? `Position data is ${ageRange(status.newestAgeS, status.oldestAgeS)} old across ${status.tiles} ${status.tiles === 1 ? "area" : "areas"} (${status.freshTiles} refreshed within 2 minutes)` +
           (status.pending ? `; ${status.pending} more loading` : "") +
           ". Aircraft keep moving between updates by dead reckoning."
       : (status.error || "Waiting for the first data"),

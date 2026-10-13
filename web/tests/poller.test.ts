@@ -22,6 +22,7 @@ describe("feed freshness", () => {
     expect(s.newestAgeS).toBe(2);
     expect(s.oldestAgeS).toBe(90);
     expect(s.medianAgeS).toBe(10);
+    expect(s.freshTiles).toBe(3);
     expect(s.state).toBe("live");
   });
 

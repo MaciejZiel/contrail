@@ -8,6 +8,7 @@
   import FilterPopover from "./filters/FilterPopover.svelte";
   import { MapController } from "./map/controller";
   import AircraftPanel from "./panel/AircraftPanel.svelte";
+  import PanelHost from "./panel/PanelHost.svelte";
   import AirportCard from "./panel/AirportCard.svelte";
   import SearchBox from "./search/SearchBox.svelte";
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
@@ -18,6 +19,7 @@
   let container: HTMLDivElement;
   let ctl: MapController | undefined;
   let airlineLabel = $state<string | null>(null);
+  let sheetHeight = $state(0);
   const hadCenterParam = new URLSearchParams(location.search).has("c");
 
   const hex = (n: number) => n.toString(16).padStart(6, "0");
@@ -147,7 +149,7 @@
   const panelOpen = $derived(Boolean(ui.selected || ui.airport));
 </script>
 
-<div class="app" class:has-panel={panelOpen}>
+<div class="app" class:has-panel={panelOpen} class:sheet-open={panelOpen && sheetHeight > 0} style={`--sheet-h:${panelOpen ? sheetHeight : 0}px`}>
   <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
 
   <div class="topbar">
@@ -162,13 +164,17 @@
   <div class="legend-slot"><AltitudeLegend /></div>
 
   {#if ui.selected}
-    <div class="panel-slot">
-      <AircraftPanel {store} hex={ui.selected} onClose={() => selectAircraft(null)} onTrail={(t: Trail | null) => ctl?.setTrail(t)} onRoute={(r) => ctl?.setRoute(r)} onLocate={locateSelected} />
-    </div>
+    {#key ui.selected}
+      <PanelHost label="Aircraft details" onClose={() => selectAircraft(null)} onHeight={(h) => (sheetHeight = h)}>
+        <AircraftPanel {store} hex={ui.selected} onClose={() => selectAircraft(null)} onTrail={(t: Trail | null) => ctl?.setTrail(t)} onRoute={(r) => ctl?.setRoute(r)} onLocate={locateSelected} />
+      </PanelHost>
+    {/key}
   {:else if ui.airport}
-    <div class="panel-slot">
-      <AirportCard code={ui.airport} onClose={() => selectAirport(null)} onPick={(h) => selectAircraft(parseInt(h, 16))} />
-    </div>
+    {#key ui.airport}
+      <PanelHost label="Airport details" onClose={() => selectAirport(null)} onHeight={(h) => (sheetHeight = h)}>
+        <AirportCard code={ui.airport} onClose={() => selectAirport(null)} onPick={(h) => selectAircraft(parseInt(h, 16))} />
+      </PanelHost>
+    {/key}
   {/if}
 
   {#if ui.webglError}
@@ -210,30 +216,19 @@
     bottom: calc(140px + env(safe-area-inset-bottom));
     z-index: 4;
   }
-  .panel-slot {
-    position: absolute;
-    z-index: 6;
-    left: var(--gutter);
-    right: var(--gutter);
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    max-height: 62vh;
-    display: flex;
-  }
-  .panel-slot > :global(.panel) {
-    flex: 1;
-    min-width: 0;
-  }
   @media (min-width: 900px) {
-    .panel-slot {
-      right: auto;
-      top: calc(12px + env(safe-area-inset-top));
-      bottom: 12px;
-      width: 380px;
-      max-height: none;
-    }
     .has-panel .topbar {
       left: calc(var(--gutter) + 392px);
     }
+  }
+  /* on phones the bottom sheet covers the lower part of the map: lift the map controls above it */
+  .sheet-open :global(.maplibregl-ctrl-bottom-right),
+  .sheet-open :global(.maplibregl-ctrl-bottom-left) {
+    bottom: var(--sheet-h);
+    transition: bottom 0.22s ease;
+  }
+  .sheet-open .legend-slot {
+    display: none;
   }
   .fatal {
     position: absolute;
