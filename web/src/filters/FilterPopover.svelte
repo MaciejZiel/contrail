@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { fetchAirlineNames, fetchTypeSuggestions, type TypeSuggestion } from "../core/api";
   import { ALT_LIMIT, activeFilterCount, airlineCounts, cleanCallsign, DEFAULT_FILTERS, parseTypes, type Filters } from "../core/filters";
   import { ui } from "../core/state.svelte";
@@ -15,7 +16,7 @@
   // the chips and Reset change the filter from outside: keep the text box in step
   $effect(() => {
     const joined = filters.types.join(", ");
-    if (parseTypes(typeDraft).join(", ") !== joined) typeDraft = joined;
+    if (untrack(() => parseTypes(typeDraft).join(", ")) !== joined) typeDraft = joined;
   });
 
   function onTypeInput(e: Event & { currentTarget: HTMLInputElement }): void {
@@ -226,6 +227,19 @@
     max-height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+  /* on a phone the panel spans the top bar (gutter to gutter) instead of hanging off the button */
+  @media (max-width: 640px) {
+    .wrap {
+      position: static;
+    }
+    .panel {
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      width: auto;
+      max-height: calc(100dvh - 130px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    }
   }
   .head {
     display: flex;
