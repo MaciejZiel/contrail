@@ -58,6 +58,9 @@ Demo mode:
 <p align="center">
   <img src="docs/screenshots/aircraft-panel.png" alt="Flight panel with photo, route, live values and charts" width="49%">
   <img src="docs/screenshots/airport-card.png" alt="Airport card with weather and nearby traffic" width="49%">
+  <img src="docs/screenshots/airport-info.png" alt="The same airport card scrolled to runways, frequencies and links" width="49%">
+  <img src="docs/screenshots/recent-tracks.png" alt="Europe with a 60 minute track behind every aircraft" width="49%">
+  <img src="docs/screenshots/filters.png" alt="Filter panel with callsign prefix, aircraft type and recent tracks, one aircraft type selected" width="49%">
   <img src="docs/screenshots/search.png" alt="Search results" width="49%">
   <img src="docs/screenshots/world-thinned.png" alt="Whole world, thinned to a few hundred aircraft" width="49%">
 </p>
@@ -66,6 +69,7 @@ Demo mode:
   <img src="docs/screenshots/mobile-map.png" alt="Phone: map" width="20%">
   <img src="docs/screenshots/mobile-sheet.png" alt="Phone: flight sheet" width="20%">
   <img src="docs/screenshots/mobile-sheet-full.png" alt="Phone: expanded sheet" width="20%">
+  <img src="docs/screenshots/mobile-filters.png" alt="Phone: filter panel with chips for the active filters" width="20%">
 </p>
 
 ## Quick start
@@ -186,7 +190,7 @@ The measurements in this README were taken on a development laptop, not on that 
 
 - `server/`: `python -m unittest discover -s tests -t .`, `ruff check`, `ruff format --check`, `npx pyright` (strict). Tests include the real provider against a fixture upstream that serves synthetic data shaped exactly like ADSB.lol responses.
 - `web/`: `npm run typecheck`, `npm test` (vitest), `npm run test:e2e` (Playwright against the real server and the built app, desktop and a Pixel 7 profile).
-- `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `server/scripts/measure_trails.py` measures trail memory.
+- `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `web/scripts/screenshots.mjs` and `screenshots-features.mjs` regenerate the demo screenshots; `server/scripts/measure_trails.py` measures trail memory.
 - CI (`.github/workflows/ci.yml`) runs all of it.
 
 ## Repository layout

@@ -35,6 +35,18 @@ PERSIST_SPACING_S = 30.0
 PERSIST_RETENTION_S = 3 * 3600.0
 
 
+# A track is drawn only from its last continuous stretch: a long silence or an implausible jump
+# (a position glitch, or an aircraft that left coverage and came back far away) must not become a line.
+BREAK_GAP_S = 300.0
+BREAK_JUMP_KM = 150.0
+
+
+def _jump_km(tr: _Trail, a: int, b: int) -> float:
+    dlat = (tr.lat[b] - tr.lat[a]) / 1e5
+    dlon = (tr.lon[b] - tr.lon[a]) / 1e5 * math.cos(math.radians(tr.lat[b] / 1e5))
+    return math.hypot(dlat, dlon) * 111.2
+
+
 class _Trail:
     __slots__ = (
         "airborne_seen",
@@ -263,6 +275,11 @@ class TrailStore:
         for _r, hex_, tr in found[:limit]:
             first = bisect.bisect_left(tr.t, tr.t[-1] - window_s)
             idx = list(range(first, len(tr.t)))
+            for k in range(len(idx) - 1, 0, -1):  # start after the last data gap or position jump
+                a, b = idx[k - 1], idx[k]
+                if tr.t[b] - tr.t[a] > BREAK_GAP_S or _jump_km(tr, a, b) > BREAK_JUMP_KM:
+                    idx = idx[k:]
+                    break
             if len(idx) < 2:
                 continue
             if len(idx) > max_points:

@@ -53,6 +53,18 @@ class RecentTrailsTest(unittest.TestCase):
         _total, rows = s.recent(everything, window_s=3600, max_points=40, now=2195.0)
         self.assertEqual(len(rows[0][2]), 40)
 
+    def test_a_track_starts_after_its_last_gap_or_jump(self) -> None:
+        s = TrailStore(retention_s=3600, min_interval_s=1)
+        for i in range(6):  # a flight, then a 10 minute silence, then a few more fixes
+            s.record(ac(1, 50 + i * 0.01, 10), 1000.0 + i * 10, 1000.0 + i * 10)
+        for i in range(4):
+            s.record(ac(1, 50.5 + i * 0.01, 10), 1700.0 + i * 10, 1700.0 + i * 10)
+        for i in range(3):  # then a jump of about 500 km within one minute
+            s.record(ac(1, 55 + i * 0.01, 10), 1750.0 + i * 10, 1750.0 + i * 10)
+        _total, ((_h, _t, pts),) = s.recent(everything, window_s=3600, now=1800.0)
+        self.assertEqual(len(pts), 3)
+        self.assertTrue(all(p[1] >= 55 for p in pts))
+
     def test_limit_keeps_the_best_ranked_and_reports_the_total(self) -> None:
         s = TrailStore(retention_s=3600, min_interval_s=1)
         for h in range(1, 6):

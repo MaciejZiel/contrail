@@ -15,7 +15,8 @@
     padding: 0 4px 0 12px;
     min-height: 36px;
     border-radius: 999px;
-    background: rgba(94, 234, 212, 0.14);
+    /* tinted but opaque, so map labels never show through the text */
+    background: linear-gradient(rgba(94, 234, 212, 0.14), rgba(94, 234, 212, 0.14)), var(--surface-solid);
     border: 1px solid rgba(94, 234, 212, 0.5);
     font-size: 13px;
     max-width: 100%;
