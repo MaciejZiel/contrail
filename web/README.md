@@ -9,6 +9,7 @@ npm ci
 npm run dev            # needs the server on 127.0.0.1:8000 (DEMO_MODE=1 python -m flightmap)
 npm run typecheck && npm test
 npm run test:e2e       # builds, then runs Playwright against the real server and a fixture upstream
+                       # (ports 9140/9141; override with E2E_API_PORT / E2E_UPSTREAM_PORT)
 node scripts/perf.mjs  # frame-time probe with 15,000 synthetic aircraft (GPU=1 for the real GPU)
 ```
 
