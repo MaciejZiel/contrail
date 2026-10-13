@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { aKnownType, anAirlineCode, openFilters, openMap, visibleTypes } from "./helpers";
 
-const visibleCallsigns = (page: import("@playwright/test").Page) =>
+const visibleCallsigns = (page: import("@playwright/test").Page): Promise<string[]> =>
   page.evaluate(() => (window as any).__flights.layer.visiblePlanes().map((p: any) => p.callsign as string));
 
 test("a callsign prefix hides every other aircraft, shows a chip and survives a reload", async ({ page }) => {
@@ -123,7 +123,7 @@ test("the airport view lists runways, frequencies, links and nearby traffic", as
     return !!m.getLayer("airports-large") && m.queryRenderedFeatures({ layers: ["airports-large"] }).length > 0;
   });
   const pt = await page.evaluate(() => (window as any).__flights.map.project([18.4662, 54.3776]));
-  await page.mouse.click(pt.x, pt.y, { position: undefined });
+  await page.mouse.click(pt.x, pt.y);
   const card = page.getByTestId("airport-card");
   await expect(card).toBeVisible();
   const info = card.getByTestId("airport-info");
