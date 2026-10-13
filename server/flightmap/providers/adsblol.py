@@ -62,7 +62,7 @@ def parse_aircraft(raw: dict[str, Any]) -> Aircraft | None:
         hex=int(hex_raw, 16),
         lat=lat,
         lon=lon,
-        callsign=str(raw.get("flight", "")).strip(),
+        callsign=str(raw.get("flight", "")).replace("@", "").strip(),  # "@" pads unset characters
         registration=str(raw.get("r", "")).strip(),
         type_code=type_code,
         category=category,
