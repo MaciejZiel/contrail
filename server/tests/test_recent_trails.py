@@ -34,7 +34,8 @@ class RecentTrailsTest(unittest.TestCase):
 
     def test_window_and_point_limit(self) -> None:
         s = self.store()
-        (hex_, last_t, pts), *rest = s.recent(everything, window_s=600, max_points=20, now=2195.0)
+        total, ((hex_, last_t, pts), *rest) = s.recent(everything, window_s=600, max_points=20, now=2195.0)
+        self.assertEqual(total, 1)
         self.assertEqual((hex_, rest), (1, []))
         self.assertEqual(last_t, 2190.0)
         self.assertLessEqual(len(pts), 20)
@@ -44,13 +45,22 @@ class RecentTrailsTest(unittest.TestCase):
 
     def test_stale_and_rejected_aircraft_are_skipped(self) -> None:
         s = self.store()
-        self.assertEqual(s.recent(everything, now=2190.0 + 901.0, max_age_s=900.0), [])
-        self.assertEqual(s.recent(nothing, now=2195.0), [])
+        self.assertEqual(s.recent(everything, now=2190.0 + 901.0, max_age_s=900.0), (0, []))
+        self.assertEqual(s.recent(nothing, now=2195.0), (0, []))
 
-    def test_does_not_copy_the_whole_history(self) -> None:
+    def test_points_are_capped_per_trail(self) -> None:
         s = self.store()
-        rows = s.recent(everything, window_s=3600, max_points=40, now=2195.0)
+        _total, rows = s.recent(everything, window_s=3600, max_points=40, now=2195.0)
         self.assertEqual(len(rows[0][2]), 40)
+
+    def test_limit_keeps_the_best_ranked_and_reports_the_total(self) -> None:
+        s = TrailStore(retention_s=3600, min_interval_s=1)
+        for h in range(1, 6):
+            for i in range(3):
+                s.record(ac(h, 50 + h, 10 + i * 0.01), 1000.0 + i * 10, 1000.0 + i * 10)
+        total, rows = s.recent(everything, rank=lambda la, _lo: abs(la - 53.2), limit=2, now=1030.0)
+        self.assertEqual(total, 5)
+        self.assertEqual(sorted(h for h, _t, _p in rows), [3, 4])
 
 
 class FilterTest(unittest.TestCase):

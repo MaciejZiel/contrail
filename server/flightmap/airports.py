@@ -109,14 +109,30 @@ _KIND_LABEL = {"L": "Large airport", "M": "Medium airport", "S": "Small airport"
 
 
 @lru_cache(maxsize=1)
-def _details() -> dict[str, dict[str, Any]]:
-    raw = resources.files("flightmap").joinpath("data/airport_details.json").read_text("utf-8")
-    return json.loads(raw)
+def _detail_offsets() -> dict[str, tuple[int, int]]:
+    """Byte range of each airport's line in airport_details.tsv; the file itself is not kept in memory."""
+    out: dict[str, tuple[int, int]] = {}
+    pos = 0
+    with resources.files("flightmap").joinpath("data/airport_details.tsv").open("rb") as fh:
+        for line in fh:
+            icao, _sep, _rest = line.partition(b"\t")
+            out[icao.decode()] = (pos + len(icao) + 1, len(line) - len(icao) - 1)
+            pos += len(line)
+    return out
+
+
+def _details_for(icao: str) -> dict[str, Any]:
+    span = _detail_offsets().get(icao)
+    if span is None:
+        return {}
+    with resources.files("flightmap").joinpath("data/airport_details.tsv").open("rb") as fh:
+        fh.seek(span[0])
+        return json.loads(fh.read(span[1]))
 
 
 def airport_details(rec: AirportRec) -> dict[str, Any]:
     """OurAirports metadata for the airport card: type, region, runways, frequencies and links."""
-    d = _details().get(rec.icao, {})
+    d = _details_for(rec.icao)
     return {
         "type": _KIND_LABEL.get(rec.kind, "Airport"),
         "scheduled_service": rec.scheduled,

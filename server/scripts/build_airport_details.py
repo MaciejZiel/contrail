@@ -1,6 +1,7 @@
-"""Regenerate flightmap/data/airport_details.json from the OurAirports data (Unlicense).
+"""Regenerate flightmap/data/airport_details.tsv from the OurAirports data (Unlicense).
 
-Per airport of the catalog (large and medium airports and any with scheduled service): runways, the
+One line per airport (``ICAO<TAB>json``, so the server can seek to a line instead of holding the
+whole file in memory). Per airport of the catalog (large and medium airports and any with scheduled service): runways, the
 main radio frequencies, region, and the Wikipedia and home page links. Row layout per ICAO ident::
 
     {"r": [[le_ident, he_ident, length_ft, surface, lighted], ...],
@@ -71,8 +72,12 @@ def main(airports_csv: str, runways_csv: str, freq_csv: str) -> None:
             seen: set[tuple[object, object]] = set()
             kept = [f for f in freqs if not ((f[0], f[1]) in seen or seen.add((f[0], f[1])))]
             d["f"] = kept[:MAX_FREQUENCIES]
-    out = DATA / "airport_details.json"
-    out.write_text(json.dumps(details, separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+    out = DATA / "airport_details.tsv"
+    lines = (
+        f"{icao}\t{json.dumps(d, separators=(',', ':'), ensure_ascii=False)}\n"
+        for icao, d in sorted(details.items())
+    )
+    out.write_text("".join(lines), encoding="utf-8")
     print(f"{len(details)} airports -> {out} ({out.stat().st_size // 1024} KiB)")
 
 

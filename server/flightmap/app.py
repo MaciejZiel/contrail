@@ -457,14 +457,16 @@ class Api:
             found = self.index.get(hex_)
             return found is not None and flt.matches(found[0])
 
-        rows = self.trails.recent(
-            accept, window_s=window, max_age_s=self.settings.max_tile_age_s, now=time.time()
+        def rank(lat: float, lon: float) -> float:
+            dx = (lon - cx + 180) % 360 - 180
+            return dx * dx + (lat - cy) ** 2
+
+        total, shown = self.trails.recent(
+            accept, rank, limit, window_s=window, max_age_s=self.settings.max_tile_age_s, now=time.time()
         )
-        rows.sort(key=lambda r: (r[2][-1][0] - cx) ** 2 + (r[2][-1][1] - cy) ** 2)
-        shown = rows[:limit]
         body = {
             "ok": True,
-            "total": len(rows),
+            "total": total,
             "window_s": window,
             "trails": [
                 {

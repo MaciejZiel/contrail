@@ -24,6 +24,22 @@ The response has a strong `ETag` and answers 304 when no tile in the rectangle c
 `X-Tiles` and `X-Pending` say how many requested tiles have data and how many are still being
 fetched. `GET /api/v1/status` reports provider health, cache size and the current request rate.
 
+Everything below reads server memory only and never causes a request to ADSB.lol:
+
+- `GET /api/v1/trails?w=&s=&e=&n=[&window=1800][&limit=400][&cs=][&air=][&ty=][&alt=min-max][&gnd=0]`
+  recent tracks of the aircraft in a box (`window` 60 to 3600 seconds, `limit` at most 600). Each
+  track is thinned to at most 40 fixes: `{"h": "48ae23", "p": [[lon, lat, altitude_hundreds_ft], ...]}`.
+  The nearest `limit` aircraft to the centre are returned and `total` says how many matched.
+- `GET /api/v1/aircraft` also accepts `cs` (callsign prefix), `air` (airline designator) and
+  `ty` (comma separated ICAO types, `A32*` for a family). They only matter for thinned (low
+  zoom) responses, where they are applied before thinning and are part of the ETag.
+- `GET /api/v1/types[?q=]` the most common tracked aircraft types, or the types matching a code
+  prefix or name fragment, with how many are tracked. `GET /api/v1/type-hexes?ty=` lists the
+  ICAO24 of the tracked aircraft of those types (the binary tiles do not carry the type).
+- `GET /api/v1/airports/{code}` has the OurAirports metadata (type, region, runways, frequencies,
+  links), counts of arriving, departing and parked aircraft within 10 nm, and, for aircraft whose
+  route the server already holds, their origin and destination.
+
 ## Data sources
 
 Positions come from [ADSB.lol](https://adsb.lol) (data licensed ODbL 1.0; attribution required in

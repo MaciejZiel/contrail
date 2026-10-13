@@ -11,7 +11,7 @@
 | https://pypi.org/project/typing-extensions/ | typing_extensions (installed by starlette/anyio on Python < 3.13) | PSF-2.0 | https://github.com/python/typing_extensions/blob/main/LICENSE |
 | https://pypi.org/project/ruff/0.16.9/ | ruff (dev only) | MIT | https://github.com/astral-sh/ruff/blob/main/LICENSE |
 | https://www.npmjs.com/package/pyright/v/1.1.414 | pyright (dev only) | MIT | https://github.com/microsoft/pyright/blob/main/LICENSE.txt |
-| https://github.com/davidmegginson/ourairports-data | OurAirports data (airports.csv, runways.csv, airport-frequencies.csv; derived into server/flightmap/data/traffic_tiles.json, airports.json and airport_details.json) | Unlicense | https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE |
+| https://github.com/davidmegginson/ourairports-data | OurAirports data (airports.csv, runways.csv, airport-frequencies.csv; derived into server/flightmap/data/traffic_tiles.json, airports.json and airport_details.tsv) | Unlicense | https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE |
 | https://www.npmjs.com/package/svelte/v/5.57.1 | svelte (build time; compiled into the app) | MIT | https://github.com/sveltejs/svelte/blob/main/LICENSE.md |
 | https://www.npmjs.com/package/vite/v/7.3.6 | vite (build only) | MIT | https://github.com/vitejs/vite/blob/main/LICENSE |
 | https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte/v/6.2.4 | @sveltejs/vite-plugin-svelte (build only) | MIT | https://github.com/sveltejs/vite-plugin-svelte/blob/main/LICENSE |

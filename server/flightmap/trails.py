@@ -233,25 +233,34 @@ class TrailStore:
     def recent(
         self,
         accept: Callable[[int, float, float], bool],
+        rank: Callable[[float, float], float] | None = None,
+        limit: int = 400,
         window_s: float = 1800.0,
         max_points: int = 40,
         max_age_s: float = 900.0,
         now: float | None = None,
-    ) -> list[tuple[int, float, list[tuple[float, float, int | None]]]]:
-        """The last ``window_s`` seconds of every trail whose aircraft is still on the map.
+    ) -> tuple[int, list[tuple[int, float, list[tuple[float, float, int | None]]]]]:
+        """The last ``window_s`` seconds of the trails whose aircraft are still on the map.
 
         ``accept(hex, lat, lon)`` is asked about the last known position first, so rejected aircraft
-        cost nothing more. Returns ``(hex, last_t, points)`` with each ``points`` thinned to at most
-        ``max_points`` evenly spaced fixes (always the newest) as ``(lon, lat, altitude_ft)``. Reads
-        memory only; it never causes an upstream request.
+        cost nothing more. Of the accepted ones the ``limit`` with the lowest ``rank(lat, lon)`` are
+        returned (all, in insertion order, without a rank), each thinned to at most ``max_points``
+        evenly spaced fixes (always the newest) as ``(lon, lat, altitude_ft)``. The first value is how
+        many were accepted. Reads memory only; it never causes an upstream request.
         """
         now = time.time() if now is None else now
-        out: list[tuple[int, float, list[tuple[float, float, int | None]]]] = []
+        found: list[tuple[float, int, _Trail]] = []
         for hex_, tr in self._trails.items():
             if len(tr.t) < 2 or now - tr.t[-1] > max_age_s:
                 continue
-            if not accept(hex_, tr.lat[-1] / 1e5, tr.lon[-1] / 1e5):
-                continue
+            la, lo = tr.lat[-1] / 1e5, tr.lon[-1] / 1e5
+            if accept(hex_, la, lo):
+                found.append((rank(la, lo) if rank else 0.0, hex_, tr))
+        total = len(found)
+        if rank:
+            found.sort(key=lambda it: it[0])
+        out: list[tuple[int, float, list[tuple[float, float, int | None]]]] = []
+        for _r, hex_, tr in found[:limit]:
             first = bisect.bisect_left(tr.t, tr.t[-1] - window_s)
             idx = list(range(first, len(tr.t)))
             if len(idx) < 2:
@@ -264,7 +273,7 @@ class TrailStore:
                 for i in idx
             ]
             out.append((hex_, tr.t[-1], pts))
-        return out
+        return total, out
 
     def __len__(self) -> int:
         return len(self._trails)
