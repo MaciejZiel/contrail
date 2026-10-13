@@ -8,10 +8,12 @@
   import { rectForBounds } from "./core/tiles";
   import { parseUrlState, preservedParams, serializeUrlState } from "./core/urlState";
   import { AircraftLayer } from "./map/aircraftLayer";
-  import { offlineStyle, onlineStyle } from "./map/style";
+  import { TrailLayer } from "./map/trailLayer";
+  import type { Trail } from "./core/api";
+    import { offlineStyle, onlineStyle } from "./map/style";
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
   import FreshnessChip from "./ui/FreshnessChip.svelte";
-  import SelectedCard from "./ui/SelectedCard.svelte";
+  import AircraftPanel from "./panel/AircraftPanel.svelte";
 
   setWorkerUrl(new URL("maplibre/maplibre-gl-worker.mjs", document.baseURI).href);
 
@@ -24,6 +26,42 @@
   }
 
   let map: MapLibreMap | undefined;
+  let trailLayer: TrailLayer | undefined;
+  let currentTrail: Trail | null = null;
+  const hadCenterParam = new URLSearchParams(location.search).has("c");
+
+  function onTrail(t: Trail | null): void {
+    currentTrail = t;
+    trailLayer?.setTrail(t);
+    updateLiveTrail();
+  }
+
+  /** Join the last recorded point to the live position and project the path 2 minutes ahead. */
+  function updateLiveTrail(): void {
+    if (!trailLayer) return;
+    const plane = ui.selected ? store.get(parseInt(ui.selected, 16)) : undefined;
+    if (!plane) {
+      trailLayer.setLive(null, null, null);
+      return;
+    }
+    const now = serverNow();
+    const pos = plane.positionAt(now);
+    const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
+    const live = { lat: toLat(pos.y), lon: pos.x * 360 - 180 };
+    const ahead = { lat: toLat(pos.y + plane.vy * 120), lon: (pos.x + plane.vx * 120) * 360 - 180 };
+    const n = currentTrail?.t.length ?? 0;
+    const last =
+      currentTrail && n > 0
+        ? { lat: currentTrail.lat[n - 1] as number, lon: currentTrail.lon[n - 1] as number, altFt: currentTrail.alt[n - 1] ?? null }
+        : null;
+    trailLayer.setLive(last, live, plane.speedKt ? ahead : null);
+  }
+
+  function locate(lat: number, lon: number): void {
+    if (!map || hadCenterParam) return;
+    map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 8), essential: false });
+  }
+
   let lastUrlWrite = 0;
   let urlTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -63,6 +101,7 @@
       canvasContextAttributes: { antialias: false },
     });
     map = m;
+    trailLayer = new TrailLayer(m);
     m.touchZoomRotate.disableRotation();
     m.keyboard.disableRotation();
     m.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
@@ -112,6 +151,7 @@
     });
     m.on("load", () => poller.start());
 
+    const liveTrail = setInterval(updateLiveTrail, 1000);
     const prune = setInterval(() => {
       store.prune(serverNow(), 900);
       ui.aircraftCount = store.size;
@@ -134,6 +174,7 @@
     return () => {
       window.removeEventListener("keydown", onKey);
       clearInterval(prune);
+      clearInterval(liveTrail);
       clearTimeout(moveTimer);
       poller.stop();
       layerHandle.current?.stop();
@@ -153,7 +194,9 @@
   <div class="legend-slot"><AltitudeLegend /></div>
 
   {#if ui.selected}
-    <SelectedCard {store} hex={ui.selected} onClose={() => select(null)} />
+    <div class="panel-slot">
+      <AircraftPanel {store} hex={ui.selected} onClose={() => select(null)} {onTrail} onLocate={locate} />
+    </div>
   {/if}
 
   {#if ui.webglError}
@@ -192,6 +235,31 @@
     right: var(--gutter);
     top: calc(56px + env(safe-area-inset-top));
     z-index: 4;
+  }
+  .panel-slot {
+    position: absolute;
+    z-index: 6;
+    left: var(--gutter);
+    right: var(--gutter);
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    max-height: 62vh;
+    display: flex;
+  }
+  .panel-slot > :global(.panel) {
+    flex: 1;
+    min-width: 0;
+  }
+  @media (min-width: 900px) {
+    .panel-slot {
+      right: auto;
+      top: calc(12px + env(safe-area-inset-top));
+      bottom: 12px;
+      width: 380px;
+      max-height: none;
+    }
+    .app:has(.panel-slot) .topbar {
+      left: calc(var(--gutter) + 392px);
+    }
   }
   .fatal {
     position: absolute;
