@@ -17,6 +17,22 @@ export interface Photo {
 const API = "https://api.planespotters.net/pub/photos/hex/";
 const TTL_MS = 24 * 3600 * 1000;
 const memory = new Map<string, { at: number; photo: Photo | null }>();
+const inflight = new Map<string, Promise<Photo | null>>();
+
+/**
+ * Planespotters answers some automated clients (for example browsers that identify as HeadlessChrome)
+ * without CORS headers, which the browser reports as an error in the console for every request. Real
+ * browsers are not affected. After the first such failure the lookups stop for the rest of the visit,
+ * so a blocked environment sees one error, not six per aircraft, and the type photo takes over.
+ */
+let blockedByCors = false;
+
+/** Test hook. */
+export function resetPhotoClientForTests(): void {
+  blockedByCors = false;
+  memory.clear();
+  inflight.clear();
+}
 
 interface ApiPhoto {
   thumbnail?: { src?: string; size?: { width?: number; height?: number } };
@@ -95,14 +111,40 @@ export async function fetchPhotoByReg(reg: string, signal: AbortSignal): Promise
   return lookup(`psp:reg:${clean}`, `https://api.planespotters.net/pub/photos/reg/${clean}`, signal);
 }
 
-async function lookup(key: string, url: string, signal: AbortSignal): Promise<Photo | null> {
+function lookup(key: string, url: string, signal: AbortSignal): Promise<Photo | null> {
+  const pending = inflight.get(key);
+  if (pending) return abortable(pending, signal); // the panel and its retries share one request per photo
+  const p = lookupUncached(key, url).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return abortable(p, signal);
+}
+
+/** Resolve with the shared lookup, but let each caller walk away on its own abort signal. */
+function abortable<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new DOMException("aborted", "AbortError"));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
+async function lookupUncached(key: string, url: string): Promise<Photo | null> {
   const now = Date.now();
   const cached = memory.get(key) ?? readStored(key);
   if (cached && now - cached.at < TTL_MS) {
     memory.set(key, cached);
     return cached.photo;
   }
-  const res = await fetch(url, { signal });
+  if (blockedByCors) throw new Error("photo lookups are blocked for this client");
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  } catch (err) {
+    // a TypeError that is not an abort is a network or CORS failure
+    if (err instanceof TypeError) blockedByCors = true;
+    throw err;
+  }
   if (!res.ok) throw new Error(`photo API HTTP ${res.status}`);
   const photo = parsePhotoResponse(await res.json());
   const entry = { at: now, photo };

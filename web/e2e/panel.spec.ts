@@ -204,3 +204,19 @@ test("a failing identity lookup is retried and the panel recovers", async ({ pag
   await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
   expect(failures).toBe(2);
 });
+
+test("a client that Planespotters blocks (no CORS headers) asks once and falls back quietly", async ({ page }) => {
+  let calls = 0;
+  await page.route("https://api.planespotters.net/**", (route) => {
+    calls++;
+    return route.abort("failed"); // what a CORS rejection looks like to the page
+  });
+  await openMap(page, "c=50,10&z=7");
+  await selectMover(page);
+  const panel = page.getByTestId("aircraft-panel");
+  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await selectMover(page);
+  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  expect(calls).toBe(1); // one failed request in the whole visit, not several per aircraft
+});
