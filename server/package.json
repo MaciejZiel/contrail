@@ -1,5 +1,5 @@
 {
-  "name": "flightmap-server-tooling",
+  "name": "contrail-server-tooling",
   "private": true,
   "description": "Dev tooling only: static type checking for the Python server",
   "scripts": {

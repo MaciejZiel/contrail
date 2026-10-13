@@ -1,15 +1,15 @@
 # Local development only. `docker compose up` serves the app with synthetic traffic on http://localhost:18080.
 # Set DEMO_MODE=0 to use the real ADSB.lol feed (see the README for its limits).
-name: flights
+name: contrail
 services:
-  flights:
+  contrail:
     build: .
     ports:
       - "18080:8000"
     environment:
       DEMO_MODE: "${DEMO_MODE:-1}"
-      USER_AGENT_CONTACT: "${USER_AGENT_CONTACT:-https://github.com/MaciejZiel/live_flights_map}"
+      USER_AGENT_CONTACT: "${USER_AGENT_CONTACT:-https://github.com/MaciejZiel/contrail}"
     volumes:
-      - flights-data:/data
+      - contrail-data:/data
 volumes:
-  flights-data:
+  contrail-data:

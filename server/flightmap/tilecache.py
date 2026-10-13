@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from .codec import encode_aircraft
 from .models import Aircraft
 from .providers import TileProvider
+from .regions import CLASS_WEIGHTS, PrefetchSpec
 from .tiles import Tile
 from .upstream import TokenBucket, UpstreamError
 
@@ -73,14 +74,16 @@ class TileCache:
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
     max_age_s: float = DEFAULT_MAX_AGE_S
-    prefetch_tiles: list[Tile] = field(default_factory=lambda: list[Tile]())
+    prefetch_plan: dict[Tile, PrefetchSpec] = field(default_factory=lambda: dict[Tile, PrefetchSpec]())
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = False
     listeners: list[UpdateListener] = field(default_factory=lambda: list[UpdateListener]())
 
     def __post_init__(self) -> None:
         self._states: dict[Tile, TileState] = {}
-        self._prefetch_set = frozenset(self.prefetch_tiles)
+        self._prefetch_set = frozenset(self.prefetch_plan)
+        self._served = dict.fromkeys(CLASS_WEIGHTS, 0)  # prefetch fetches per priority class
+        self.expire_listeners: list[Callable[[Tile], None]] = []
         self._last_request = 0.0
         self._inflight: dict[Tile, asyncio.Task[None]] = {}
         self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
@@ -132,6 +135,31 @@ class TileCache:
         with contextlib.suppress(asyncio.TimeoutError):
             await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=cold_deadline_s)
 
+    def _coverage(self, wall: float) -> dict[str, dict[str, float | int | None]]:
+        """Per priority class: planned tiles, tiles with data, median and oldest age, share within 2x target."""
+        out: dict[str, dict[str, float | int | None]] = {}
+        for prio in sorted(CLASS_WEIGHTS):
+            tiles = [t for t, sp in self.prefetch_plan.items() if sp.priority == prio]
+            ages: list[float] = []
+            on_target = 0
+            for t in tiles:
+                st = self._states.get(t)
+                if st and st.entry:
+                    age = wall - st.entry.fetched_at
+                    ages.append(age)
+                    if age <= 2 * self.prefetch_plan[t].interval_s:
+                        on_target += 1
+            ages.sort()
+            out[str(prio)] = {
+                "tiles": len(tiles),
+                "with_data": len(ages),
+                "on_target": on_target,
+                "median_age_s": round(ages[len(ages) // 2], 1) if ages else None,
+                "oldest_age_s": round(ages[-1], 1) if ages else None,
+                "served": self._served[prio],
+            }
+        return out
+
     def snapshot_status(self) -> dict[str, object]:
         now = time.monotonic()
         wall = time.time()
@@ -145,7 +173,8 @@ class TileCache:
             "errors": self.status.errors,
             "tiles_cached": len(ages),
             "tiles_hot": len(hot),
-            "prefetch_tiles": len(self.prefetch_tiles),
+            "prefetch_tiles": len(self.prefetch_plan),
+            "coverage": self._coverage(wall),
             "prefetch_active": self._prefetch_active(now),
             "median_tile_age_s": round(ages[len(ages) // 2], 1) if ages else None,
             "oldest_tile_age_s": round(ages[-1], 1) if ages else None,
@@ -200,44 +229,46 @@ class TileCache:
         return best[1] if best else None
 
     def _prefetch_active(self, now: float) -> bool:
-        if not self.prefetch_tiles:
+        if not self.prefetch_plan:
             return False
         return self.prefetch_always or (
             self._last_request > 0 and now - self._last_request < self.prefetch_idle_s
         )
 
-    def _refresh_interval(self, st: TileState | None) -> float:
-        """How long a prefetched tile may rest: tiles that are usually empty (open ocean, polar areas)
-        are refreshed much less often than busy ones, which saves most of the budget for traffic."""
-        base = self.ttl_s
-        if st is None or st.observations < 2:
+    def _refresh_interval(self, tile: Tile, st: TileState | None) -> float:
+        """How long a prefetched tile may rest: its region's target, stretched for tiles that are
+        usually empty (open ocean, polar areas), which saves most of the budget for traffic."""
+        base = self.prefetch_plan[tile].interval_s
+        if st is None or st.observations < 2 or st.avg_count >= 8:
             return base
-        if st.avg_count >= 8:
-            return base
-        if st.avg_count >= 1.5:
-            return base * 3
-        return base * 10
+        return base * (3 if st.avg_count >= 1.5 else 10)
 
     def _pick_prefetch(self, now: float) -> Tile | None:
-        """The most overdue prefetch-region tile; only with spare capacity (and, unless always on,
-        while somebody has looked at the map recently)."""
+        """Spare-capacity fetch: pick the priority class that is furthest below its weighted share
+        among classes that have a tile due, then that class's most overdue tile (relative to its target)."""
         if not self._prefetch_active(now):
             return None
-        best: tuple[float, Tile] | None = None
-        for tile in self.prefetch_tiles:
+        best: dict[int, tuple[float, Tile]] = {}
+        for tile, spec in self.prefetch_plan.items():
             if tile in self._inflight:
                 continue
             st = self._states.get(tile)
             if st is not None and now < st.next_attempt:
                 continue
             last = st.last_attempt if st else 0.0
-            due = last + self._refresh_interval(st) if last else 0.0
-            if due > now:
+            interval = self._refresh_interval(tile, st)
+            overdue = 1e9 if not last else (now - last) / interval
+            if overdue < 1.0:
                 continue
-            # most overdue first; busy tiles win ties because their intervals are shorter
-            if best is None or due < best[0]:
-                best = (due, tile)
-        return best[1] if best else None
+            cur = best.get(spec.priority)
+            if cur is None or overdue > cur[0]:
+                best[spec.priority] = (overdue, tile)
+        if not best:
+            return None
+        # deficit round robin between classes: lowest served/weight goes first
+        prio = min(best, key=lambda p: self._served[p] / CLASS_WEIGHTS[p])
+        self._served[prio] += 1
+        return best[prio][1]
 
     def _ensure_fetch(self, tile: Tile) -> asyncio.Task[None]:
         task = self._inflight.get(tile)
@@ -339,7 +370,17 @@ class TileCache:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._wake.wait(), timeout=0.25)
 
+    def _expire_old_entries(self) -> None:
+        """Free memory of tile data too old to be served and tell listeners (the search index)."""
+        wall = time.time()
+        for tile, st in self._states.items():
+            if st.entry is not None and wall - st.entry.fetched_at > self.max_age_s * 1.5:
+                st.entry = None
+                for listener in self.expire_listeners:
+                    listener(tile)
+
     def _evict(self, now: float) -> None:
+        self._expire_old_entries()
         for tile in [
             t
             for t, s in self._states.items()

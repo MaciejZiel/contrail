@@ -38,6 +38,7 @@
     track: null as number | null,
     squawk: null as number | null,
     ageS: 0,
+    areaAgeS: 0,
     progress: null as number | null,
     tracked: false,
     flownKm: null as number | null,
@@ -64,6 +65,7 @@
       track: plane.track,
       squawk: plane.squawk || null,
       ageS: Math.max(0, now - plane.t0),
+      areaAgeS: Math.max(0, now - plane.fetchedAt),
       progress: null,
       flownKm: null,
       remainingKm: null,
@@ -183,6 +185,10 @@
     <div><dt>Position</dt><dd>{live.tracked ? fmtAge(live.ageS) : "not in view"}</dd></div>
   </dl>
 
+  {#if live.tracked}
+    <p class="muted ages">Position fix {fmtAge(live.ageS)} · area data refreshed {fmtAge(live.areaAgeS)}</p>
+  {/if}
+
   <section class="charts" aria-label="Flight history">
     {#if trail.state === "error"}
       <p class="muted">History is temporarily unavailable.</p>
@@ -241,6 +247,9 @@
   }
   :global(.sheet) .panel > .photo-slot {
     order: 4;
+  }
+  :global(.sheet) .panel > .ages {
+    order: 3;
   }
   :global(.sheet) .panel > .charts {
     order: 5;

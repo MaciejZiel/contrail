@@ -18,7 +18,7 @@ OUT = Path(__file__).resolve().parent.parent / "flightmap" / "data"
 
 
 def fetch(path: str) -> str | None:
-    req = urllib.request.Request(f"{BASE}/{path}", headers={"User-Agent": "LiveFlightsMap-build/1.0"})
+    req = urllib.request.Request(f"{BASE}/{path}", headers={"User-Agent": "Contrail-build/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read().decode("utf-8-sig")

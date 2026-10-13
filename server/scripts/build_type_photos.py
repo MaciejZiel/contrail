@@ -30,9 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "web" / "public" / "type-photos"
 LICENSES = ROOT / "3rdparty_licenses.md"
 API = "https://commons.wikimedia.org/w/api.php"
-UA = (
-    "LiveFlightsMap-gallery/1.0 (+https://github.com/MaciejZiel/live_flights_map; type photo gallery builder)"
-)
+UA = "Contrail-gallery/1.0 (+https://github.com/MaciejZiel/contrail; type photo gallery builder)"
 THUMB_WIDTH = 640
 PAUSE_S = 1.0
 

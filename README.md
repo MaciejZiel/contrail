@@ -1,4 +1,10 @@
-# Live Flights Map
+# Contrail
+
+[![CI](https://github.com/MaciejZiel/contrail/actions/workflows/ci.yml/badge.svg)](https://github.com/MaciejZiel/contrail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.12 to 3.14](https://img.shields.io/badge/python-3.12%E2%80%933.14-3776AB?logo=python&logoColor=white)
+![Svelte 5](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
+![MapLibre GL](https://img.shields.io/badge/MapLibre-GL-396CB2)
 
 **A fast, smooth live air-traffic map you can run on your own server: aircraft glide between updates, a click opens the flight (photo, route, altitude and speed history, track), and you can look up airports with weather.**
 
@@ -41,7 +47,9 @@ Read this before you rely on the map. The numbers below were measured while buil
 
 - The public ADSB.lol API answers a query for at most a 250 nautical mile circle, so the server works with 5 degree tiles and fetches **one request per tile**. From the machine this was developed on, **27 to 43 percent of requests were answered with HTTP 429** and the sustainable rate was roughly 0.2 requests per second.
 - Consequence: a **cold start of a large region is slow**. In a real 15 minute run only 67 of the 79 Europe tiles had loaded, and tile data was 4 to 5 minutes old on median. Zoomed in on a city or country the picture is fresh within seconds; zoomed out over a continent it is a mosaic of areas of different age, dead-reckoned in between. The status chip says how old the oldest area is. It does not pretend otherwise.
-- The server is a polite client: one shared fetcher, a global budget (`UPSTREAM_BUDGET_RPS`, default 0.2), automatic back-off on 429, tiles that are usually empty (ocean, polar) are refreshed far less often, and with no viewers it only keeps a configured region warm (Europe by default).
+- **World coverage is a plan, not a promise.** After the tiles somebody is looking at (always first, refreshed about every 10 s anywhere in the world), spare budget is shared between priority classes by weight: Europe 60 percent (target 4 minutes per tile), US East and West, the Gulf, East Asia and India 30 percent (15 minutes), the rest of the world 10 percent (one hour). At roughly 0.2 requests per second these targets cannot all be met: Europe alone has 79 tiles, and a full sweep of everything takes hours. The scheduler guarantees ordering and fairness (tested), not the targets. `/api/v1/status` reports the real median and oldest age per class.
+- **Old data is dimmed, then hidden.** Aircraft whose area was last refreshed more than 10 minutes ago are drawn faded, and beyond 15 minutes they disappear (server and client agree on the cap, and the server frees the memory). The flight panel shows both the age of the aircraft's last position and of its area.
+- The server is a polite client: one shared fetcher, a global budget (`UPSTREAM_BUDGET_RPS`, default 0.2), automatic back-off on 429, tiles that are usually empty (ocean, polar) are refreshed far less often, and the background plan is what it keeps warm.
 - **OpenSky Network is not used.** Its terms require a written licence for any operational use of its REST API in a live service. **airplanes.live is not used** either: its terms allow personal, non-commercial use only and forbid re-publishing the data. adsbdb.com is not used because its route data may not be copied into other databases.
 - The flight track is **our own record** of what the server has seen since it first looked at the aircraft. There is no permitted source for a complete trace from take-off, so a flight first seen mid-air gets a dashed, labelled "estimated path" from its origin airport.
 - Arrival times are estimates (remaining great-circle distance divided by current ground speed). Airport arrivals and departures are inferred from aircraft behaviour, not from schedules.
@@ -90,9 +98,9 @@ cd ../web && npm ci && npm run dev               # app on http://localhost:5173 
 | `BASE_PATH` | empty | URL prefix if the reverse proxy does not strip it |
 | `DEMO_MODE` | `0` | synthetic traffic and weather, no network |
 | `UPSTREAM_BUDGET_RPS` | `0.2` | upper bound for requests per second to ADSB.lol (adapts downwards on 429) |
-| `PREFETCH_REGION` | `35,72,-25,45` | south,north,west,east to keep warm in the background; empty disables |
+| `PREFETCH_REGIONS` | Europe, US East, US West, Middle East, East Asia, India, world | background coverage plan `name:south,north,west,east:priority:interval_s;...` (`all` for the world, `off` disables) |
 | `PREFETCH_ALWAYS` | `1` | prefetch even with no viewers (`0`: only for 15 minutes after the last viewer) |
-| `MAX_TILE_AGE_S` | `900` | tiles older than this are not served |
+| `MAX_TILE_AGE_S` | `900` | tiles older than this are not served; the map dims data older than two thirds of it |
 | `DATA_DIR` | `./data` | SQLite trail checkpoints |
 | `GZIP` | `1` | compress responses (turn off behind nginx) |
 | `USER_AGENT_CONTACT` | repo URL | included in the User-Agent sent to upstream services; set your own |
@@ -102,14 +110,14 @@ The API is documented in [server/README.md](server/README.md).
 
 ## Self-hosting on Termux
 
-The app runs as plain processes on a small always-on server; Termux on an aarch64 Android device is one tested-in-principle target (nothing here needs a native wheel). Public access is meant to go through a tunnel, with no open ports.
+Contrail runs as plain processes on a small always-on server; Termux on an aarch64 Android device is one target (nothing here needs a native wheel). The public name is `contrail.maciejzielinski.dev`, reached through a tunnel with no open ports.
 
-1. Install `python`, `nodejs` (24 LTS) and `nginx` from the Termux packages and clone this repository.
+1. Install `python`, `nodejs` (24 LTS) and `nginx` from the Termux packages and clone this repository to `~/contrail`.
 2. Build the web app once: `cd web && npm ci && npm run build`.
-3. Copy `deploy/termux/env.example` to `~/.config/flightmap.env` and set `USER_AGENT_CONTACT`.
+3. Copy `deploy/termux/env.example` to `~/.config/contrail.env` and set `USER_AGENT_CONTACT`.
 4. Start the API with `deploy/termux/start.sh` (it creates a virtualenv, installs the six pure-Python requirements and listens on `127.0.0.1:8100`).
-5. Include `deploy/termux/nginx.conf` in your nginx server block: it serves `web/dist` under `/flights/` and proxies `/flights/api/` with gzip and a 2 second micro-cache, so any number of viewers cost one backend call per two seconds.
-6. For start at boot copy `deploy/termux/boot-flightmap` to `~/.termux/boot/flightmap` (Termux:Boot).
+5. Include `deploy/termux/nginx.conf`: a server block for `contrail.maciejzielinski.dev` that serves `web/dist` and proxies `/api/` with gzip and a 2 second micro-cache, so any number of viewers cost one backend call per two seconds. Point the tunnel at `127.0.0.1:8080`.
+6. For start at boot copy `deploy/termux/boot-contrail` to `~/.termux/boot/contrail` (Termux:Boot).
 
 The measurements in this README were taken on a development laptop, not on that hardware.
 

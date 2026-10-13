@@ -34,15 +34,19 @@ test("aircraft keep moving between updates without jumps", async ({ page }) => {
   }
 });
 
-test("aircraft stay on screen however old their data gets", async ({ page }) => {
+test("old data is dimmed, then hidden once it is too old to trust", async ({ page }) => {
   await openMap(page);
-  // pretend the feed stalled: age every aircraft by ten minutes and check nothing is hidden
-  const before = await page.evaluate(() => (window as any).__flights.layer.coveredPixels());
-  await page.evaluate(() => {
-    for (const p of (window as any).__flights.store.planes) p.fetchedAt -= 600;
-  });
-  const after = await page.evaluate(() => (window as any).__flights.layer.coveredPixels());
-  expect(after).toBeGreaterThan(before * 0.8);
+  const pixels = () => page.evaluate(() => (window as any).__flights.layer.coveredPixels());
+  const fresh = await pixels();
+  expect(fresh).toBeGreaterThan(1000);
+  const age = (s: number) =>
+    page.evaluate((secs) => {
+      for (const p of (window as any).__flights.store.planes) p.fetchedAt = Date.now() / 1000 - secs;
+    }, s);
+  await age(700); // older than the dim threshold: still drawn, so never an empty map
+  expect(await pixels()).toBeGreaterThan(500);
+  await age(5000); // beyond the cap: not shown at all
+  expect(await pixels()).toBeLessThan(fresh * 0.05);
 });
 
 test("clicking an aircraft selects it and mirrors it in the URL", async ({ page }) => {

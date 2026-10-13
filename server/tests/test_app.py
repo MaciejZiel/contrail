@@ -37,6 +37,7 @@ class AppBase(unittest.IsolatedAsyncioTestCase):
             upstream_budget_rps=50.0,
             tile_ttl_s=30.0,
             trail_min_interval_s=0.0,
+            prefetch_regions="off",
             gzip=False,
         )
         self.app = create_app(self.settings)

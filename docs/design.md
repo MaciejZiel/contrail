@@ -1,4 +1,4 @@
-# Live Flights Map: rebuild design
+# Contrail: rebuild design
 
 Status: proposal, awaiting owner approval. No implementation code is part of this PR.
 

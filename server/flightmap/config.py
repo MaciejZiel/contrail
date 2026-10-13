@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-DEFAULT_CONTACT = "https://github.com/MaciejZiel/live_flights_map"
+DEFAULT_CONTACT = "https://github.com/MaciejZiel/contrail"
 
 
 def _bool(raw: str | None, default: bool) -> bool:
@@ -34,7 +34,8 @@ class Settings:
     trail_retention_s: float = 2700.0
     trail_min_interval_s: float = 10.0
     max_tile_age_s: float = 900.0
-    prefetch_region: str = "35,72,-25,45"  # south,north,west,east in degrees; empty disables prefetching
+    # name:south,north,west,east:priority:interval_s;...  (empty: defaults, "off": no prefetching)
+    prefetch_regions: str = ""
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = True
     upstream_budget_rps: float = 0.2
@@ -42,7 +43,7 @@ class Settings:
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
     max_tiles_per_request: int = 800
-    user_agent: str = field(default=f"LiveFlightsMap/1.0 (+{DEFAULT_CONTACT})")
+    user_agent: str = field(default=f"Contrail/1.0 (+{DEFAULT_CONTACT})")
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -62,9 +63,9 @@ class Settings:
             trail_retention_s=float(e.get("TRAIL_RETENTION_S", "2700")),
             trail_min_interval_s=float(e.get("TRAIL_MIN_INTERVAL_S", "10")),
             max_tile_age_s=float(e.get("MAX_TILE_AGE_S", "900")),
-            prefetch_region=e.get(
-                "PREFETCH_REGION", "" if _bool(e.get("DEMO_MODE"), False) else "35,72,-25,45"
-            ),
+            prefetch_regions="off"
+            if _bool(e.get("DEMO_MODE"), False) and "PREFETCH_REGIONS" not in e
+            else e.get("PREFETCH_REGIONS", ""),
             prefetch_idle_s=float(e.get("PREFETCH_IDLE_S", "900")),
             prefetch_always=_bool(e.get("PREFETCH_ALWAYS"), True),
             upstream_budget_rps=float(
@@ -74,5 +75,5 @@ class Settings:
             hot_window_s=float(e.get("HOT_WINDOW_S", "60")),
             evict_after_s=float(e.get("EVICT_AFTER_S", "600")),
             max_tiles_per_request=int(e.get("MAX_TILES_PER_REQUEST", "800")),
-            user_agent=f"LiveFlightsMap/1.0 (+{contact})",
+            user_agent=f"Contrail/1.0 (+{contact})",
         )

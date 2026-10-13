@@ -24,7 +24,7 @@ test("the altitude filter hides aircraft outside the range and is shareable", as
 });
 
 test("hiding ground traffic and resetting", async ({ page }) => {
-  await openMap(page, "c=50,10&z=5");
+  await openMap(page, "c=50.03,8.57&z=9"); // full density (no thinning) over an airport with parked aircraft
   const grounded = () => page.evaluate(() => (window as any).__flights.layer.visiblePlanes().filter((p: any) => p.onGround).length);
   expect(await grounded()).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Filters" }).click();

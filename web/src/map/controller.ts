@@ -4,6 +4,7 @@ import { greatCircle } from "../core/geodesy";
 import { haversineKm } from "../core/format";
 import { serverNow } from "../core/clock";
 import type { Filters } from "../core/filters";
+import { limits, loadLimits } from "../core/staleness";
 import { Poller, type FeedStatus } from "../core/poller";
 import type { Plane } from "../core/plane";
 import type { AircraftStore } from "../core/store";
@@ -138,6 +139,7 @@ export class MapController {
         attr?.classList.remove("maplibregl-compact-show");
         attr?.removeAttribute("open");
       }
+      void loadLimits("./");
       this.poller.start();
       void fetchAirportCatalog(this.catalogAbort.signal).then(
         (rows) => this.airports.install(rows),
@@ -147,7 +149,7 @@ export class MapController {
     this.timers.push(
       setInterval(() => this.updateLiveTrail(), 1000),
       setInterval(() => {
-        o.store.prune(serverNow(), 900);
+        o.store.prune(serverNow(), limits.hideAfterS);
         o.onData();
       }, 30000),
     );

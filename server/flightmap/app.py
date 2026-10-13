@@ -36,10 +36,11 @@ from .providers.adsblol import AdsbLolProvider
 from .providers.routes import Route, RouteProvider, is_plausible, progress
 from .providers.weather import Metar, WeatherProvider
 from .reference import airline_for_callsign, airline_name, type_name
+from .regions import build_plan, parse_regions
 from .search import aircraft_item, nearby_aircraft, search_all
 from .thinning import level_for_zoom, thin
 from .tilecache import TileCache, TileEntry
-from .tiles import Tile, parse_region, tiles_in_rect
+from .tiles import Tile, tiles_in_rect
 from .trafficmask import load_traffic_tiles
 from .trails import TrailStore
 from .upstream import TokenBucket, UpstreamClient, UpstreamError
@@ -432,6 +433,7 @@ class Api:
     async def status(self, _request: Request) -> Response:
         data = self.cache.snapshot_status()
         data["version"] = __version__
+        data["max_age_s"] = self.settings.max_tile_age_s
         data["demo"] = self.settings.demo_mode
         data["trails"] = len(self.trails)
         data["trail_points"] = self.trails.points
@@ -453,10 +455,7 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     client = None if settings.demo_mode and provider is None else UpstreamClient(settings.user_agent)
     tile_provider = provider or build_provider(settings, client)
     traffic_tiles = load_traffic_tiles()
-    region = [t for t in parse_region(settings.prefetch_region) if t in traffic_tiles]
-    if region:  # start in the middle of the region, where most of the traffic is
-        cx, cy = sum(t[0] for t in region) / len(region), sum(t[1] for t in region) / len(region)
-        region.sort(key=lambda t: (t[0] - cx) ** 2 + (t[1] - cy) ** 2)
+    plan = build_plan(parse_regions(settings.prefetch_regions), traffic_tiles)
     cache = TileCache(
         provider=tile_provider,
         budget_rps=settings.upstream_budget_rps,
@@ -464,12 +463,13 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         hot_window_s=settings.hot_window_s,
         evict_after_s=settings.evict_after_s,
         max_age_s=settings.max_tile_age_s,
-        prefetch_tiles=region,
+        prefetch_plan=plan,
         prefetch_idle_s=settings.prefetch_idle_s,
         prefetch_always=settings.prefetch_always,
     )
     index = AircraftIndex()
     cache.listeners.append(index.update)
+    cache.expire_listeners.append(lambda tile: index.update(tile, [], 0.0))
     db_path = None
     if settings.data_dir:
         os.makedirs(settings.data_dir, exist_ok=True)

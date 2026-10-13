@@ -1,6 +1,7 @@
 import type { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import { serverNow } from "../core/clock";
 import { clamp, latToY, lonToX } from "../core/geo";
+import { staleOpacity } from "../core/staleness";
 import type { Plane } from "../core/plane";
 import type { AircraftStore } from "../core/store";
 import { AircraftGl, STRIDE_FLOATS } from "./aircraftGl";
@@ -202,6 +203,9 @@ export class AircraftLayer {
     for (let i = 0; i < planes.length; i++) {
       const p = planes[i] as Plane;
       if (accepts && !accepts(p)) continue;
+      const isSel = selected === p.hex;
+      const opacity = isSel ? 1 : staleOpacity(now - p.fetchedAt);
+      if (opacity === 0) continue; // data too old to show
       const pos = p.positionAt(now);
       const py = (pos.y - cmy) * worldSize + h / 2;
       if (py < -margin || py > h + margin) continue;
@@ -209,9 +213,8 @@ export class AircraftLayer {
       dx -= Math.round(dx);
       const rot = (p.easeTrack(frameDt) * Math.PI) / 180;
       const sprite = spriteFor(p.category, p.onGround);
-      const isSel = selected === p.hex;
       const [r, g, b] = altitudeRgb(p.altitudeAt(now), p.onGround);
-      const color = packRgba(r, g, b, 255);
+      const color = packRgba(r, g, b, Math.round(255 * opacity));
       const sz = size * sprite.scale * (isSel ? 1.35 : 1);
       for (let k = -1; k <= 1; k++) {
         const px = (dx + k) * worldSize + w / 2;
