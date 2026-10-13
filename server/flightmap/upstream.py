@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import io
 import json
 import time
 import urllib.error
@@ -22,6 +23,16 @@ class UpstreamError(Exception):
         super().__init__(message)
         self.status = status
         self.retry_after = retry_after
+
+
+class BudgetExhausted(UpstreamError):
+    """Our own per-source request budget is empty: nothing was sent, so the source is not at fault."""
+
+    def __init__(self, source: str) -> None:
+        super().__init__(f"{source} request budget exhausted")
+
+
+MAX_BODY_BYTES = 8 * 1024 * 1024
 
 
 class UpstreamClient:
@@ -43,9 +54,14 @@ class UpstreamClient:
             req.add_header(key, value)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:  # noqa: S310
-                raw = resp.read()
+                raw = resp.read(MAX_BODY_BYTES + 1)
+                if len(raw) > MAX_BODY_BYTES:
+                    raise UpstreamError(f"response from {url} is larger than {MAX_BODY_BYTES} bytes")
                 if resp.headers.get("Content-Encoding") == "gzip":
-                    raw = gzip.decompress(raw)
+                    with gzip.GzipFile(fileobj=io.BytesIO(raw)) as gz:
+                        raw = gz.read(MAX_BODY_BYTES + 1)
+                    if len(raw) > MAX_BODY_BYTES:
+                        raise UpstreamError(f"decompressed response from {url} is too large")
                 return resp.status, raw
         except urllib.error.HTTPError as exc:
             exc.close()

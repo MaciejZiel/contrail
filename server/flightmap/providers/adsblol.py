@@ -100,8 +100,12 @@ class AdsbLolProvider:
     name = "adsb.lol"
     source_id = SOURCE_ADSBLOL
 
-    def __init__(self, client: UpstreamClient, base_url: str) -> None:
+    def __init__(
+        self, client: UpstreamClient, base_url: str, lookup_client: UpstreamClient | None = None
+    ) -> None:
         self._client = client
+        # single-aircraft lookups use their own thread so they can never queue in front of tiles
+        self._lookup_client = lookup_client or client
         self._base = base_url.rstrip("/")
 
     async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
@@ -114,7 +118,7 @@ class AdsbLolProvider:
 
     async def fetch_hex(self, hex_str: str) -> Aircraft | None:
         """Current state of one aircraft anywhere in the world (None when it is not tracked)."""
-        payload = await self._client.get_json(f"{self._base}/v2/hex/{hex_str.lower()}")
+        payload = await self._lookup_client.get_json(f"{self._base}/v2/hex/{hex_str.lower()}")
         found = parse_point_response(payload)
         return found[0] if found else None
 
@@ -122,6 +126,6 @@ class AdsbLolProvider:
         paths = {"hex": "hex", "callsign": "callsign", "reg": "reg"}
         if kind not in paths or not re.fullmatch(r"[A-Za-z0-9-]{2,12}", value):
             return None
-        payload = await self._client.get_json(f"{self._base}/v2/{paths[kind]}/{value.lower()}")
+        payload = await self._lookup_client.get_json(f"{self._base}/v2/{paths[kind]}/{value.lower()}")
         found = parse_point_response(payload)
         return found[0] if found else None

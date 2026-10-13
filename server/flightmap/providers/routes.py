@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from ..upstream import UpstreamClient, UpstreamError
+from ..upstream import BudgetExhausted, TokenBucket, UpstreamClient, UpstreamError
 
 _CALLSIGN = re.compile(r"^[A-Z0-9]{3,8}$")
 
@@ -105,8 +105,9 @@ def progress(route: Route, lat: float, lon: float) -> float | None:
 class RouteProvider:
     name = "vrs-standing-data"
 
-    def __init__(self, client: UpstreamClient, base_url: str) -> None:
+    def __init__(self, client: UpstreamClient, base_url: str, bucket: TokenBucket | None = None) -> None:
         self._client = client
+        self._bucket = bucket
         self._base = base_url.rstrip("/")
 
     async def lookup(self, callsign: str) -> Route | None:
@@ -114,6 +115,8 @@ class RouteProvider:
         cs = callsign.strip().upper()
         if not _CALLSIGN.match(cs):
             return None
+        if self._bucket is not None and not self._bucket.try_take():
+            raise BudgetExhausted(self.name)
         try:
             payload = await self._client.get_json(f"{self._base}/routes/{cs[:2]}/{cs}.json")
         except UpstreamError as exc:

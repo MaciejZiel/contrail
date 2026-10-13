@@ -7,7 +7,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .upstream import UpstreamError
+from .upstream import BudgetExhausted, UpstreamError
 
 _MISSING = object()
 
@@ -65,6 +65,8 @@ class EnrichmentCache:
     async def _load(self, key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
         try:
             value = await asyncio.wait_for(loader(), timeout=self._timeout)
+        except BudgetExhausted:
+            raise  # our own limit, not the source's fault: no breaker, no negative caching
         except (UpstreamError, TimeoutError) as exc:
             err = exc if isinstance(exc, UpstreamError) else UpstreamError("timeout")
             self._failures += 1

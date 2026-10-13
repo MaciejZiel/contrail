@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from ..upstream import UpstreamClient, UpstreamError
+from ..upstream import BudgetExhausted, TokenBucket, UpstreamClient, UpstreamError
 
 _ICAO = re.compile(r"^[A-Z0-9]{3,4}$")
 _SM_TO_M = 1609.344
@@ -87,28 +87,37 @@ def parse_metar(item: dict[str, Any]) -> Metar | None:
     )
 
 
-async def _get_with_retry(client: UpstreamClient, url: str) -> Any:
-    """The data API occasionally times out: one retry, but never when we are being rate limited."""
-    try:
-        return await client.get_json(url)
-    except UpstreamError as exc:
-        if exc.status == 429:
+async def _get_limited(client: UpstreamClient, bucket: TokenBucket | None, url: str) -> Any:
+    """One request, or two when the first times out: every attempt takes a token from the bucket
+    that keeps us under the Aviation Weather Center limit of 100 requests per minute."""
+    for attempt in (1, 2):
+        if bucket is not None and not bucket.try_take():
+            raise BudgetExhausted("weather")
+        try:
+            return await client.get_json(url)
+        except BudgetExhausted:
             raise
-        return await client.get_json(url)
+        except UpstreamError as exc:
+            if attempt == 2 or exc.status is not None:  # only network errors and timeouts are retried
+                raise
+    raise UpstreamError("unreachable")
 
 
 class WeatherProvider:
     name = "aviationweather.gov"
 
-    def __init__(self, client: UpstreamClient, base_url: str) -> None:
+    def __init__(self, client: UpstreamClient, base_url: str, bucket: TokenBucket | None = None) -> None:
         self._client = client
+        self._bucket = bucket
         self._base = base_url.rstrip("/")
 
     async def metar(self, icao: str) -> Metar | None:
         code = icao.upper()
         if not _ICAO.match(code):
             return None
-        payload = await _get_with_retry(self._client, f"{self._base}/api/data/metar?ids={code}&format=json")
+        payload = await _get_limited(
+            self._client, self._bucket, f"{self._base}/api/data/metar?ids={code}&format=json"
+        )
         if not isinstance(payload, list):
             raise UpstreamError("unexpected METAR response shape")
         for item in cast(list[Any], payload):
@@ -122,7 +131,9 @@ class WeatherProvider:
         code = icao.upper()
         if not _ICAO.match(code):
             return None
-        payload = await _get_with_retry(self._client, f"{self._base}/api/data/taf?ids={code}&format=json")
+        payload = await _get_limited(
+            self._client, self._bucket, f"{self._base}/api/data/taf?ids={code}&format=json"
+        )
         if not isinstance(payload, list):
             raise UpstreamError("unexpected TAF response shape")
         for item in cast(list[Any], payload):
