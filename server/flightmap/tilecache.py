@@ -30,6 +30,14 @@ FOCUS_SHARE = 0.75
 # After a 429 the rate grows back by RECOVERY_STEP_RPS per RECOVERY_INTERVAL_S without another one.
 RECOVERY_STEP_RPS = 0.02
 RECOVERY_INTERVAL_S = 30.0
+# On-demand tiles that keep coming back empty are refreshed this many times less often (and count
+# that much less towards the shared refresh interval), but never less often than max_age allows.
+EMPTY_STRETCH = ((6, 8.0), (3, 4.0), (1, 2.0))
+# A never-fetched tile ranks like a tile that is just due: any known tile that is later than that
+# goes first, so a flood of new tiles cannot push known ones past their refresh time.
+COLD_RANK = 1.0
+COLD_SHARE = 0.4  # of the budget, for immediate fetches on first sight of a tile
+COLD_BURST = 12.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
 
@@ -79,6 +87,9 @@ class TileCache:
     prefetch_plan: dict[Tile, PrefetchSpec] = field(default_factory=lambda: dict[Tile, PrefetchSpec]())
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = False
+    # Tiles where traffic is ever expected. When set, a tile outside it that never showed an aircraft
+    # is not fetched on demand: a client naming ocean tiles must not be able to spend the budget.
+    traffic_mask: frozenset[Tile] | None = None
     # injectable clocks: tests drive the scheduler with a fake clock instead of waiting
     clock: Callable[[], float] = time.monotonic
     wall_clock: Callable[[], float] = time.time
@@ -95,6 +106,9 @@ class TileCache:
         self._bucket = TokenBucket(
             self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0, clock=self.clock
         )
+        # Immediate fetches for never-seen tiles get their own small share, so a client cannot turn
+        # "wait for the tile" into an unlimited claim on the shared budget.
+        self._cold = TokenBucket(self.budget_rps * COLD_SHARE, burst=COLD_BURST, clock=self.clock)
         self._version = 0
         self._limited: list[float] = []
         self._last_rate_change = 0.0  # monotonic
@@ -121,6 +135,36 @@ class TileCache:
                 out.append(st.entry)
         return out
 
+    def _worth_fetching(self, tile: Tile, st: TileState) -> bool:
+        return (
+            self.traffic_mask is None
+            or tile in self.traffic_mask
+            or st.ever_had_traffic
+            or tile in self._prefetch_set
+        )
+
+    def _stretch(self, st: TileState) -> float:
+        """How many times longer than the base interval an on-demand tile may rest."""
+        if st.observations < 1 or st.avg_count >= 8:
+            return 1.0
+        for streak, factor in EMPTY_STRETCH:
+            if st.empty_streak >= streak:
+                return factor
+        return 1.0
+
+    def _hot(self, now: float) -> list[tuple[Tile, TileState]]:
+        return [
+            (t, s)
+            for t, s in self._states.items()
+            if now - s.last_demand <= self.hot_window_s and self._worth_fetching(t, s)
+        ]
+
+    @staticmethod
+    def _load(group: list[tuple[Tile, TileState]], stretch: Callable[[TileState], float]) -> float:
+        """Share of the budget a group of hot tiles needs: never-fetched tiles count nothing (they only
+        take what known tiles leave), rarely changing ones count for a fraction."""
+        return sum(1.0 / stretch(s) for _t, s in group if s.last_attempt)
+
     def has_traffic(self, tile: Tile) -> bool:
         st = self._states.get(tile)
         return bool(st and st.ever_had_traffic)
@@ -140,12 +184,14 @@ class TileCache:
             st.rank = rank
             if focus:
                 st.last_focus = now
-            if st.entry is None and now >= st.next_attempt:
+            if st.entry is None and now >= st.next_attempt and self._worth_fetching(t, st):
                 cold.append(t)
         self._wake.set()
         if not cold or not focus:
             return  # wide views are served by the scheduler, in priority order, without waiting
-        tasks = [self._ensure_fetch(t) for t in cold[:12]]
+        tasks = [self._ensure_fetch(t) for t in cold[:12] if t in self._inflight or self._cold.try_take()]
+        if not tasks:
+            return
         # asyncio.wait never cancels: the fetches are shared with other viewers and the background
         # loop, so a viewer that gives up waiting must not throw the upstream call away.
         await asyncio.wait(tasks, timeout=cold_deadline_s)
@@ -178,7 +224,7 @@ class TileCache:
     def snapshot_status(self) -> dict[str, object]:
         now = self._now()
         wall = self._wall()
-        hot = [s for s in self._states.values() if now - s.last_demand <= self.hot_window_s]
+        hot = self._hot(now)
         ages = sorted(wall - s.entry.fetched_at for s in self._states.values() if s.entry)
         return {
             "provider": self.provider.name,
@@ -196,7 +242,7 @@ class TileCache:
             "newest_tile_age_s": round(ages[0], 1) if ages else None,
             "budget_rps": self.budget_rps,
             "current_rps": round(self._bucket.rate, 3),
-            "effective_ttl_s": round(self._effective_ttl(len(hot)), 1),
+            "effective_ttl_s": round(self._effective_ttl(self._load(hot, self._stretch)), 1),
             "aircraft": sum(len(s.entry.aircraft) for s in self._states.values() if s.entry),
         }
 
@@ -219,28 +265,31 @@ class TileCache:
 
     # -- scheduling -------------------------------------------------------------------
 
-    def _effective_ttl(self, hot_count: int) -> float:
-        return max(self.ttl_s, hot_count / max(self._bucket.rate, 0.01))
+    def _effective_ttl(self, load: float) -> float:
+        return max(self.ttl_s, load / max(self._bucket.rate, 0.01))
 
     def _pick(self, now: float) -> Tile | None:
-        hot = [(t, s) for t, s in self._states.items() if now - s.last_demand <= self.hot_window_s]
+        hot = self._hot(now)
         focus = [(t, s) for t, s in hot if now - s.last_focus <= self.hot_window_s]
         if focus and len(focus) < len(hot):
             # focus tiles first, but leave part of the budget to wide views so they still fill in
-            ttl = max(self.ttl_s, len(focus) / max(self._bucket.rate * FOCUS_SHARE, 0.01))
+            ttl = max(self.ttl_s, self._load(focus, self._stretch) / max(self._bucket.rate * FOCUS_SHARE, 0.01))
             tile = self._most_overdue(focus, now, ttl)
             if tile is not None:
                 return tile
-        return self._most_overdue(hot, now, self._effective_ttl(len(hot)))
+        return self._most_overdue(hot, now, self._effective_ttl(self._load(hot, self._stretch)))
 
     def _most_overdue(self, candidates: list[tuple[Tile, TileState]], now: float, ttl: float) -> Tile | None:
-        best: tuple[float, Tile] | None = None
+        best: tuple[tuple[float, int], Tile] | None = None
         for tile, st in candidates:
             if tile in self._inflight or now < st.next_attempt:
                 continue
-            overdue = (now - st.last_attempt) / ttl if st.last_attempt else 1e9 - st.rank
-            if overdue >= 1.0 and (best is None or overdue > best[0]):
-                best = (overdue, tile)
+            # a tile that is usually empty rests longer, but must still be looked at before its data expires
+            interval = min(ttl * self._stretch(st), max(ttl, self.max_age_s * 0.5))
+            overdue = (now - st.last_attempt) / interval if st.last_attempt else COLD_RANK
+            key = (overdue, -st.rank)  # equally overdue: the tile nearest the view centre first
+            if overdue >= 1.0 and (best is None or key > best[0]):
+                best = (key, tile)
         return best[1] if best else None
 
     def _prefetch_active(self, now: float) -> bool:

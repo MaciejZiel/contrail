@@ -691,6 +691,7 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         prefetch_plan=plan,
         prefetch_idle_s=settings.prefetch_idle_s,
         prefetch_always=settings.prefetch_always,
+        traffic_mask=traffic_tiles,
     )
     index = AircraftIndex()
     cache.listeners.append(index.update)
