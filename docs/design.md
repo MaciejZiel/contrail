@@ -2,6 +2,20 @@
 
 Status: proposal, awaiting owner approval. No implementation code is part of this PR.
 
+## Amendments after terms verification (supersede conflicting text below)
+
+Terms were read from primary sources before implementation. They changed the design:
+
+1. **OpenSky is not a default source.** Its Terms of Use and Data License Agreement (https://opensky-network.org/about/terms-of-use) state that operational use of the REST API in any live product or service requires a previous written agreement, even for non-profits, and that the data licence is for non-profit research and education. A public live tracker is operational use. OpenSky therefore stays in the codebase only as an **opt-in provider** (`OPENSKY_ENABLED=1` plus `OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`, from env vars only), to be switched on only if the owner holds a written agreement. It is off by default. Where the text below says "world layer from OpenSky", read "optional".
+2. **airplanes.live is left out.** Its terms page returned 403 and no official terms could be verified (the API archive states only a 1 request/s limit). Unverifiable terms mean not added.
+3. **adsbdb.com is left out.** Its README states that the flight route data may not be copied, published or incorporated into other databases without permission, and the aircraft data comes from PlaneBase. Route data comes only from the ADSB.lol `routeset` endpoint; aircraft type and registration come from the ADSB.lol state records themselves (`r`, `t`, `desc`).
+4. **Planespotters photos are fetched by the browser, not by our server.** The Photo API terms prohibit proxying or rewriting URLs, passing images on to other clients, and re-exposing the API's data through our own API. Browsers must call the CORS-enabled API from a page with a valid Origin; thumbnails must be used from the returned URLs unchanged, link to the returned photo page with a plain anchor (no `nofollow`), and show the photographer in text next to the image; JSON may be cached up to 24 h; the photo area must be free to all users. The backend has no photo endpoint.
+5. **World view without OpenSky.** ADSB.lol has no global endpoint (`/v2/all` returns 503). The world view is a mosaic: the same tile cache is used at every zoom, the client asks for the tiles intersecting its viewport (capped), and the server only fetches tiles from a precomputed set of "traffic tiles" (tiles containing a large or medium airport from OurAirports, plus tiles where aircraft were observed). Tiles are refreshed oldest-first under the global request budget, so a world view fills in progressively and each tile carries its age; the effective TTL stretches with demand (a full world view cycles in several minutes). Dead reckoning keeps aircraft moving, and the freshness chip states the age honestly.
+6. **Tile size is 5 x 5 degrees** (half-diagonal ~212 nm at the equator, inside the 250 nm `point` limit; ADSB.lol returned 774 aircraft for a 250 nm circle over central Europe, so there is no 1,000 cap to subdivide for).
+7. **Fixtures are synthetic only.** The fixture upstream serves synthetic data shaped exactly like each real API response; no ADSB.lol extract is committed.
+8. **Basemap:** OpenFreeMap vector tiles with our own dark style; attribution "OpenFreeMap, (c) OpenMapTiles, data from OpenStreetMap" (ODbL).
+9. **Storage:** SQLite plus in-memory ring buffers. Public copy calls the host a self-hosted server.
+
 ## 1. Why a rebuild
 
 A QA audit (evidence in the review thread) found the current app fundamentally broken, not merely buggy:
