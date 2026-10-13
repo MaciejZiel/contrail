@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Contrail">
+  <defs>
+    <linearGradient id="t" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#5eead4" stop-opacity="0"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b1020"/>
+  <!-- the contrail: two engine trails fading out behind the aircraft -->
+  <g stroke="url(#t)" stroke-width="3.6" stroke-linecap="round" fill="none">
+    <path d="M11 54 L29 36"/>
+    <path d="M17 58 L33 42"/>
+  </g>
+  <!-- the aircraft, own silhouette, heading up and to the right -->
+  <path fill="#5eead4" transform="translate(37 26) rotate(45) scale(0.68) translate(-32 -32)"
+        d="M32 4C34 4 35 8 35 14L35 26L58 40L58 45L35 38L35 50L42 56L42 59L32 57L22 59L22 56L29 50L29 38L6 45L6 40L29 26L29 14C29 8 30 4 32 4Z"/>
+</svg>
