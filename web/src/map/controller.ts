@@ -1,5 +1,7 @@
-import { AttributionControl, Map as MapLibreMap, type MapMouseEvent, NavigationControl, setWorkerUrl } from "maplibre-gl";
-import { fetchAirportCatalog, type Trail } from "../core/api";
+import { AttributionControl, Map as MapLibreMap, type MapMouseEvent, Marker, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import { fetchAirportCatalog, type RouteInfo, type Trail } from "../core/api";
+import { greatCircle } from "../core/geodesy";
+import { haversineKm } from "../core/format";
 import { serverNow } from "../core/clock";
 import type { Filters } from "../core/filters";
 import { Poller, type FeedStatus } from "../core/poller";
@@ -44,6 +46,8 @@ export class MapController {
   private airports: AirportLayer;
   private poller: Poller;
   private currentTrail: Trail | null = null;
+  private route: RouteInfo | null = null;
+  private markers: Marker[] = [];
   private timers: Array<ReturnType<typeof setInterval>> = [];
   private moveTimer: ReturnType<typeof setTimeout> | undefined;
   private urlTimer: ReturnType<typeof setTimeout> | undefined;
@@ -163,7 +167,28 @@ export class MapController {
 
   setTrail(t: Trail | null): void {
     this.currentTrail = t;
+    this.refreshEstimated();
     this.trail.setTrail(t);
+    this.updateLiveTrail();
+  }
+
+  /** The selected aircraft's route: marks origin and destination and draws the rest of the way. */
+  setRoute(route: RouteInfo | null): void {
+    this.route = route;
+    this.refreshEstimated();
+    this.markers.forEach((m) => m.remove());
+    this.markers = [];
+    if (route?.plausible) {
+      const pin = (a: RouteInfo["origin"], role: string, text = a.iata || a.icao) => {
+        const el = document.createElement("div");
+        el.className = `route-pin ${role}`;
+        el.textContent = text;
+        el.title = `${role === "origin" ? "Origin" : "Destination"}: ${a.name}`;
+        this.markers.push(new Marker({ element: el, anchor: "bottom" }).setLngLat([a.lon, a.lat]).addTo(this.map));
+      };
+      pin(route.origin, "origin");
+      pin(route.destination, "destination");
+    }
     this.updateLiveTrail();
   }
 
@@ -173,6 +198,7 @@ export class MapController {
     const plane = hex === null ? undefined : this.o.store.get(hex);
     if (!plane) {
       this.trail.setLive(null, null, null);
+      this.trail.setRouteLines([], []);
       return;
     }
     const pos = plane.positionAt(serverNow());
@@ -182,6 +208,41 @@ export class MapController {
     const n = t?.t.length ?? 0;
     const last = t && n > 0 ? { lat: t.lat[n - 1] as number, lon: t.lon[n - 1] as number, altFt: t.alt[n - 1] ?? null } : null;
     this.trail.setLive(last, live, plane.speedKt ? ahead : null);
+    this.updateRouteLines(live);
+  }
+
+  private estLabel: Marker | null = null;
+  private estimatedLine: ReturnType<typeof greatCircle> = [];
+
+  /** Where the aircraft probably came from when it was first seen far from its origin airport. */
+  private refreshEstimated(): void {
+    this.estLabel?.remove();
+    this.estLabel = null;
+    this.estimatedLine = [];
+    const r = this.route;
+    const t = this.currentTrail;
+    if (!r?.plausible || !t || t.t.length === 0) return;
+    const fLat = t.lat[0] as number;
+    const fLon = t.lon[0] as number;
+    if (haversineKm(r.origin.lat, r.origin.lon, fLat, fLon) <= 40) return;
+    this.estimatedLine = greatCircle(r.origin.lat, r.origin.lon, fLat, fLon, 40);
+    const seg = this.estimatedLine[0];
+    const mid = seg?.[Math.floor((seg?.length ?? 0) / 2)];
+    if (mid) {
+      const el = document.createElement("div");
+      el.className = "route-est-label";
+      el.textContent = "estimated path";
+      this.estLabel = new Marker({ element: el }).setLngLat(mid).addTo(this.map);
+    }
+  }
+
+  private updateRouteLines(live: { lat: number; lon: number }): void {
+    const r = this.route;
+    if (!r?.plausible) {
+      this.trail.setRouteLines([], []);
+      return;
+    }
+    this.trail.setRouteLines(greatCircle(live.lat, live.lon, r.destination.lat, r.destination.lon, 48), this.estimatedLine);
   }
 
   /** Mirror the view and selection into the address bar (throttled). */

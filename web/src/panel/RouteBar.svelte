@@ -1,7 +1,14 @@
 <script lang="ts">
   import type { Loaded, RouteInfo } from "../core/api";
+  import { type Eta, fmtDistance, fmtDuration, fmtUtc } from "../core/geodesy";
 
-  let { route, progress }: { route: Loaded<RouteInfo>; progress: number | null } = $props();
+  let {
+    route,
+    progress,
+    flownKm,
+    remainingKm,
+    eta,
+  }: { route: Loaded<RouteInfo>; progress: number | null; flownKm: number | null; remainingKm: number | null; eta: Eta | null } = $props();
 
   const code = (a: { iata: string; icao: string }) => a.iata || a.icao;
 </script>
@@ -28,6 +35,19 @@
         </svg>
       {/if}
     </div>
+    {#if r.plausible && flownKm !== null && remainingKm !== null}
+      <dl class="legs">
+        <div><dt>Flown</dt><dd>{fmtDistance(flownKm)}</dd></div>
+        <div><dt>Remaining</dt><dd>{fmtDistance(remainingKm)}</dd></div>
+        {#if eta}
+          <div class="eta" title="Estimate: remaining great-circle distance divided by the current ground speed. Wind, routing and the approach are not considered.">
+            <dt>Arrival <em>estimate</em></dt>
+            <dd>in {fmtDuration(eta.minutes)} · {fmtUtc(eta.arrivalUtc)}</dd>
+          </div>
+        {/if}
+      </dl>
+      <p class="fine">Distances are straight lines between the airports and the aircraft, not the flown path.</p>
+    {/if}
     {#if !r.plausible}
       <p class="note">This aircraft does not look like it is flying this scheduled route right now.</p>
     {/if}
@@ -104,6 +124,40 @@
     fill: var(--accent);
     stroke: var(--surface-2);
     stroke-width: 3;
+  }
+  .legs {
+    display: grid;
+    gap: 4px;
+    margin: 8px 0 0;
+  }
+  .legs div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .legs dt {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .legs dt em {
+    font-style: normal;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 4px;
+    margin-left: 4px;
+  }
+  .legs dd {
+    margin: 0;
+    font: 600 13px var(--mono);
+    text-align: right;
+  }
+  .fine {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--text-dim);
   }
   .note {
     margin: 0;
