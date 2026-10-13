@@ -127,6 +127,7 @@ class TrailStore:
         db_path: str | None = None,
         recent_s: float = 900.0,
         max_points: int = 1500,
+        max_trails: int = MAX_TRAILS,
     ):
         self.retention_s = retention_s  # unseen for this long: the flight is over
         self.min_interval_s = min_interval_s
@@ -137,17 +138,22 @@ class TrailStore:
         self._unsaved: list[tuple[int, float, int, int, int, int, int]] = []
         self._task: asyncio.Task[None] | None = None
         self.points = 0
+        self.max_trails = max_trails
+        self.evicted = 0  # trails dropped to make room for newly seen aircraft
 
     # -- recording --------------------------------------------------------------------
 
     def record(self, a: Aircraft, fix_time: float, now: float | None = None) -> bool:
         """Append a position if it is new enough. ``fix_time`` is when the position was observed."""
         now = time.time() if now is None else now
-        tr = self._trails.get(a.hex)
+        tr = self._trails.pop(a.hex, None)  # re-inserted below: dict order is least-recently-seen first
         if tr is None:
-            if len(self._trails) >= MAX_TRAILS:
-                return False
-            tr = self._trails[a.hex] = _Trail()
+            if len(self._trails) >= self.max_trails:
+                oldest = next(iter(self._trails))
+                self.points -= len(self._trails.pop(oldest).t)
+                self.evicted += 1
+            tr = _Trail()
+        self._trails[a.hex] = tr
         tr.last_seen = now
         if tr.t:
             if fix_time - tr.t[-1] > self.retention_s or (
@@ -299,7 +305,10 @@ class TrailStore:
             await asyncio.to_thread(self._save_sync, rows, time.time() - PERSIST_RETENTION_S)
         except sqlite3.Error:
             log.exception("could not checkpoint trails")
-            self._unsaved = rows + self._unsaved if len(rows) < 100_000 else self._unsaved
+            if len(rows) < 100_000:
+                self._unsaved = rows + self._unsaved
+            else:
+                log.warning("dropping %d unsaved trail rows after a failed checkpoint", len(rows))
 
     async def stop(self) -> None:
         if self._task:
