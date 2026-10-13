@@ -10,7 +10,7 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:e2e": "vite build && playwright test",
-    "prepare:maplibre": "node scripts/copy-maplibre-worker.mjs",
+    "prepare:maplibre": "node scripts/copy-maplibre-worker.mjs && node scripts/collect-licenses.mjs",
     "predev": "npm run prepare:maplibre",
     "prebuild": "npm run prepare:maplibre"
   },
@@ -20,7 +20,7 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@sveltejs/vite-plugin-svelte": "6.2.4",
-    "@types/node": "^24.19.0",
+    "@types/node": "24.19.0",
     "svelte": "5.57.1",
     "svelte-check": "4.7.6",
     "typescript": "5.9.3",

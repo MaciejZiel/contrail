@@ -56,7 +56,7 @@ export class MapController {
   private catalogAbort = new AbortController();
 
   constructor(private o: ControllerOptions) {
-    setWorkerUrl(new URL("maplibre/maplibre-gl-worker.mjs", document.baseURI).href);
+    setWorkerUrl(new URL(`maplibre/${__MAPLIBRE_VERSION__}/maplibre-gl-worker.mjs`, document.baseURI).href);
     const m = new MapLibreMap({
       container: o.container,
       style: o.offline ? offlineStyle() : onlineStyle(),
@@ -81,7 +81,8 @@ export class MapController {
         customAttribution:
           '<a href="https://adsb.lol" target="_blank" rel="noopener">Aircraft data: ADSB.lol</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>) · ' +
           '<a href="https://ourairports.com" target="_blank" rel="noopener">Airports: OurAirports</a> · ' +
-          '<a href="https://aviationweather.gov" target="_blank" rel="noopener">Weather: NOAA AWC</a>',
+          '<a href="https://aviationweather.gov" target="_blank" rel="noopener">Weather: NOAA AWC</a> · ' +
+          '<a href="licenses/NOTICES.txt" target="_blank" rel="noopener">Licences</a>',
       }),
       "bottom-right",
     );

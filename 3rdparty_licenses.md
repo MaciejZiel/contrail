@@ -11,8 +11,7 @@
 | https://pypi.org/project/typing-extensions/ | typing_extensions (installed by starlette/anyio on Python < 3.13) | PSF-2.0 | https://github.com/python/typing_extensions/blob/main/LICENSE |
 | https://pypi.org/project/ruff/0.16.9/ | ruff (dev only) | MIT | https://github.com/astral-sh/ruff/blob/main/LICENSE |
 | https://www.npmjs.com/package/pyright/v/1.1.414 | pyright (dev only) | MIT | https://github.com/microsoft/pyright/blob/main/LICENSE.txt |
-| https://github.com/davidmegginson/ourairports-data | OurAirports data (airports.csv, used to derive server/flightmap/data/traffic_tiles.json) | Unlicense | https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE |
-| https://www.npmjs.com/package/maplibre-gl/v/6.11.2 | maplibre-gl | BSD-3-Clause | https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt |
+| https://github.com/davidmegginson/ourairports-data | OurAirports data (airports.csv; derived into server/flightmap/data/traffic_tiles.json and airports.json) | Unlicense | https://github.com/davidmegginson/ourairports-data/blob/main/LICENSE |
 | https://www.npmjs.com/package/svelte/v/5.57.1 | svelte (build time; compiled into the app) | MIT | https://github.com/sveltejs/svelte/blob/main/LICENSE.md |
 | https://www.npmjs.com/package/vite/v/7.3.6 | vite (build only) | MIT | https://github.com/vitejs/vite/blob/main/LICENSE |
 | https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte/v/6.2.4 | @sveltejs/vite-plugin-svelte (build only) | MIT | https://github.com/sveltejs/vite-plugin-svelte/blob/main/LICENSE |
@@ -168,3 +167,28 @@
 | https://commons.wikimedia.org/wiki/File:N90KJ_TBM-900,_Temple_12-07-25_(55080826718).jpg | File:N90KJ TBM-900, Temple 12-07-25 (55080826718).jpg (type photo for TBM9, by DUNCAN KIRK from Coeur d'Alene, United States) | CC-BY-4.0 | https://creativecommons.org/licenses/by/4.0 |
 | https://commons.wikimedia.org/wiki/File:Royal_Air_Force_Panavia_Tornado_GR4_ZA607_EB-X_Corris_Corner_2018_01.jpg | File:Royal Air Force Panavia Tornado GR4 ZA607 EB-X Corris Corner 2018 01.jpg (type photo for TORN, by Julian Herzog (Website)) | CC-BY-4.0 | https://creativecommons.org/licenses/by/4.0 |
 | https://commons.wikimedia.org/wiki/File:V22-Osprey.jpg | File:V22-Osprey.jpg (type photo for V22, by Peter Gronemann) | CC-BY-2.0 | https://creativecommons.org/licenses/by/2.0 |
+| https://www.npmjs.com/package/@mapbox/jsonlint-lines-primitives/v/2.0.3 | @mapbox/jsonlint-lines-primitives (bundled in the web app) | MIT | https://github.com/mapbox/jsonlint |
+| https://www.npmjs.com/package/@mapbox/point-geometry/v/1.1.0 | @mapbox/point-geometry (bundled in the web app) | ISC | git@github.com:mapbox/point-geometry |
+| https://www.npmjs.com/package/@mapbox/tiny-sdf/v/2.3.0 | @mapbox/tiny-sdf (bundled in the web app) | BSD-2-Clause | https://github.com/mapbox/tiny-sdf |
+| https://www.npmjs.com/package/@mapbox/unitbezier/v/1.0.0 | @mapbox/unitbezier (bundled in the web app) | BSD-2-Clause | git@github.com:mapbox/unitbezier |
+| https://www.npmjs.com/package/@mapbox/vector-tile/v/3.0.0 | @mapbox/vector-tile (bundled in the web app) | BSD-3-Clause | https://github.com/mapbox/vector-tile-js |
+| https://www.npmjs.com/package/@maplibre/geojson-vt/v/6.1.2 | @maplibre/geojson-vt (bundled in the web app) | ISC | https://github.com/maplibre/geojson-vt |
+| https://www.npmjs.com/package/@maplibre/maplibre-gl-style-spec/v/26.4.4 | @maplibre/maplibre-gl-style-spec (bundled in the web app) | ISC | https://github.com/maplibre/maplibre-style-spec |
+| https://www.npmjs.com/package/@maplibre/mlt/v/1.3.0 | @maplibre/mlt (bundled in the web app) | (MIT OR Apache-2.0) | https://github.com/maplibre/maplibre-tile-spec |
+| https://www.npmjs.com/package/@maplibre/vt-pbf/v/4.3.2 | @maplibre/vt-pbf (bundled in the web app) | MIT | https://github.com/maplibre/vt-pbf |
+| https://www.npmjs.com/package/bidi-js/v/1.1.0 | bidi-js (bundled in the web app) | MIT | https://github.com/lojjic/bidi-js |
+| https://www.npmjs.com/package/earcut/v/3.2.4 | earcut (bundled in the web app) | ISC | https://github.com/mapbox/earcut |
+| https://www.npmjs.com/package/gl-matrix/v/3.4.4 | gl-matrix (bundled in the web app) | MIT | https://github.com/toji/gl-matrix |
+| https://www.npmjs.com/package/json-stringify-pretty-compact/v/4.0.0 | json-stringify-pretty-compact (bundled in the web app) | MIT | lydell/json-stringify-pretty-compact |
+| https://www.npmjs.com/package/kdbush/v/4.1.0 | kdbush (bundled in the web app) | ISC | https://github.com/mourner/kdbush |
+| https://www.npmjs.com/package/maplibre-gl/v/6.11.2 | maplibre-gl (bundled in the web app) | BSD-3-Clause | https://github.com/maplibre/maplibre-gl-js |
+| https://www.npmjs.com/package/minimist/v/1.2.8 | minimist (bundled in the web app) | MIT | https://github.com/minimistjs/minimist |
+| https://www.npmjs.com/package/murmurhash-js/v/1.0.0 | murmurhash-js (bundled in the web app) | MIT | https://github.com/mikolalysenko/murmurhash-js |
+| https://www.npmjs.com/package/pbf/v/5.1.2 | pbf (bundled in the web app) | BSD-3-Clause | ssh://git@github.com/mapbox/pbf |
+| https://www.npmjs.com/package/potpack/v/2.1.0 | potpack (bundled in the web app) | ISC | https://github.com/mapbox/potpack |
+| https://www.npmjs.com/package/protocol-buffers-schema/v/3.6.1 | protocol-buffers-schema (bundled in the web app) | MIT | https://github.com/mafintosh/protocol-buffers-schema |
+| https://www.npmjs.com/package/quickselect/v/3.0.0 | quickselect (bundled in the web app) | ISC | https://github.com/mourner/quickselect |
+| https://www.npmjs.com/package/require-from-string/v/2.0.2 | require-from-string (bundled in the web app) | MIT | floatdrop/require-from-string |
+| https://www.npmjs.com/package/resolve-protobuf-schema/v/2.1.0 | resolve-protobuf-schema (bundled in the web app) | MIT | https://github.com/mafintosh/resolve-protobuf-schema |
+| https://www.npmjs.com/package/tinyqueue/v/3.0.0 | tinyqueue (bundled in the web app) | ISC | https://github.com/mourner/tinyqueue |
+| https://adsb.lol | ADSB.lol aircraft data (live API output; shown on the map and re-published through /api/v1 with an ODbL notice) | ODbL-1.0 | https://opendatacommons.org/licenses/odbl/1-0/ |

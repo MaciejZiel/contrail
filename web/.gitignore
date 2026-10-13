@@ -1,5 +1,6 @@
 node_modules/
 dist/
 public/maplibre/
+public/licenses/
 test-results/
 playwright-report/
