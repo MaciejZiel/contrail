@@ -1,59 +1,18 @@
 <script lang="ts">
   import type { FeedStatus } from "../core/poller";
+  import { detail, label, tone } from "./freshness";
 
   let { status, count }: { status: FeedStatus; count: number } = $props();
 
-  const label = $derived.by(() => {
-    switch (status.state) {
-      case "loading":
-        return "Loading traffic";
-      case "slow":
-        return "Still waiting for traffic data";
-      case "offline":
-        return "Can't reach the traffic feed, retrying";
-      case "live":
-        return `${status.pending > 0 ? "Loading areas" : "Live"} · ${count.toLocaleString("en")} aircraft${oldest()}`;
-      case "aging":
-        return `Updated ${age(status.medianAgeS)} ago · ${count.toLocaleString("en")} aircraft${oldest()}`;
-      default:
-        return `Data ${age(status.medianAgeS)} old, refreshing · ${count.toLocaleString("en")} aircraft${oldest()}`;
-    }
-  });
-
-  const detail = $derived(
-    status.tiles
-      ? `Position data is ${ageRange(status.newestAgeS, status.oldestAgeS)} old across ${status.tiles} ${status.tiles === 1 ? "area" : "areas"} (${status.freshTiles} refreshed within 2 minutes)` +
-          (status.pending ? `; ${status.pending} more loading` : "") +
-          ". Aircraft keep moving between updates by dead reckoning."
-      : status.state === "slow"
-        ? "No traffic data has arrived yet. The network, an ad or content blocker, or the server may be blocking or delaying the request; the browser console has details."
-        : status.state === "offline"
-          ? `The traffic request failed (${status.error || "unknown reason"}). Retrying every few seconds.`
-          : (status.error || "Waiting for the first data"),
-  );
-
-  /** The oldest area is always shown honestly once it is noticeably behind. */
-  function oldest(): string {
-    return status.oldestAgeS > 90 ? ` · oldest area ${age(status.oldestAgeS)}` : "";
-  }
-
-  function ageRange(newest: number, oldest: number): string {
-    const a = age(newest);
-    const b = age(oldest);
-    return a === b ? a : `${a} to ${b}`;
-  }
-
-  function age(s: number): string {
-    if (s < 90) return `${Math.max(1, Math.round(s))} s`;
-    if (s < 5400) return `${Math.round(s / 60)} min`;
-    return `${Math.round(s / 3600)} h`;
-  }
+  const text = $derived(label(status, count));
+  const detailText = $derived(detail(status));
+  const toneName = $derived(tone(status));
 </script>
 
-<div class="chip" data-state={status.state} title={detail} role="status">
+<div class="chip" data-state={status.state} data-tone={toneName} title={detailText} role="status">
   <span class="dot" aria-hidden="true"></span>
-  <span class="text">{label}</span>
-  <span class="sr-only">{detail}</span>
+  <span class="text">{text}</span>
+  <span class="sr-only">{detailText}</span>
 </div>
 
 <style>
@@ -69,6 +28,12 @@
     font-size: 13px;
     white-space: nowrap;
     backdrop-filter: blur(8px);
+    max-width: 100%;
+  }
+  @media (max-width: 480px) {
+    .chip {
+      white-space: normal;
+    }
   }
   .dot {
     width: 9px;
@@ -77,22 +42,19 @@
     background: var(--text-dim);
     flex: none;
   }
-  [data-state="live"] .dot {
+  [data-tone="ok"] .dot {
     background: var(--good);
     box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
     animation: pulse 2.4s infinite;
   }
-  [data-state="slow"] .dot {
-    background: var(--warn);
-  }
-  [data-state="aging"] .dot {
+  [data-tone="neutral"] .dot {
     background: var(--accent);
     opacity: 0.8;
   }
-  [data-state="old"] .dot {
+  [data-tone="warn"] .dot {
     background: var(--warn);
   }
-  [data-state="offline"] .dot {
+  [data-tone="bad"] .dot {
     background: var(--bad); /* red only when the feed itself is failing, never for normal ageing */
   }
   @keyframes pulse {
