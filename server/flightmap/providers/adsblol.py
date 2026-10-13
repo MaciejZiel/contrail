@@ -103,3 +103,9 @@ class AdsbLolProvider:
         payload = await self._client.get_json(url)
         b = bounds_of(tile)
         return [a for a in parse_point_response(payload) if b.contains(a.lat, a.lon)]
+
+    async def fetch_hex(self, hex_str: str) -> Aircraft | None:
+        """Current state of one aircraft anywhere in the world (None when it is not tracked)."""
+        payload = await self._client.get_json(f"{self._base}/v2/hex/{hex_str.lower()}")
+        found = parse_point_response(payload)
+        return found[0] if found else None

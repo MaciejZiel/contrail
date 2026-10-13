@@ -17,6 +17,7 @@ from typing import Any
 from .codec import SOURCE_DEMO
 from .models import Aircraft
 from .providers.adsblol import parse_point_response
+from .providers.routes import Route, parse_route
 from .tiles import Tile, tile_of
 
 # (ICAO, lat, lon): a spread of major airports on every inhabited continent.
@@ -40,6 +41,45 @@ AIRPORTS: list[tuple[str, float, float]] = [
     ("CYYZ", 43.68, -79.63), ("CYVR", 49.19, -123.18), ("MMMX", 19.44, -99.07), ("SBGR", -23.43, -46.47),
     ("SCEL", -33.39, -70.79), ("SAEZ", -34.82, -58.54), ("SKBO", 4.70, -74.15), ("SPJC", -12.02, -77.11),
 ]  # fmt: skip
+
+AIRPORT_NAMES: dict[str, tuple[str, str, str]] = {
+    "EGLL": ("London Heathrow Airport", "London", "GB"), "LFPG": ("Paris Charles de Gaulle Airport", "Paris", "FR"),
+    "EHAM": ("Amsterdam Schiphol Airport", "Amsterdam", "NL"), "EDDF": ("Frankfurt Airport", "Frankfurt", "DE"),
+    "EDDM": ("Munich Airport", "Munich", "DE"), "LEMD": ("Madrid Barajas Airport", "Madrid", "ES"),
+    "LEBL": ("Barcelona El Prat Airport", "Barcelona", "ES"), "LIRF": ("Rome Fiumicino Airport", "Rome", "IT"),
+    "LIMC": ("Milan Malpensa Airport", "Milan", "IT"), "LSZH": ("Zurich Airport", "Zurich", "CH"),
+    "LOWW": ("Vienna International Airport", "Vienna", "AT"), "EPWA": ("Warsaw Chopin Airport", "Warsaw", "PL"),
+    "EPKK": ("Krakow John Paul II Airport", "Krakow", "PL"), "EKCH": ("Copenhagen Airport", "Copenhagen", "DK"),
+    "ESSA": ("Stockholm Arlanda Airport", "Stockholm", "SE"), "ENGM": ("Oslo Gardermoen Airport", "Oslo", "NO"),
+    "EFHK": ("Helsinki Vantaa Airport", "Helsinki", "FI"), "EIDW": ("Dublin Airport", "Dublin", "IE"),
+    "LPPT": ("Lisbon Humberto Delgado Airport", "Lisbon", "PT"), "LGAV": ("Athens Eleftherios Venizelos Airport", "Athens", "GR"),
+    "LTFM": ("Istanbul Airport", "Istanbul", "TR"), "UUEE": ("Moscow Sheremetyevo Airport", "Moscow", "RU"),
+    "LKPR": ("Prague Vaclav Havel Airport", "Prague", "CZ"), "LHBP": ("Budapest Ferenc Liszt Airport", "Budapest", "HU"),
+    "OMDB": ("Dubai International Airport", "Dubai", "AE"), "OTHH": ("Hamad International Airport", "Doha", "QA"),
+    "OERK": ("King Khalid International Airport", "Riyadh", "SA"), "LLBG": ("Ben Gurion Airport", "Tel Aviv", "IL"),
+    "HECA": ("Cairo International Airport", "Cairo", "EG"), "FAOR": ("O. R. Tambo International Airport", "Johannesburg", "ZA"),
+    "FACT": ("Cape Town International Airport", "Cape Town", "ZA"), "HKJK": ("Jomo Kenyatta International Airport", "Nairobi", "KE"),
+    "DNMM": ("Murtala Muhammed International Airport", "Lagos", "NG"), "GMMN": ("Mohammed V International Airport", "Casablanca", "MA"),
+    "VIDP": ("Indira Gandhi International Airport", "Delhi", "IN"), "VABB": ("Chhatrapati Shivaji Maharaj International Airport", "Mumbai", "IN"),
+    "VOBL": ("Kempegowda International Airport", "Bengaluru", "IN"), "VTBS": ("Suvarnabhumi Airport", "Bangkok", "TH"),
+    "WSSS": ("Singapore Changi Airport", "Singapore", "SG"), "WMKK": ("Kuala Lumpur International Airport", "Kuala Lumpur", "MY"),
+    "WIII": ("Soekarno-Hatta International Airport", "Jakarta", "ID"), "RPLL": ("Ninoy Aquino International Airport", "Manila", "PH"),
+    "VHHH": ("Hong Kong International Airport", "Hong Kong", "HK"), "ZSPD": ("Shanghai Pudong International Airport", "Shanghai", "CN"),
+    "ZBAA": ("Beijing Capital International Airport", "Beijing", "CN"), "ZGGG": ("Guangzhou Baiyun International Airport", "Guangzhou", "CN"),
+    "RKSI": ("Incheon International Airport", "Seoul", "KR"), "RJTT": ("Tokyo Haneda Airport", "Tokyo", "JP"),
+    "RJAA": ("Narita International Airport", "Tokyo", "JP"), "RJBB": ("Kansai International Airport", "Osaka", "JP"),
+    "YSSY": ("Sydney Kingsford Smith Airport", "Sydney", "AU"), "YMML": ("Melbourne Airport", "Melbourne", "AU"),
+    "NZAA": ("Auckland Airport", "Auckland", "NZ"), "KJFK": ("John F. Kennedy International Airport", "New York", "US"),
+    "KEWR": ("Newark Liberty International Airport", "Newark", "US"), "KBOS": ("Boston Logan International Airport", "Boston", "US"),
+    "KORD": ("Chicago O'Hare International Airport", "Chicago", "US"), "KATL": ("Hartsfield-Jackson Atlanta International Airport", "Atlanta", "US"),
+    "KDFW": ("Dallas/Fort Worth International Airport", "Dallas", "US"), "KDEN": ("Denver International Airport", "Denver", "US"),
+    "KLAX": ("Los Angeles International Airport", "Los Angeles", "US"), "KSFO": ("San Francisco International Airport", "San Francisco", "US"),
+    "KSEA": ("Seattle-Tacoma International Airport", "Seattle", "US"), "KMIA": ("Miami International Airport", "Miami", "US"),
+    "CYYZ": ("Toronto Pearson International Airport", "Toronto", "CA"), "CYVR": ("Vancouver International Airport", "Vancouver", "CA"),
+    "MMMX": ("Mexico City International Airport", "Mexico City", "MX"), "SBGR": ("Sao Paulo Guarulhos International Airport", "Sao Paulo", "BR"),
+    "SCEL": ("Santiago International Airport", "Santiago", "CL"), "SAEZ": ("Buenos Aires Ezeiza International Airport", "Buenos Aires", "AR"),
+    "SKBO": ("El Dorado International Airport", "Bogota", "CO"), "SPJC": ("Jorge Chavez International Airport", "Lima", "PE"),
+}  # fmt: skip
 
 AIRLINES = ["DLH", "BAW", "AFR", "KLM", "RYR", "EZY", "LOT", "SAS", "UAE", "QTR", "SIA", "ANA",
             "JAL", "UAL", "DAL", "AAL", "ACA", "QFA", "THY", "WZZ", "IBE", "VLG", "SWR", "AUA"]  # fmt: skip
@@ -175,6 +215,22 @@ class DemoTraffic:
                 self._cached, self._by_tile, self._second = recs, by_tile, int(t)
             return self._cached
 
+    def route_payload(self, callsign: str) -> dict[str, Any] | None:
+        """Route in the shape of the VRS standing data JSON, for the flight with this callsign."""
+        fl = next((f for f in self._flights if f.callsign == callsign.upper()), None)
+        if fl is None:
+            return None
+        airports: list[dict[str, Any]] = []
+        for icao, lat, lon in (fl.o, fl.d):
+            name, city, country = AIRPORT_NAMES.get(icao, (icao, "", ""))
+            airports.append({"name": name, "icao": icao, "iata": "", "location": city, "countryiso2": country,
+                             "lat": lat, "lon": lon, "alt_feet": 100.0, "alt_meters": 30.48})  # fmt: skip
+        return {"callsign": fl.callsign, "number": fl.callsign[3:], "airline_code": fl.callsign[:3],
+                "airport_codes": f"{fl.o[0]}-{fl.d[0]}", "_airport_codes_iata": "", "_airports": airports}  # fmt: skip
+
+    def by_hex(self, hex_str: str) -> dict[str, Any] | None:
+        return next((r for r in self.records() if r["hex"] == hex_str.lower()), None)
+
     def in_tile(self, tile: Tile) -> list[dict[str, Any]]:
         self.records()
         return self._by_tile.get(tile, [])
@@ -208,3 +264,12 @@ class DemoProvider:
     async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
         recs = await asyncio.to_thread(self._traffic.in_tile, tile)
         return parse_point_response({"ac": recs})
+
+    async def fetch_hex(self, hex_str: str) -> Aircraft | None:
+        rec = await asyncio.to_thread(self._traffic.by_hex, hex_str)
+        found = parse_point_response({"ac": [rec]}) if rec else []
+        return found[0] if found else None
+
+    async def lookup_route(self, callsign: str) -> Route | None:
+        payload = self._traffic.route_payload(callsign)
+        return parse_route(payload, callsign) if payload else None

@@ -10,7 +10,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 
 from .codec import encode_aircraft
@@ -127,6 +127,13 @@ class TileCache:
             "effective_ttl_s": round(self._effective_ttl(len(hot)), 1),
             "aircraft": sum(len(s.entry.aircraft) for s in self._states.values() if s.entry),
         }
+
+    async def with_budget[T](self, call: Callable[[], Awaitable[T]]) -> T:
+        """Run one extra upstream call (e.g. a single-aircraft lookup) against the shared budget."""
+        if not await self._take_budget():
+            raise UpstreamError("upstream budget exhausted")
+        self.status.requests += 1
+        return await call()
 
     # -- scheduling -------------------------------------------------------------------
 

@@ -14,6 +14,8 @@ from typing import Any
 
 from .demo import DemoTraffic
 
+_ROUTE = re.compile(r"^/routes/([A-Z0-9]{2})/([A-Z0-9]+)\.json$")
+_HEX = re.compile(r"^/v2/hex/([0-9a-fA-F]{6})$")
 _POINT = re.compile(r"^/v2/point/(-?\d+(?:\.\d+)?)/(-?\d+(?:\.\d+)?)/(\d+)$")
 
 
@@ -29,6 +31,19 @@ def make_handler(traffic: DemoTraffic) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             if self.path == "/healthz":
                 self._send(200, b'{"ok":true}')
+                return
+            r = _ROUTE.match(self.path)
+            if r:
+                payload = traffic.route_payload(r[2])
+                if payload is None:
+                    self._send(404, b"Not Found", "text/html")
+                else:
+                    self._send(200, json.dumps(payload).encode())
+                return
+            h = _HEX.match(self.path)
+            if h:
+                rec = traffic.by_hex(h[1])
+                self._send(200, json.dumps({"ac": [rec] if rec else [], "total": 1 if rec else 0}).encode())
                 return
             m = _POINT.match(self.path)
             if m:

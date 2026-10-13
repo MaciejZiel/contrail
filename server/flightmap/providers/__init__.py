@@ -15,3 +15,7 @@ class TileProvider(Protocol):
     async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
         """Return the aircraft currently inside ``tile`` or raise ``UpstreamError``."""
         ...
+
+    async def fetch_hex(self, hex_str: str) -> Aircraft | None:
+        """Current state of one aircraft anywhere (None when untracked)."""
+        ...
