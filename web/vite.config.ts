@@ -1,14 +1,14 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { readFileSync } from "node:fs";
+import { maplibreDir } from "./scripts/maplibre-dir.mjs";
 import { defineConfig } from "vitest/config";
 
-const maplibreVersion = JSON.parse(readFileSync("node_modules/maplibre-gl/package.json", "utf8")).version as string;
+const workerDir = maplibreDir(process.cwd());
 
 export default defineConfig({
   // Relative asset URLs so the app works under any BASE_PATH behind a reverse proxy.
   base: "./",
   plugins: [svelte()],
-  define: { __MAPLIBRE_VERSION__: JSON.stringify(maplibreVersion) },
+  define: { __MAPLIBRE_DIR__: JSON.stringify(workerDir) },
   server: {
     proxy: { "/api": "http://127.0.0.1:8000" },
   },

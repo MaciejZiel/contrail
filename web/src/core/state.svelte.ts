@@ -1,4 +1,5 @@
 import { DEFAULT_FILTERS, type Filters } from "./filters";
+import type { MapProblem } from "../map/startup";
 import { INITIAL_STATUS, type FeedStatus } from "./poller";
 
 /** Reactive UI state shared by components. */
@@ -9,5 +10,6 @@ export const ui = $state({
   filters: DEFAULT_FILTERS as Filters,
   aircraftCount: 0,
   zoom: 5,
-  webglError: "",
+  problem: null as MapProblem | null,
+  basemapNotice: false,
 });

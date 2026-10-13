@@ -4,7 +4,7 @@ import { limits } from "./staleness";
 import { rectKey, rectQuery, type TileRect } from "./tiles";
 
 /** live: refreshed within 90 s; aging: normal for areas that refresh in turn; old: beyond the dim threshold; offline: the feed itself is failing. */
-export type Freshness = "loading" | "live" | "aging" | "old" | "offline";
+export type Freshness = "loading" | "slow" | "live" | "aging" | "old" | "offline";
 
 export interface FeedStatus {
   state: Freshness;
@@ -45,6 +45,7 @@ export interface PollerOptions {
 const IDLE_MS = 6000;
 const FILLING_MS = 2500;
 const ERROR_MS = 8000;
+const FETCH_TIMEOUT_MS = 20000;
 
 export function classify(medianAgeS: number): Freshness {
   if (medianAgeS < 90) return "live";
@@ -128,7 +129,7 @@ export class Poller {
     let next = IDLE_MS;
     try {
       const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}${keep ? `&keep=${keep}` : ""}`, {
-        signal: ctl.signal,
+        signal: AbortSignal.any([ctl.signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const etag = res.headers.get("etag") ?? "";
@@ -144,7 +145,8 @@ export class Poller {
       if (pending > 0) next = FILLING_MS;
     } catch (err) {
       if (ctl.signal.aborted) return;
-      this.fail(err instanceof Error ? err.message : "request failed");
+      const name = err instanceof Error ? err.name : "";
+      this.fail(name === "TimeoutError" ? "the server did not answer in time" : err instanceof Error ? err.message : "request failed");
       next = ERROR_MS;
     }
     this.schedule(next);

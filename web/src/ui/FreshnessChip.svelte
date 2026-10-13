@@ -7,8 +7,10 @@
     switch (status.state) {
       case "loading":
         return "Loading traffic";
+      case "slow":
+        return "Still waiting for traffic data";
       case "offline":
-        return "Offline, retrying";
+        return "Can't reach the traffic feed, retrying";
       case "live":
         return `${status.pending > 0 ? "Loading areas" : "Live"} · ${count.toLocaleString("en")} aircraft${oldest()}`;
       case "aging":
@@ -23,7 +25,11 @@
       ? `Position data is ${ageRange(status.newestAgeS, status.oldestAgeS)} old across ${status.tiles} ${status.tiles === 1 ? "area" : "areas"} (${status.freshTiles} refreshed within 2 minutes)` +
           (status.pending ? `; ${status.pending} more loading` : "") +
           ". Aircraft keep moving between updates by dead reckoning."
-      : (status.error || "Waiting for the first data"),
+      : status.state === "slow"
+        ? "No traffic data has arrived yet. The network, an ad or content blocker, or the server may be blocking or delaying the request; the browser console has details."
+        : status.state === "offline"
+          ? `The traffic request failed (${status.error || "unknown reason"}). Retrying every few seconds.`
+          : (status.error || "Waiting for the first data"),
   );
 
   /** The oldest area is always shown honestly once it is noticeably behind. */
@@ -75,6 +81,9 @@
     background: var(--good);
     box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
     animation: pulse 2.4s infinite;
+  }
+  [data-state="slow"] .dot {
+    background: var(--warn);
   }
   [data-state="aging"] .dot {
     background: var(--accent);
