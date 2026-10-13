@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -129,11 +130,12 @@ class TileCache:
             if st.entry is None and now >= st.next_attempt:
                 cold.append(t)
         self._wake.set()
-        if not cold:
-            return
+        if not cold or not focus:
+            return  # wide views are served by the scheduler, in priority order, without waiting
         tasks = [self._ensure_fetch(t) for t in cold[:12]]
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=cold_deadline_s)
+        # asyncio.wait never cancels: the fetches are shared with other viewers and the background
+        # loop, so a viewer that gives up waiting must not throw the upstream call away.
+        await asyncio.wait(tasks, timeout=cold_deadline_s)
 
     def _coverage(self, wall: float) -> dict[str, dict[str, float | int | None]]:
         """Per priority class: planned tiles, tiles with data, median and oldest age, share within 2x target."""
@@ -168,7 +170,7 @@ class TileCache:
         return {
             "provider": self.provider.name,
             "ok": self.status.ok,
-            "last_error": self.status.last_error,
+            "last_error": re.sub(r"https?://\S+", "<upstream>", self.status.last_error)[:120],
             "requests": self.status.requests,
             "errors": self.status.errors,
             "tiles_cached": len(ages),
