@@ -155,7 +155,7 @@
         <table aria-label="Runways">
           <thead><tr><th scope="col">Runway</th><th scope="col">Length</th><th scope="col">Surface</th></tr></thead>
           <tbody>
-            {#each airport.runways as r (r.ends.join("/"))}
+            {#each airport.runways as r, i (i)}
               <tr>
                 <th scope="row">{r.ends.filter(Boolean).join(" / ")}</th>
                 <td>{Math.round(r.length_ft * 0.3048).toLocaleString("en")} m <small>({r.length_ft.toLocaleString("en")} ft)</small></td>

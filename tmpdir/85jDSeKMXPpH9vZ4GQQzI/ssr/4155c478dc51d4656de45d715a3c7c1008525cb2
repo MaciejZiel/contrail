@@ -1,0 +1,25 @@
+const __vite_ssr_import_0__ = await __vite_ssr_import__("/node_modules/vitest/dist/index.js", {"importedNames":["beforeEach","describe","expect","it"]});
+const __vite_ssr_import_1__ = await __vite_ssr_import__("/src/core/clock.ts", {"importedNames":["resetClock","serverNow","syncServerTime"]});
+
+
+(0,__vite_ssr_import_0__.describe)("server clock", () => {
+  (0,__vite_ssr_import_0__.beforeEach)((0,__vite_ssr_import_1__.resetClock));
+  (0,__vite_ssr_import_0__.it)("follows the server time", () => {
+    (0,__vite_ssr_import_1__.syncServerTime)(5e4, 1e4);
+    (0,__vite_ssr_import_0__.expect)((0,__vite_ssr_import_1__.serverNow)(11e3)).toBe(51);
+  });
+  (0,__vite_ssr_import_0__.it)("is not pulled back by a late or cached sample", () => {
+    (0,__vite_ssr_import_1__.syncServerTime)(5e4, 1e4);
+    (0,__vite_ssr_import_1__.syncServerTime)(5e4, 16e3);
+    (0,__vite_ssr_import_0__.expect)((0,__vite_ssr_import_1__.serverNow)(16e3)).toBe(56);
+  });
+  (0,__vite_ssr_import_0__.it)("forgets old samples so a device clock change is followed", () => {
+    (0,__vite_ssr_import_1__.syncServerTime)(5e4, 1e4);
+    for (let i = 1; i <= 12; i++) (0,__vite_ssr_import_1__.syncServerTime)(5e4 + i * 1e3, 2e4 + i * 1e3);
+    (0,__vite_ssr_import_0__.expect)((0,__vite_ssr_import_1__.serverNow)(4e4)).toBe(70);
+  });
+});
+//# sourceMappingSource=vite-generated
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJtYXBwaW5ncyI6IkFBQUE7QUFDQTs7O0dBRUEsZ0NBQVMsZ0JBQWdCLE1BQU07QUFDN0IsMENBQVcsaUNBQVU7QUFFckIsK0JBQUcsMkJBQTJCLE1BQU07QUFDbEMsNkNBQWUsS0FBUSxHQUFNO0FBQzdCLHdDQUFPLGlDQUFVLElBQU0sQ0FBQyxFQUFFLEtBQUssRUFBRTtBQUFBLEVBQ25DLENBQUM7QUFFRCwrQkFBRyxpREFBaUQsTUFBTTtBQUN4RCw2Q0FBZSxLQUFRLEdBQU07QUFFN0IsNkNBQWUsS0FBUSxJQUFNO0FBQzdCLHdDQUFPLGlDQUFVLElBQU0sQ0FBQyxFQUFFLEtBQUssRUFBRTtBQUFBLEVBQ25DLENBQUM7QUFFRCwrQkFBRyw0REFBNEQsTUFBTTtBQUNuRSw2Q0FBZSxLQUFRLEdBQU07QUFDN0IsYUFBUyxJQUFJLEdBQUcsS0FBSyxJQUFJLElBQUssMENBQWUsTUFBUyxJQUFJLEtBQU0sTUFBUyxJQUFJLEdBQUk7QUFDakYsd0NBQU8saUNBQVUsR0FBTSxDQUFDLEVBQUUsS0FBSyxFQUFFO0FBQUEsRUFDbkMsQ0FBQztBQUNILENBQUMiLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VzIjpbImNsb2NrLnRlc3QudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHsgYmVmb3JlRWFjaCwgZGVzY3JpYmUsIGV4cGVjdCwgaXQgfSBmcm9tIFwidml0ZXN0XCI7XG5pbXBvcnQgeyByZXNldENsb2NrLCBzZXJ2ZXJOb3csIHN5bmNTZXJ2ZXJUaW1lIH0gZnJvbSBcIi4uL3NyYy9jb3JlL2Nsb2NrXCI7XG5cbmRlc2NyaWJlKFwic2VydmVyIGNsb2NrXCIsICgpID0+IHtcbiAgYmVmb3JlRWFjaChyZXNldENsb2NrKTtcblxuICBpdChcImZvbGxvd3MgdGhlIHNlcnZlciB0aW1lXCIsICgpID0+IHtcbiAgICBzeW5jU2VydmVyVGltZSg1MF8wMDAsIDEwXzAwMCk7XG4gICAgZXhwZWN0KHNlcnZlck5vdygxMV8wMDApKS50b0JlKDUxKTtcbiAgfSk7XG5cbiAgaXQoXCJpcyBub3QgcHVsbGVkIGJhY2sgYnkgYSBsYXRlIG9yIGNhY2hlZCBzYW1wbGVcIiwgKCkgPT4ge1xuICAgIHN5bmNTZXJ2ZXJUaW1lKDUwXzAwMCwgMTBfMDAwKTtcbiAgICAvLyBhIGJvZHkgZnJvbSB0aGUgYnJvd3NlciBjYWNoZSwgc3RhbXBlZCA2IHMgYmVmb3JlIGl0IHdhcyB1c2VkXG4gICAgc3luY1NlcnZlclRpbWUoNTBfMDAwLCAxNl8wMDApO1xuICAgIGV4cGVjdChzZXJ2ZXJOb3coMTZfMDAwKSkudG9CZSg1Nik7XG4gIH0pO1xuXG4gIGl0KFwiZm9yZ2V0cyBvbGQgc2FtcGxlcyBzbyBhIGRldmljZSBjbG9jayBjaGFuZ2UgaXMgZm9sbG93ZWRcIiwgKCkgPT4ge1xuICAgIHN5bmNTZXJ2ZXJUaW1lKDUwXzAwMCwgMTBfMDAwKTtcbiAgICBmb3IgKGxldCBpID0gMTsgaSA8PSAxMjsgaSsrKSBzeW5jU2VydmVyVGltZSg1MF8wMDAgKyBpICogMTAwMCwgMjBfMDAwICsgaSAqIDEwMDApO1xuICAgIGV4cGVjdChzZXJ2ZXJOb3coNDBfMDAwKSkudG9CZSg3MCk7XG4gIH0pO1xufSk7XG4iXSwiZmlsZSI6Ii90ZXN0cy9jbG9jay50ZXN0LnRzIn0=
+
+//# vitestCache=W3siZmlsZSI6IjEiLCJpZCI6IjEiLCJ1cmwiOiIyIiwiaW1wb3J0ZWRVcmxzIjoiMyIsIm1hcHBpbmdzIjpmYWxzZSwiZGVwcyI6IjQiLCJkeW5hbWljRGVwcyI6IjUiLCJzdGF0aWNNb2NrcyI6bnVsbH0sIi9ob21lL21hY2llai16aWVsaXNraS9jbGF1ZGUtdG1wL2NsYXVkZS0xMDAwLy1ob21lLW1hY2llai16aWVsaXNraS1QeWNoYXJtUHJvamVjdHMtZW5naW5lZXJpbmctdGhlc2lzL2NlNjZiYzQ4LTRmMjYtNDBlZC1iOTk0LTFjMWZmNmU1N2FhMC9zY3JhdGNocGFkL3drL2NvbnRyYWlsLWZpeDIvd2ViL3Rlc3RzL2Nsb2NrLnRlc3QudHMiLCIvdGVzdHMvY2xvY2sudGVzdC50cyIsW10sWyI2IiwiNyJdLFtdLCIvbm9kZV9tb2R1bGVzL3ZpdGVzdC9kaXN0L2luZGV4LmpzIiwiL3NyYy9jb3JlL2Nsb2NrLnRzIl0=

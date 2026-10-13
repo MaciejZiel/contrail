@@ -40,7 +40,7 @@ from .providers.routes import Route, RouteProvider, is_plausible, progress
 from .providers.weather import Metar, WeatherProvider
 from .reference import airline_for_callsign, airline_name, type_name
 from .regions import build_plan, parse_regions
-from .search import aircraft_item, nearby_aircraft, search_all
+from .search import aircraft_item, nearby_traffic, search_all
 from .thinning import level_for_zoom, thin
 from .tilecache import TileCache, TileEntry
 from .tiles import Tile, tile_of, tiles_in_rect
@@ -54,6 +54,11 @@ WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
 # Lookups of aircraft outside every cached tile may use this share of the upstream budget.
+TRAILS_MAX_LIMIT = 400  # aircraft per /trails response
+TRAILS_CACHE_S = 12.0  # how long a /trails result is reused; the trail memory only moves every 10-15 s
+TRAILS_CACHE_MAX = 64
+TRAILS_GRID_DIVISIONS = 8  # the box snaps to a grid of about 1/8 of its size
+TRAILS_MIN_STEP = 1 / 64
 LOOKUP_RPS = 0.05  # single-aircraft ADSB.lol lookups, on their own thread and budget
 WEATHER_RPS = 1.5  # NOAA allows 100 requests per minute
 ROUTE_RPS = 2.0
@@ -133,6 +138,29 @@ def _clamp_float(raw: str | None, default: float, lo: float, hi: float) -> float
     except ValueError:
         return default
     return min(hi, max(lo, v)) if math.isfinite(v) else default
+
+
+def snap_box(w: float, s: float, e: float, n: float) -> tuple[float, float, float, float]:
+    """Grow a map box outwards onto a coarse power-of-two grid (a step of about 1/8 of its size).
+
+    Viewers of nearly the same area then ask for, and share, the same result. A box 360 degrees or
+    more wide becomes the whole world (-180 to 180); a box with ``e < w`` crosses the antimeridian.
+    The web app uses the same arithmetic, so its URLs line up with the server's cache keys.
+    """
+    span = e - w if e >= w else (e - w) % 360
+    if span >= 360:
+        w, e = -180.0, 180.0
+        span = 360.0
+    else:
+        w = ((w + 180) % 360) - 180
+    step = max(TRAILS_MIN_STEP, 2.0 ** math.floor(math.log2(max(span, n - s, 1e-9) / TRAILS_GRID_DIVISIONS)))
+    sn, nn = max(-90.0, math.floor(s / step) * step), min(90.0, math.ceil(n / step) * step)
+    if span >= 360:
+        return -180.0, sn, 180.0, nn
+    w0, e0 = math.floor(w / step) * step, math.ceil((w + span) / step) * step
+    if e0 - w0 >= 360:
+        return -180.0, sn, 180.0, nn
+    return ((w0 + 180) % 360) - 180, sn, ((e0 + 180) % 360) - 180, nn
 
 
 def _int_param(request: Request, name: str) -> int:
@@ -215,6 +243,7 @@ class Api:
         self.trails = trails
         self.traffic = load_traffic_tiles()
         self._snapshots: OrderedDict[str, _Snapshot] = OrderedDict()
+        self._trail_results: OrderedDict[tuple[object, ...], tuple[float, bytes]] = OrderedDict()
         self._route_lookup = route_lookup
         self._weather = weather
         self.airports = load_catalog()
@@ -432,7 +461,11 @@ class Api:
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
 
     async def recent_trails(self, request: Request) -> Response:
-        """Recent tracks of the aircraft in a box, newest first, for drawing a trail behind each one."""
+        """Recent tracks of the aircraft in a box, newest first, for drawing a trail behind each one.
+
+        The box is snapped outwards to a grid and the encoded result is reused for a few seconds, so
+        a crowd looking at the same area costs one selection, not one each.
+        """
         q = request.query_params
         try:
             w, s_, e, n = (float(q[k]) for k in ("w", "s", "e", "n"))
@@ -441,10 +474,18 @@ class Api:
         if not all(math.isfinite(v) for v in (w, s_, e, n)) or not (-90 <= s_ <= n <= 90):
             return JSONResponse({"error": "invalid box"}, status_code=400)
         window = _clamp_float(q.get("window"), 1800.0, 60.0, 3600.0)
-        limit = int(_clamp_float(q.get("limit"), 400.0, 1.0, 600.0))
+        limit = int(_clamp_float(q.get("limit"), float(TRAILS_MAX_LIMIT), 1.0, float(TRAILS_MAX_LIMIT)))
         flt = AircraftFilter.from_params(q)
-        w, e = ((w + 180) % 360) - 180, ((e + 180) % 360) - 180
-        cx = (w + ((e - w) % 360) / 2 + 180) % 360 - 180
+        w, s_, e, n = snap_box(w, s_, e, n)
+        headers = {"Cache-Control": "public, max-age=5"}
+
+        key = (w, s_, e, n, window, limit, flt)
+        mono = time.monotonic()
+        hit = self._trail_results.get(key)
+        if hit is not None and hit[0] > mono:
+            return Response(hit[1], media_type="application/json", headers=headers)
+
+        cx = (w + (e - w if e >= w else e - w + 360) / 2 + 180) % 360 - 180
         cy = (s_ + n) / 2
 
         def accept(hex_: int, lat: float, lon: float) -> bool:
@@ -476,7 +517,12 @@ class Api:
                 for h, _t, pts in shown
             ],
         }  # fmt: skip
-        return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
+        payload = JSONResponse(body).body
+        self._trail_results.pop(key, None)
+        self._trail_results[key] = (mono + TRAILS_CACHE_S, bytes(payload))
+        while len(self._trail_results) > TRAILS_CACHE_MAX:
+            self._trail_results.popitem(last=False)
+        return Response(payload, media_type="application/json", headers=headers)
 
     async def types(self, request: Request) -> Response:
         q = request.query_params.get("q", "").strip()[:30]
@@ -550,10 +596,7 @@ class Api:
         rec = self.airports.get(str(request.path_params["code"]))
         if rec is None:
             return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
-        nearby = nearby_aircraft(self.index, rec, known_route=self._cached_route)
-        counts: dict[str, int] = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
-        for item in nearby:
-            counts[str(item["state"])] += 1
+        nearby, counts = nearby_traffic(self.index, rec, known_route=self._cached_route)
         return JSONResponse(
             {
                 "ok": True,

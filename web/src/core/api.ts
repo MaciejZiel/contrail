@@ -1,4 +1,5 @@
 /** Typed client for the server's single-aircraft endpoints. */
+import { snapBox } from "./trailBox";
 
 export interface AircraftInfo {
   hex: string;
@@ -280,7 +281,8 @@ export interface BoundsBox {
 }
 
 export async function fetchRecentTrails(box: BoundsBox, minutes: number, filterQuery: string, signal: AbortSignal): Promise<RecentTrails> {
-  const q = `w=${box.west.toFixed(3)}&s=${box.south.toFixed(3)}&e=${box.east.toFixed(3)}&n=${box.north.toFixed(3)}&window=${minutes * 60}`;
+  const b0 = snapBox(box); // the grid the server uses, so equal views make equal URLs
+  const q = `w=${b0.west}&s=${b0.south}&e=${b0.east}&n=${b0.north}&window=${minutes * 60}`;
   const { status, body } = await getJson(`api/v1/trails?${q}${filterQuery}`, signal);
   if (status !== 200) throw new Error(`trails failed (HTTP ${status})`);
   const b = (body ?? {}) as Partial<RecentTrails>;
