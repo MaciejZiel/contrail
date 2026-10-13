@@ -11,6 +11,7 @@ from flightmap.config import Settings
 from flightmap.demo import DemoTraffic
 from flightmap.fixture_upstream import make_handler
 from flightmap.tiles import tile_of
+from flightmap.upstream import TokenBucket
 
 from .asgi import asgi_get
 
@@ -164,6 +165,22 @@ class AircraftDetailTest(AppBase):
         r = await asgi_get(self.app, "/api/v1/aircraft/000000")
         self.assertEqual(r.status, 404)
         self.assertFalse(json.loads(r.body)["ok"])
+
+    async def test_lookups_of_untracked_aircraft_are_rate_limited(self) -> None:
+        api = self.app.state.api
+        api._lookups = TokenBucket(0.01, burst=2.0)
+        statuses = [(await asgi_get(self.app, f"/api/v1/aircraft/{i:06x}")).status for i in range(1, 6)]
+        self.assertEqual(statuses[:2], [404, 404])
+        self.assertEqual(statuses[2:], [503, 503, 503])
+        busy = await asgi_get(self.app, "/api/v1/aircraft/000005/route")
+        self.assertEqual(busy.status, 503)
+        self.assertEqual(json.loads(busy.body)["reason"], "busy")
+        self.assertIn("retry-after", busy.headers)
+        # repeated lookups of a recently looked-up address are served from the cache, not refused
+        self.assertEqual((await asgi_get(self.app, "/api/v1/aircraft/000001")).status, 404)
+        # aircraft inside cached tiles never need a lookup
+        hex_str, _cs = await self._any_aircraft()
+        self.assertEqual((await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}")).status, 200)
 
     async def test_route_comes_from_the_standing_data_upstream(self) -> None:
         hex_str, _cs = await self._any_aircraft()

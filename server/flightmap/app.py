@@ -37,13 +37,20 @@ from .tilecache import TileCache
 from .tiles import Tile, tiles_in_rect
 from .trafficmask import load_traffic_tiles
 from .trails import TrailStore
-from .upstream import UpstreamClient, UpstreamError
+from .upstream import TokenBucket, UpstreamClient, UpstreamError
 
 log = logging.getLogger("flightmap")
 
 WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
+# Lookups of aircraft outside every cached tile may use this share of the upstream budget.
+LOOKUP_SHARE = 0.15
+LOOKUP_RETRY_AFTER_S = 20
+
+
+class LookupsExhausted(Exception):
+    """Too many single-aircraft upstream lookups right now."""
 
 
 SECURITY_HEADERS = {
@@ -124,6 +131,14 @@ def _etag_matches(if_none_match: str, digest: str) -> bool:
     return f'"{digest}"' in tags or if_none_match.strip() == "*"
 
 
+def _busy() -> Response:
+    return JSONResponse(
+        {"ok": False, "reason": "busy"},
+        status_code=503,
+        headers={"Retry-After": str(LOOKUP_RETRY_AFTER_S), "Cache-Control": "no-store"},
+    )
+
+
 class Api:
     def __init__(
         self,
@@ -142,6 +157,9 @@ class Api:
         self._route_lookup = route_lookup
         self._routes = EnrichmentCache(ttl_s=6 * 3600, neg_ttl_s=120.0)
         self._hexes = EnrichmentCache(ttl_s=20.0, neg_ttl_s=30.0)
+        # Any client can name any ICAO24, so lookups get their own small allowance on top of the
+        # shared budget: random addresses must not be able to starve the tiles everybody watches.
+        self._lookups = TokenBucket(settings.upstream_budget_rps * LOOKUP_SHARE, burst=3.0)
 
     def select_tiles(self, x0: int, y0: int, x1: int, y1: int) -> list[Tile]:
         tiles = tiles_in_rect(x0, y0, x1, y1)
@@ -197,6 +215,8 @@ class Api:
         found = self.index.get(int(hex_str, 16))
         if found:
             return found
+        if not self._hexes.has(hex_str) and not self._lookups.try_take():
+            raise LookupsExhausted
         try:
             ac = await self._hexes.get(
                 hex_str, lambda: self.cache.with_budget(lambda: self.cache.provider.fetch_hex(hex_str))
@@ -215,7 +235,10 @@ class Api:
         hex_str = self._hex_or_error(request)
         if isinstance(hex_str, Response):
             return hex_str
-        found = await self._find(hex_str)
+        try:
+            found = await self._find(hex_str)
+        except LookupsExhausted:
+            return _busy()
         if not found:
             return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
         return JSONResponse(
@@ -226,7 +249,10 @@ class Api:
         hex_str = self._hex_or_error(request)
         if isinstance(hex_str, Response):
             return hex_str
-        found = await self._find(hex_str)
+        try:
+            found = await self._find(hex_str)
+        except LookupsExhausted:
+            return _busy()
         if not found:
             return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
         ac = found[0]
