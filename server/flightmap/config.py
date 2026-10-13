@@ -33,7 +33,7 @@ class Settings:
     weather_url: str = "https://aviationweather.gov"
     trail_retention_s: float = 2700.0
     trail_min_interval_s: float = 10.0
-    max_tile_age_s: float = 600.0
+    max_tile_age_s: float = 900.0
     prefetch_region: str = "35,72,-25,45"  # south,north,west,east in degrees; empty disables prefetching
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = False
@@ -61,7 +61,7 @@ class Settings:
             weather_url=e.get("WEATHER_URL", "https://aviationweather.gov").rstrip("/"),
             trail_retention_s=float(e.get("TRAIL_RETENTION_S", "2700")),
             trail_min_interval_s=float(e.get("TRAIL_MIN_INTERVAL_S", "10")),
-            max_tile_age_s=float(e.get("MAX_TILE_AGE_S", "600")),
+            max_tile_age_s=float(e.get("MAX_TILE_AGE_S", "900")),
             prefetch_region=e.get(
                 "PREFETCH_REGION", "" if _bool(e.get("DEMO_MODE"), False) else "35,72,-25,45"
             ),

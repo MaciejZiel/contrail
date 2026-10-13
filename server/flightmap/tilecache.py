@@ -22,7 +22,7 @@ from .upstream import TokenBucket, UpstreamError
 log = logging.getLogger("flightmap.tiles")
 MAX_INFLIGHT = 4
 MIN_RPS = 0.15
-DEFAULT_MAX_AGE_S = 600.0
+DEFAULT_MAX_AGE_S = 900.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
 
