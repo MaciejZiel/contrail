@@ -84,9 +84,13 @@ test("an airline result filters the map to that airline", async ({ page }) => {
   await page.getByRole("option").filter({ hasText: /in air|none loaded/ }).first().click();
   await expect(page.getByText(/^Only /)).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`air=${code}`));
-  const visible = await page.evaluate(() => (window as any).__flights.layer.visiblePlanes().map((p: any) => p.callsign.slice(0, 3)));
-  expect(visible.length).toBeGreaterThan(0);
-  expect(new Set(visible)).toEqual(new Set([code]));
+  // the layer applies the filter on its next update, so wait for it instead of reading once
+  await expect
+    .poll(async () => {
+      const visible: string[] = await page.evaluate(() => (window as any).__flights.layer.visiblePlanes().map((p: any) => p.callsign.slice(0, 3)));
+      return visible.length > 0 && visible.every((c) => c === code);
+    })
+    .toBe(true);
   await page.getByRole("button", { name: /Show all airlines/ }).click();
   await expect(page).not.toHaveURL(/air=/);
 });
