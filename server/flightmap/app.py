@@ -10,6 +10,7 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Protocol
 
 from starlette.applications import Starlette
@@ -40,10 +41,10 @@ from .regions import build_plan, parse_regions
 from .search import aircraft_item, nearby_aircraft, search_all
 from .thinning import level_for_zoom, thin
 from .tilecache import TileCache, TileEntry
-from .tiles import Tile, tiles_in_rect
+from .tiles import Tile, tile_of, tiles_in_rect
 from .trafficmask import load_traffic_tiles
 from .trails import TrailStore
-from .upstream import TokenBucket, UpstreamClient, UpstreamError
+from .upstream import BudgetExhausted, TokenBucket, UpstreamClient, UpstreamError
 
 log = logging.getLogger("flightmap")
 
@@ -51,8 +52,22 @@ WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
 # Lookups of aircraft outside every cached tile may use this share of the upstream budget.
-LOOKUP_SHARE = 0.15
+LOOKUP_RPS = 0.05  # single-aircraft ADSB.lol lookups, on their own thread and budget
+WEATHER_RPS = 1.5  # NOAA allows 100 requests per minute
+ROUTE_RPS = 2.0
 LOOKUP_RETRY_AFTER_S = 20
+MIN_EXACT_LOOKUP_CHARS = 4
+
+
+_Block = tuple[int, int, int, int, int, bytes]
+FINEST_LEVEL = 6
+
+
+@dataclass(slots=True)
+class _Snapshot:
+    blocks: list[_Block]
+    present: frozenset[int]
+    encoded: tuple[int, bytes]
 
 
 class LookupsExhausted(Exception):
@@ -64,10 +79,20 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "SAMEORIGIN",
 }
+# Keep in sync with deploy/termux/nginx-headers.conf (a test compares them).
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob: https://t.plnspttrs.net; "
+    "connect-src 'self' https://api.planespotters.net https://tiles.openfreemap.org; "
+    "font-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+)
+DATA_LICENSE = "ODbL-1.0; aircraft data from ADSB.lol (https://adsb.lol), see https://opendatacommons.org/licenses/odbl/1-0/"
 
 
 class SecurityHeaders:
-    """Baseline response headers, also for the static app when the server serves it itself."""
+    """Baseline response headers, also for the static app when the server serves it itself:
+    a CSP and cache rules for the pages (the HTML must never be cached stale, hashed assets may),
+    and the ODbL notice on API output, which re-publishes ADSB.lol data."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -76,12 +101,22 @@ class SecurityHeaders:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+        path = str(scope.get("path", ""))
+        is_api = "/api/" in path
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
                 for key, value in SECURITY_HEADERS.items():
                     headers.setdefault(key, value)
+                if is_api:
+                    headers.setdefault("X-Data-License", DATA_LICENSE)
+                else:
+                    headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+                    if path.endswith(("/", ".html")) or "." not in path.rsplit("/", 1)[-1]:
+                        headers["Cache-Control"] = "no-cache"
+                    elif "/assets/" in path or "/maplibre/" in path:
+                        headers["Cache-Control"] = "public, max-age=31536000, immutable"
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
@@ -166,7 +201,7 @@ class Api:
         self.index = index
         self.trails = trails
         self.traffic = load_traffic_tiles()
-        self._snapshots: OrderedDict[str, tuple[int, bytes]] = OrderedDict()
+        self._snapshots: OrderedDict[str, _Snapshot] = OrderedDict()
         self._route_lookup = route_lookup
         self._weather = weather
         self.airports = load_catalog()
@@ -175,9 +210,9 @@ class Api:
         self._searches = EnrichmentCache(ttl_s=30.0, neg_ttl_s=60.0)
         self._routes = EnrichmentCache(ttl_s=6 * 3600, neg_ttl_s=120.0)
         self._hexes = EnrichmentCache(ttl_s=20.0, neg_ttl_s=30.0)
-        # Any client can name any ICAO24, so lookups get their own small allowance on top of the
-        # shared budget: random addresses must not be able to starve the tiles everybody watches.
-        self._lookups = TokenBucket(settings.upstream_budget_rps * LOOKUP_SHARE, burst=3.0)
+        # Any client can name any ICAO24, so lookups get their own small allowance, separate from the
+        # tile budget: random addresses must not be able to starve the tiles everybody watches.
+        self._lookups = TokenBucket(LOOKUP_RPS, burst=3.0)
 
     def select_tiles(self, x0: int, y0: int, x1: int, y1: int) -> list[Tile]:
         tiles = tiles_in_rect(x0, y0, x1, y1)
@@ -193,19 +228,20 @@ class Api:
         tiles = self.select_tiles(x0, y0, x1, y1)
         cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
-        zoom_raw = request.query_params.get("z")
-        level = level_for_zoom(int(zoom_raw)) if zoom_raw and zoom_raw.lstrip("-").isdigit() else 0
+        zoom_raw = request.query_params.get("z", "")
+        level = level_for_zoom(int(zoom_raw)) if re.fullmatch(r"-?\d{1,3}", zoom_raw) else 0
+        wide = len(tiles_in_rect(x0, y0, x1, y1)) > WIDE_REQUEST_TILES
+        if wide and level == 0:
+            level = FINEST_LEVEL  # a wide rectangle is never served unthinned
         keep_raw = request.query_params.get("keep", "").lower()
-        keep = (
-            int(keep_raw, 16) if _HEX_RE.match(keep_raw) else None
-        )  # the selected aircraft is never thinned out
+        keep = int(keep_raw, 16) if level > 0 and _HEX_RE.match(keep_raw) else None
         # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
         del tiles[self.settings.max_tiles_per_request :]
-        focus = len(tiles_in_rect(x0, y0, x1, y1)) <= WIDE_REQUEST_TILES
+        focus = not wide
         await self.cache.request(tiles, focus=focus)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
-            (f"L{level}:{keep}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
+            (f"L{level}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
         ).hexdigest()[:20]
         # Weak: the tile data is identical for equal tags, but every body carries the current server time.
         etag = f'W/"{digest}"'
@@ -219,32 +255,59 @@ class Api:
         }
         if _etag_matches(request.headers.get("if-none-match", ""), digest):
             return Response(status_code=304, headers=headers)
-        cached = self._snapshots.get(digest)
-        if cached is None:
-            cached = encode_tiles(self._blocks(entries, level, keep))
-            self._snapshots[digest] = cached
+        snap = self._snapshots.get(digest)
+        if snap is None:
+            blocks, present = self._blocks(entries, level)
+            snap = _Snapshot(blocks, present, encode_tiles(blocks))
+            self._snapshots[digest] = snap
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
                 self._snapshots.popitem(last=False)
         else:
             self._snapshots.move_to_end(digest)
+        cached = snap.encoded
+        if keep is not None and keep not in snap.present:
+            cached = self._with_kept(snap, entries, keep) or cached
         body = encode_header(cached[0], int(time.time() * 1000)) + cached[1]
         return Response(body, media_type="application/octet-stream", headers=headers)
 
+    def _with_kept(self, snap: _Snapshot, entries: list[TileEntry], keep: int) -> tuple[int, bytes] | None:
+        """Add the selected aircraft to its tile block of a cached, thinned snapshot (O(one block))."""
+        found = self.index.get(keep)
+        if found is None:
+            return None
+        aircraft = found[0]
+        tile = tile_of(aircraft.lat, aircraft.lon)
+        for i, e in enumerate(entries):
+            if e.tile == tile:
+                tx, ty, fetched, count, source, payload = snap.blocks[i]
+                blocks = list(snap.blocks)
+                blocks[i] = (tx, ty, fetched, count + 1, source, payload + encode_aircraft([aircraft]))
+                return encode_tiles(blocks)
+        return None
+
     @staticmethod
-    def _blocks(
-        entries: list[TileEntry], level: int, keep: int | None = None
-    ) -> list[tuple[int, int, int, int, int, bytes]]:
+    def _blocks(entries: list[TileEntry], level: int) -> tuple[list[_Block], frozenset[int]]:
         """Tile blocks for the response; at low zoom one representative aircraft per grid cell."""
         if level == 0:
-            return [
-                (e.tile[0], e.tile[1], int(e.fetched_at * 1000), len(e.payload) // 32, e.source, e.payload)
-                for e in entries
-            ]
+            return (
+                [
+                    (
+                        e.tile[0],
+                        e.tile[1],
+                        int(e.fetched_at * 1000),
+                        len(e.payload) // 32,
+                        e.source,
+                        e.payload,
+                    )
+                    for e in entries
+                ],
+                frozenset(),
+            )
         owned = [(i, a) for i, e in enumerate(entries) for a in e.aircraft]
         kept: dict[int, list[Aircraft]] = {}
-        for i, a in thin(owned, level, keep):
+        for i, a in thin(owned, level):
             kept.setdefault(i, []).append(a)
-        out: list[tuple[int, int, int, int, int, bytes]] = []
+        out: list[_Block] = []
         for i, e in enumerate(entries):
             subset = kept.get(i, [])
             out.append(
@@ -257,7 +320,7 @@ class Api:
                     encode_aircraft(subset),
                 )
             )
-        return out
+        return out, frozenset(a.hex for sub in kept.values() for a in sub)
 
     # -- single aircraft ---------------------------------------------------------------
 
@@ -268,9 +331,7 @@ class Api:
         if not self._hexes.has(hex_str) and not self._lookups.try_take():
             raise LookupsExhausted
         try:
-            ac = await self._hexes.get(
-                hex_str, lambda: self.cache.with_budget(lambda: self.cache.provider.fetch_hex(hex_str))
-            )
+            ac = await self._hexes.get(hex_str, lambda: self.cache.provider.fetch_hex(hex_str))
         except UpstreamError:
             return None
         return (ac, time.time()) if ac else None
@@ -311,6 +372,8 @@ class Api:
             return JSONResponse({"ok": False, "reason": "no_callsign"}, headers=headers)
         try:
             route = await self._routes.get(ac.callsign, lambda: self._route_lookup(ac.callsign))
+        except BudgetExhausted:
+            return JSONResponse({"ok": False, "reason": "busy"}, headers={"Cache-Control": "no-store"})
         except UpstreamError:
             return JSONResponse({"ok": False, "reason": "unavailable"}, headers={"Cache-Control": "no-store"})
         if route is None:
@@ -349,35 +412,38 @@ class Api:
         if len(q) < 2:
             return JSONResponse({"aircraft": [], "airports": [], "airlines": []})
         result = search_all(self.index, self.airports, q)
-        if not result["aircraft"]:
+        if not result["aircraft"] and len(q) >= MIN_EXACT_LOOKUP_CHARS:
             exact = await self._exact_lookup(q)
             if exact is not None:
                 result["aircraft"] = [exact]
         return JSONResponse(result, headers={"Cache-Control": "public, max-age=3"})
 
-    async def _exact_lookup(self, q: str) -> dict[str, object] | None:
-        """A complete callsign, registration or ICAO24 that is not in a loaded tile: ask the provider."""
+    @staticmethod
+    def _exact_kind(q: str) -> tuple[str, str] | None:
+        """The one most specific kind a query can be: ICAO24, then registration, then callsign."""
         up = q.upper().replace(" ", "")
-        kinds: list[tuple[str, str]] = []
         if _HEX_RE.match(up.lower()):
-            kinds.append(("hex", up.lower()))
+            return "hex", up.lower()
         if re.fullmatch(r"[A-Z]{1,2}-[A-Z0-9]{2,5}|N[0-9]{1,5}[A-Z]{0,2}", up):
-            kinds.append(("reg", up))
+            return "reg", up
         if re.fullmatch(r"[A-Z0-9]{3,8}", up) and any(c.isdigit() for c in up):
-            kinds.append(("callsign", up))
-        for kind, value in kinds[:2]:
-            try:
-                ac = await self._searches.get(
-                    f"{kind}:{value}",
-                    lambda k=kind, v=value: self.cache.with_budget(
-                        lambda: self.cache.provider.fetch_exact(k, v), 1.5
-                    ),
-                )
-            except UpstreamError:
-                continue
-            if ac is not None:
-                return aircraft_item(ac)
+            return "callsign", up
         return None
+
+    async def _exact_lookup(self, q: str) -> dict[str, object] | None:
+        """A complete callsign, registration or ICAO24 that is not in a loaded tile: at most one
+        upstream call, from the lookup allowance (never the tile budget), and none when it is empty."""
+        kind = self._exact_kind(q)
+        if kind is None:
+            return None
+        key = f"{kind[0]}:{kind[1]}"
+        if not self._searches.has(key) and not self._lookups.try_take():
+            return None
+        try:
+            ac = await self._searches.get(key, lambda: self.cache.provider.fetch_exact(*kind))
+        except UpstreamError:
+            return None
+        return aircraft_item(ac) if ac is not None else None
 
     async def airport_catalog(self, _request: Request) -> Response:
         return Response(
@@ -404,11 +470,15 @@ class Api:
         rec = self.airports.get(str(request.path_params["code"]))
         if rec is None:
             return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
+        if not (rec.scheduled and rec.kind in ("L", "M")):  # only airports that publish reports we can use
+            return JSONResponse({"ok": False, "reason": "no_weather_service"}, status_code=404)
         station = rec.icao.upper()
 
         async def part(cache: EnrichmentCache, loader: Callable[[], Awaitable[object]]) -> dict[str, object]:
             try:
                 value = await cache.get(station, loader)
+            except BudgetExhausted:
+                return {"ok": False, "reason": "busy"}
             except UpstreamError:
                 return {"ok": False, "reason": "unavailable"}
             if value is None:
@@ -436,6 +506,7 @@ class Api:
         data["max_age_s"] = self.settings.max_tile_age_s
         data["demo"] = self.settings.demo_mode
         data["trails"] = len(self.trails)
+        data["trails_evicted"] = self.trails.evicted
         data["trail_points"] = self.trails.points
         data["indexed_aircraft"] = len(self.index)
         return JSONResponse(data, headers={"Cache-Control": "no-store"})
@@ -444,16 +515,21 @@ class Api:
         return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 
 
-def build_provider(settings: Settings, client: UpstreamClient | None) -> TileProvider:
-    if settings.demo_mode or client is None:
+def build_provider(
+    settings: Settings, tiles: UpstreamClient | None, lookups: UpstreamClient | None
+) -> TileProvider:
+    if settings.demo_mode or tiles is None:
         return DemoProvider()
-    return AdsbLolProvider(client, settings.adsblol_url)
+    return AdsbLolProvider(tiles, settings.adsblol_url, lookup_client=lookups)
 
 
 def create_app(settings: Settings | None = None, provider: TileProvider | None = None) -> Starlette:
     settings = settings or Settings.from_env()
-    client = None if settings.demo_mode and provider is None else UpstreamClient(settings.user_agent)
-    tile_provider = provider or build_provider(settings, client)
+    live = not (settings.demo_mode and provider is None)
+    # Separate threads: tile fetching must never queue behind lookups, routes or weather.
+    tile_client = UpstreamClient(settings.user_agent, workers=1) if live else None
+    side_client = UpstreamClient(settings.user_agent, workers=2) if live else None
+    tile_provider = provider or build_provider(settings, tile_client, side_client)
     traffic_tiles = load_traffic_tiles()
     plan = build_plan(parse_regions(settings.prefetch_regions), traffic_tiles)
     cache = TileCache(
@@ -478,15 +554,15 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     cache.listeners.append(trails.on_tile_update)
 
     demo_routes = getattr(tile_provider, "lookup_route", None)
+    side = side_client or UpstreamClient(settings.user_agent, workers=2)
     if demo_routes is not None:
         route_lookup: Callable[[str], Awaitable[Route | None]] = demo_routes
     else:
-        route_client = client or UpstreamClient(settings.user_agent)
-        route_lookup = RouteProvider(route_client, settings.routes_url).lookup
+        route_lookup = RouteProvider(side, settings.routes_url, TokenBucket(ROUTE_RPS, burst=5.0)).lookup
     weather: WeatherSource = (
         DemoWeather()
         if settings.demo_mode and provider is None
-        else WeatherProvider(client or UpstreamClient(settings.user_agent), settings.weather_url)
+        else WeatherProvider(side, settings.weather_url, TokenBucket(WEATHER_RPS, burst=5.0))
     )
     api = Api(settings, cache, index, trails, route_lookup, weather)
 
@@ -499,8 +575,9 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         finally:
             await cache.stop()
             await trails.stop()
-            if client:
-                client.close()
+            for c in {tile_client, side_client}:
+                if c:
+                    c.close()
 
     routes: list[BaseRoute] = [
         HttpRoute("/api/v1/aircraft", api.aircraft),
