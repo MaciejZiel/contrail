@@ -39,6 +39,11 @@ class EnrichmentCache:
     def open(self) -> bool:
         return time.monotonic() < self._open_until
 
+    def has(self, key: str) -> bool:
+        """True when ``key`` is cached (as a value or a failure) or being loaded right now."""
+        hit = self._store.get(key)
+        return (hit is not None and hit[0] > time.monotonic()) or key in self._inflight
+
     async def get(self, key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
         """Value for ``key`` (may be None for "known to not exist"); raises UpstreamError when unavailable."""
         now = time.monotonic()

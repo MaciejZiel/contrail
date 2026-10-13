@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { fmtAge, fmtAlt, fmtSpeed, fmtVrate, haversineKm, progressAlong, squawkMeaning } from "../src/core/format";
+import { fmtAge, fmtAlt, fmtSpeed, fmtSquawk, fmtVrate, haversineKm, progressAlong, squawkMeaning } from "../src/core/format";
 
 describe("formatting", () => {
+  it("keeps the leading zeros of squawk codes", () => {
+    expect(fmtSquawk(503)).toBe("0503");
+    expect(fmtSquawk(7700)).toBe("7700");
+    expect(fmtSquawk(0)).toBe("0000");
+    expect(fmtSquawk(null)).toBe("–");
+  });
+
   it("shows flight levels at cruise and feet below", () => {
     expect(fmtAlt(36000)).toBe("FL360");
     expect(fmtAlt(4500)).toBe("4,500 ft");

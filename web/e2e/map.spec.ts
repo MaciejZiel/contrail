@@ -9,6 +9,13 @@ test("shows live aircraft with a freshness indicator", async ({ page }) => {
   await page.screenshot({ path: "test-results/map.png" });
 });
 
+test("the fully zoomed-out world view still shows traffic", async ({ page }) => {
+  await openMap(page, "c=30,0&z=2");
+  await expect(page.locator(".chip")).not.toContainText("Offline");
+  const covered = await page.evaluate(() => (window as any).__flights.layer.coveredPixels());
+  expect(covered).toBeGreaterThan(1000);
+});
+
 test("aircraft keep moving between updates without jumps", async ({ page }) => {
   await openMap(page, "c=50,10&z=7");
   const { hex } = await pickVisibleMover(page);
@@ -51,7 +58,7 @@ test("clicking an aircraft selects it and mirrors it in the URL", async ({ page 
 });
 
 test("restores the view and selection from the URL", async ({ page }) => {
-  await openMap(page, "c=48.85,2.35&z=7.5&s=000001");
+  await openMap(page, "c=48.85,2.35&z=7.5&s=000001", 5);
   const view = await page.evaluate(() => {
     const m = (window as any).__flights.map;
     return { lat: m.getCenter().lat, lon: m.getCenter().lng, zoom: m.getZoom() };

@@ -51,6 +51,11 @@ export function progressAlong(
   return total <= 0 ? 0 : Math.max(0, Math.min(1, done / total));
 }
 
+/** Squawk codes are four octal digits; the feed carries them as a number, so restore leading zeros. */
+export function fmtSquawk(squawk: number | null): string {
+  return squawk === null ? "–" : squawk.toString().padStart(4, "0");
+}
+
 export function squawkMeaning(squawk: number | null): string | null {
   switch (squawk) {
     case 7500:
