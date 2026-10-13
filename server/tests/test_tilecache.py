@@ -125,6 +125,27 @@ class TileCacheTest(unittest.IsolatedAsyncioTestCase):
             await cache.stop()
 
 
+class FocusPriorityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_world_viewer_does_not_starve_a_zoomed_in_viewer(self) -> None:
+        p = FakeProvider()
+        cache = make(p, budget_rps=5.0, ttl_s=0.2)
+        cache.start()
+        try:
+            await cache.request([(x, 20) for x in range(40)], cold_deadline_s=0.05, focus=False)
+            await cache.request([(50, 30)], cold_deadline_s=1.0)
+            before = p.calls.count((50, 30))
+            for _ in range(6):  # both viewers keep polling
+                await asyncio.sleep(0.5)
+                await cache.request([(x, 20) for x in range(40)], cold_deadline_s=0.0, focus=False)
+                await cache.request([(50, 30)], cold_deadline_s=0.0)
+            # 41 tiles at 5 req/s would refresh each tile only every ~8 s without priority
+            self.assertGreaterEqual(p.calls.count((50, 30)) - before, 5)
+            wide_calls = sum(1 for t in p.calls if t[1] == 20)
+            self.assertGreater(wide_calls, 3)  # wide views still get part of the budget
+        finally:
+            await cache.stop()
+
+
 class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
     async def test_sustained_rate_limits_lower_the_request_rate(self) -> None:
         p = FakeProvider()
@@ -149,3 +170,15 @@ class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(cache.snapshot_status()["current_rps"], 1.0)
         finally:
             await cache.stop()
+
+    async def test_rate_recovers_with_time_not_request_count(self) -> None:
+        cache = make(FakeProvider(), budget_rps=0.35)
+        cache._bucket.rate = 0.08  # type: ignore[attr-defined]  # as after several 429s
+        cache._last_rate_change = 0.0  # type: ignore[attr-defined]
+        now = 1000.0
+        for _ in range(20):  # 20 * 30 s = 10 minutes, whatever the number of requests
+            now += 30.0
+            cache._recover_rate(now)  # type: ignore[attr-defined]
+        self.assertAlmostEqual(cache.snapshot_status()["current_rps"], 0.35)  # type: ignore[arg-type]
+        cache._recover_rate(now + 1)  # type: ignore[attr-defined]
+        self.assertLessEqual(cache._bucket.rate, 0.35)  # type: ignore[attr-defined]

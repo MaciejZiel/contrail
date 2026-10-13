@@ -3,7 +3,7 @@
   import { fetchAircraft, fetchRoute, fetchTrail, type AircraftInfo, type Loaded, type RouteInfo, type Trail } from "../core/api";
   import { serverNow } from "../core/clock";
   import { estimateArrival, type Eta } from "../core/geodesy";
-  import { haversineKm, fmtAge, fmtAlt, fmtAltFull, fmtSpeed, fmtTrack, fmtVrate, progressAlong, squawkMeaning } from "../core/format";
+  import { fmtAge, fmtAlt, fmtAltFull, fmtSpeed, fmtSquawk, fmtTrack, fmtVrate, haversineKm, progressAlong, squawkMeaning } from "../core/format";
   import type { AircraftStore } from "../core/store";
   import Photo from "./Photo.svelte";
   import RouteBar from "./RouteBar.svelte";
@@ -165,7 +165,7 @@
   </header>
 
   {#if emergency}
-    <p class="alert" role="alert">Squawk {live.squawk}: {emergency}</p>
+    <p class="alert" role="alert">Squawk {fmtSquawk(live.squawk)}: {emergency}</p>
   {/if}
 
   <Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} />
@@ -176,7 +176,7 @@
     <div><dt>Ground speed</dt><dd>{fmtSpeed(live.speedKt)}</dd></div>
     <div><dt>Vertical rate</dt><dd>{fmtVrate(live.vrate)}</dd></div>
     <div><dt>Track</dt><dd>{fmtTrack(live.track)}</dd></div>
-    <div><dt>Squawk</dt><dd>{live.squawk ?? "–"}</dd></div>
+    <div><dt>Squawk</dt><dd>{fmtSquawk(live.squawk)}</dd></div>
     <div><dt>Position</dt><dd>{live.tracked ? fmtAge(live.ageS) : "not in view"}</dd></div>
   </dl>
 

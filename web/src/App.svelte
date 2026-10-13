@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { fetchAirlineNames, type SearchAircraft, type SearchAirline, type SearchAirport, type Trail } from "./core/api";
   import { accepts } from "./core/filters";
   import { ui } from "./core/state.svelte";
@@ -22,10 +22,31 @@
 
   const hex = (n: number) => n.toString(16).padStart(6, "0");
 
+  /** Pan the map when the panel that just opened covers the selected aircraft. */
+  async function revealSelected(n: number): Promise<void> {
+    await tick();
+    const pos = ctl?.aircraft?.screenPosition(n);
+    const panel = document.querySelector<HTMLElement>(".side, .sheet");
+    if (!ctl || !pos || !panel) return;
+    const box = panel.getBoundingClientRect();
+    const mapBox = ctl.map.getContainer().getBoundingClientRect();
+    const x = pos.x + mapBox.left;
+    const y = pos.y + mapBox.top;
+    const margin = 32;
+    if (x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin) return;
+    const sidePanel = box.height > mapBox.height * 0.75;
+    const target = sidePanel
+      ? { x: box.right + (mapBox.right - box.right) / 2, y }
+      : { x, y: mapBox.top + (box.top - mapBox.top) / 2 };
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ctl.map.panBy([x - target.x, y - target.y], { duration: reduced ? 0 : 450 });
+  }
+
   function selectAircraft(n: number | null): void {
     ui.selected = n === null ? null : hex(n);
     if (n !== null) ui.airport = null;
     afterSelectionChange();
+    if (n !== null) void revealSelected(n);
   }
 
   function selectAirport(icao: string | null): void {

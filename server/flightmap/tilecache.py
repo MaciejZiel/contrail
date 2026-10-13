@@ -23,6 +23,11 @@ log = logging.getLogger("flightmap.tiles")
 MAX_INFLIGHT = 4
 MIN_RPS = 0.15
 DEFAULT_MAX_AGE_S = 900.0
+# Share of the budget that zoomed-in ("focus") tiles may use while wide views also want tiles.
+FOCUS_SHARE = 0.75
+# After a 429 the rate grows back by RECOVERY_STEP_RPS per RECOVERY_INTERVAL_S without another one.
+RECOVERY_STEP_RPS = 0.02
+RECOVERY_INTERVAL_S = 30.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
 
@@ -46,6 +51,7 @@ class TileState:
     next_attempt: float = 0.0  # monotonic
     ever_had_traffic: bool = False
     rank: int = 0  # position in the latest request, nearest the view centre first
+    last_focus: float = 0.0  # monotonic; last demand from a zoomed-in view
 
 
 @dataclass(slots=True)
@@ -78,6 +84,7 @@ class TileCache:
         self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
         self._version = 0
         self._limited: list[float] = []
+        self._last_rate_change = 0.0  # monotonic
         self._paused_until = 0.0
         self._wake = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
@@ -99,8 +106,12 @@ class TileCache:
         st = self._states.get(tile)
         return bool(st and st.ever_had_traffic)
 
-    async def request(self, tiles: Iterable[Tile], cold_deadline_s: float = 4.0) -> None:
-        """Declare demand for tiles; wait (bounded) for tiles that were never fetched."""
+    async def request(self, tiles: Iterable[Tile], cold_deadline_s: float = 4.0, focus: bool = True) -> None:
+        """Declare demand for tiles; wait (bounded) for tiles that were never fetched.
+
+        ``focus`` marks a zoomed-in view. Focus tiles are refreshed first, so one viewer looking
+        at the whole world cannot stretch the refresh interval of a city somebody else watches.
+        """
         now = time.monotonic()
         self._last_request = now
         cold: list[Tile] = []
@@ -108,6 +119,8 @@ class TileCache:
             st = self._states.setdefault(t, TileState())
             st.last_demand = now
             st.rank = rank
+            if focus:
+                st.last_focus = now
             if st.entry is None and now >= st.next_attempt:
                 cold.append(t)
         self._wake.set()
@@ -145,6 +158,7 @@ class TileCache:
         """A few HTTP 429s are normal on a shared public API; sustained ones lower our request rate."""
         now = time.monotonic()
         self._paused_until = now + (retry_after or 4.0)
+        self._last_rate_change = now  # no recovery step until things have been quiet for a while
         self._limited = [t for t in self._limited if now - t < 60.0] + [now]
         if len(self._limited) >= 3:
             self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.8)
@@ -164,9 +178,18 @@ class TileCache:
 
     def _pick(self, now: float) -> Tile | None:
         hot = [(t, s) for t, s in self._states.items() if now - s.last_demand <= self.hot_window_s]
-        ttl = self._effective_ttl(len(hot))
+        focus = [(t, s) for t, s in hot if now - s.last_focus <= self.hot_window_s]
+        if focus and len(focus) < len(hot):
+            # focus tiles first, but leave part of the budget to wide views so they still fill in
+            ttl = max(self.ttl_s, len(focus) / max(self._bucket.rate * FOCUS_SHARE, 0.01))
+            tile = self._most_overdue(focus, now, ttl)
+            if tile is not None:
+                return tile
+        return self._most_overdue(hot, now, self._effective_ttl(len(hot)))
+
+    def _most_overdue(self, candidates: list[tuple[Tile, TileState]], now: float, ttl: float) -> Tile | None:
         best: tuple[float, Tile] | None = None
-        for tile, st in hot:
+        for tile, st in candidates:
             if tile in self._inflight or now < st.next_attempt:
                 continue
             overdue = (now - st.last_attempt) / ttl if st.last_attempt else 1e9 - st.rank
@@ -246,8 +269,7 @@ class TileCache:
             return
         st.failures = 0
         st.next_attempt = 0.0
-        # additive increase back towards the configured budget
-        self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.005)
+        self._recover_rate(time.monotonic())
         self.status.ok = True
         self.status.last_error = ""
         self.status.last_success_at = time.time()
@@ -268,6 +290,16 @@ class TileCache:
                 listener(tile, aircraft, now_wall)
             except Exception:
                 log.exception("tile listener failed")
+
+    def _recover_rate(self, now: float) -> None:
+        """Additive increase back towards the configured budget, paced by time.
+
+        Pacing by time rather than by successful requests keeps the recovery from a low rate
+        as quick as from a high one (counting requests took most of an hour at the floor).
+        """
+        if self._bucket.rate < self.budget_rps and now - self._last_rate_change >= RECOVERY_INTERVAL_S:
+            self._bucket.rate = min(self.budget_rps, self._bucket.rate + RECOVERY_STEP_RPS)
+            self._last_rate_change = now
 
     async def _loop(self) -> None:
         while True:

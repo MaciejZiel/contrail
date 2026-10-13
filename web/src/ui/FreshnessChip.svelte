@@ -18,7 +18,7 @@
 
   const detail = $derived(
     status.tiles
-      ? `Position data is ${age(status.newestAgeS)} to ${age(status.oldestAgeS)} old across ${status.tiles} areas` +
+      ? `Position data is ${ageRange(status.newestAgeS, status.oldestAgeS)} old across ${status.tiles} ${status.tiles === 1 ? "area" : "areas"}` +
           (status.pending ? `; ${status.pending} more loading` : "") +
           ". Aircraft keep moving between updates by dead reckoning."
       : (status.error || "Waiting for the first data"),
@@ -27,6 +27,12 @@
   /** The oldest area is always shown honestly once it is noticeably behind. */
   function oldest(): string {
     return status.oldestAgeS > 90 ? ` · oldest area ${age(status.oldestAgeS)}` : "";
+  }
+
+  function ageRange(newest: number, oldest: number): string {
+    const a = age(newest);
+    const b = age(oldest);
+    return a === b ? a : `${a} to ${b}`;
   }
 
   function age(s: number): string {
