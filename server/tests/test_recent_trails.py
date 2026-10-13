@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from dataclasses import replace
 
@@ -213,3 +214,100 @@ class EnrichmentPeekTest(unittest.IsolatedAsyncioTestCase):
 
         await c.get("a", load)
         self.assertEqual(c.peek("a"), "v")
+
+
+class SnapBoxTest(unittest.TestCase):
+    def test_grows_outwards_onto_a_grid_and_is_stable(self) -> None:
+        from flightmap.app import snap_box
+
+        w, s, e, n = snap_box(14.13, 48.07, 25.91, 55.88)
+        self.assertLessEqual((w, s), (14.13, 48.07))
+        self.assertGreaterEqual((e, n), (25.91, 55.88))
+        self.assertLess(e - 25.91, 3)  # no more than a grid step of extra
+        self.assertEqual(snap_box(14.13, 48.07, 25.91, 55.88), (w, s, e, n))
+        self.assertEqual(snap_box(14.2, 48.1, 25.8, 55.8), (w, s, e, n))  # a nearby viewer shares the box
+
+    def test_antimeridian_and_whole_world(self) -> None:
+        from flightmap.app import snap_box
+
+        w, _s, e, _n = snap_box(170.2, -10, -170.3, 10)
+        self.assertGreater(w, e)  # still crosses it
+        self.assertLessEqual(w, 170.2)
+        self.assertGreaterEqual(e, -170.3)
+        self.assertEqual(snap_box(-180, -90, 180, 90), (-180.0, -90.0, 180.0, 90.0))
+        self.assertEqual(snap_box(-200, -30, 200, 30)[::2], (-180.0, 180.0))
+
+
+class TrailsResultReuseTest(AppBase):
+    BOX = "w=14&s=48&e=26&n=56"
+
+    async def _warm(self) -> None:
+        await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+        api = self.app.state.api
+        for a, t in api.index.values():
+            api.trails.record(replace(a, lat=a.lat + 0.01), t + 15, t + 15)
+
+    async def test_whole_world_box_returns_trails(self) -> None:
+        await self._warm()
+        r = json.loads((await asgi_get(self.app, "/api/v1/trails?w=-180&s=-90&e=180&n=90")).body)
+        self.assertGreater(len(r["trails"]), 0)
+        self.assertGreaterEqual(r["total"], len(r["trails"]))
+        wide = json.loads((await asgi_get(self.app, "/api/v1/trails?w=-300&s=-90&e=300&n=90")).body)
+        self.assertEqual(wide["total"], r["total"])
+
+    async def test_limit_is_capped_at_400(self) -> None:
+        await self._warm()
+        r = json.loads((await asgi_get(self.app, f"/api/v1/trails?{self.BOX}&limit=600")).body)
+        self.assertLessEqual(len(r["trails"]), 400)
+
+    async def test_the_selection_is_reused_for_a_nearby_box_and_expires(self) -> None:
+        await self._warm()
+        api = self.app.state.api
+        calls = 0
+        real = api.trails.recent
+
+        def counting(*a: object, **k: object) -> object:
+            nonlocal calls
+            calls += 1
+            return real(*a, **k)
+
+        api.trails.recent = counting
+        first = await asgi_get(self.app, f"/api/v1/trails?{self.BOX}")
+        again = await asgi_get(self.app, "/api/v1/trails?w=14.05&s=48.02&e=25.95&n=55.97")
+        self.assertEqual((calls, again.body), (1, first.body))
+        await asgi_get(self.app, f"/api/v1/trails?{self.BOX}&ty=A32*")  # another filter is another result
+        self.assertEqual(calls, 2)
+        for k, (_exp, body) in list(api._trail_results.items()):
+            api._trail_results[k] = (0.0, body)  # everything has expired
+        await asgi_get(self.app, f"/api/v1/trails?{self.BOX}")
+        self.assertEqual(calls, 3)
+
+    async def test_the_cache_stays_small(self) -> None:
+        await self._warm()
+        api = self.app.state.api
+        for i in range(100):
+            await asgi_get(self.app, f"/api/v1/trails?w={i}&s=0&e={i + 1}&n=1")
+        self.assertLessEqual(len(api._trail_results), 64)
+
+    async def test_a_reused_result_is_much_cheaper_than_a_selection(self) -> None:
+        api = self.app.state.api
+        now = time.time()
+        for h in range(1, 3001):
+            for k in range(60):
+                api.trails.record(
+                    ac(h, 40 + (h % 300) * 0.05 + k * 0.003, 10 + (h % 100) * 0.1),
+                    now - 600 + k * 10,
+                    now - 600 + k * 10,
+                )
+        url = "/api/v1/trails?w=5&s=38&e=25&n=56"
+        t0 = time.perf_counter()
+        first = await asgi_get(self.app, url)
+        cold = time.perf_counter() - t0
+        t0 = time.perf_counter()
+        again = first
+        for _ in range(10):
+            again = await asgi_get(self.app, url)
+        warm = (time.perf_counter() - t0) / 10
+        self.assertEqual(again.body, first.body)
+        self.assertGreater(len(json.loads(first.body)["trails"]), 100)
+        self.assertLess(warm, cold / 3)

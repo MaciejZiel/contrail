@@ -95,7 +95,7 @@ def nearby_traffic(
     elev = airport.elevation_ft or 0
     dlat = radius_nm / 60.0
     out: list[tuple[float, dict[str, Any]]] = []
-    counts = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
+    counts: dict[str, int] = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
     for a, _t in index.values():
         if abs(a.lat - airport.lat) > dlat:
             continue
