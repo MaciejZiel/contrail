@@ -55,6 +55,25 @@
   });
 
   let open = $state(false);
+  let wrap = $state<HTMLElement>();
+  let panel = $state<HTMLElement>();
+
+  // The panel may only grow down to the bottom of the screen. Its top moves when the chips next to
+  // the button wrap onto more rows, so measure where it really starts instead of guessing a constant.
+  $effect(() => {
+    const el = panel;
+    const bar = wrap?.parentElement;
+    if (!el) return;
+    const fit = () => el.style.setProperty("--room", `${Math.max(120, window.innerHeight - el.getBoundingClientRect().top - 12)}px`);
+    fit();
+    const ro = new ResizeObserver(fit);
+    if (bar) ro.observe(bar);
+    window.addEventListener("resize", fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  });
   let names = $state<Record<string, string>>({});
   let airlines = $state<Array<[string, number]>>([]);
   const count = $derived(activeFilterCount(filters));
@@ -77,13 +96,13 @@
   const altLabel = (v: number) => (v >= ALT_LIMIT ? "any" : v >= 18000 ? `FL${Math.round(v / 100)}` : `${v.toLocaleString("en")} ft`);
 </script>
 
-<div class="wrap">
+<div class="wrap" bind:this={wrap}>
   <button class="btn" onclick={toggle} aria-expanded={open} aria-controls="filter-panel" aria-label={count ? `Filters, ${count} active` : "Filters"}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
     {#if count}<span class="badge">{count}</span>{/if}
   </button>
   {#if open}
-    <div class="panel" id="filter-panel" role="group" aria-label="Filters">
+    <div class="panel" bind:this={panel} id="filter-panel" role="group" aria-label="Filters">
       <div class="head">
         <strong>Filters</strong>
         <button class="link" onclick={() => (filters = { ...DEFAULT_FILTERS })} disabled={count === 0}>Reset</button>
@@ -224,7 +243,7 @@
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     z-index: 10;
-    max-height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(var(--room, calc(100dvh - 76px)) - env(safe-area-inset-bottom));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -238,7 +257,7 @@
       left: 0;
       right: 0;
       width: auto;
-      max-height: calc(100dvh - 130px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      max-height: calc(var(--room, calc(100dvh - 130px)) - env(safe-area-inset-bottom));
     }
   }
   .head {
