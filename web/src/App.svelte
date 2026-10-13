@@ -232,11 +232,10 @@
   const panelOpen = $derived(Boolean(ui.selected || ui.airport));
 </script>
 
-<div class="app" class:has-panel={panelOpen} class:sheet-open={panelOpen && sheetHeight > 0} style={`--sheet-h:${panelOpen ? sheetHeight : 0}px`}>
-  <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
+<main class="app" class:has-panel={panelOpen} class:sheet-open={panelOpen && sheetHeight > 0} style={`--sheet-h:${panelOpen ? sheetHeight : 0}px`}>
+  <h1 class="sr-only">Contrail, live air traffic map</h1>
 
-  <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={accept} onPick={(h) => { selectAircraft(h); }} />
-
+  <!-- search and filters come before the map in the DOM, so they are first in the tab order, ahead of the attribution links inside the map -->
   <div class="topbar">
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
     <FilterPopover bind:filters={ui.filters} {store} onTrails={setTrails} />
@@ -265,6 +264,10 @@
     {/if}
   </div>
 
+  <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
+
+  <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={accept} onPick={(h) => { selectAircraft(h); }} />
+
   <div class="legend-slot"><AltitudeLegend /></div>
 
   {#if ui.selected}
@@ -288,7 +291,7 @@
   {#if ui.problem}
     <MapProblemView problem={ui.problem} {store} centre={{ lat: view0.lat, lon: view0.lon }} count={ui.aircraftCount} />
   {/if}
-</div>
+</main>
 
 <style>
   .app {
