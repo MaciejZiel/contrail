@@ -155,9 +155,38 @@ test.describe("filters, tracks and airports on a 400 x 800 phone", () => {
     }
   });
 
+  test("the filter panel stays on screen when four chips wrap the top bar", async ({ page }) => {
+    await open(page, "c=50,10&z=5&cs=LO&ty=A32*,B738,A21N&tr=60&air=LOT", 0);
+    await expect(page.getByTestId("chip-airline")).toBeVisible();
+    await expect(page.getByTestId("chip-trails")).toBeVisible();
+    const chipTop = (await page.getByTestId("chip-trails").boundingBox())!;
+    expect(chipTop.y).toBeGreaterThan(60); // the chips really did wrap onto further rows
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    const panel = page.locator("#filter-panel");
+    await expect(panel).toBeVisible();
+    const box = (await panel.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(800 - 8);
+    expect(await panel.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true); // it scrolls inside itself
+    const last = page.getByRole("radio", { name: "60 min" });
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
+  });
+
   test("tracks appear when zoomed in", async ({ page }) => {
     await open(page, "c=50,10&z=6.5&tr=30");
     await expect.poll(() => page.evaluate(() => (window as any).__flights.recentTrails.featureCount), { timeout: 40_000 }).toBeGreaterThan(5);
+  });
+
+  test("an airport with two unnamed runways lists both instead of failing on a duplicate key", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await open(page, "c=8.16,35.55&z=9&a=HAGR", 0);
+    const card = page.getByTestId("airport-card");
+    await expect(card).toBeVisible();
+    const info = card.getByTestId("airport-info");
+    await info.scrollIntoViewIfNeeded();
+    await expect(info.getByRole("table", { name: "Runways" }).getByRole("row")).toHaveCount(3); // header and two runways
+    expect(errors).toEqual([]);
   });
 
   test("the airport sheet shows runways, frequencies and traffic", async ({ page }) => {
