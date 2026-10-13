@@ -1,6 +1,6 @@
 <script lang="ts">
   import { AttributionControl, Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { serverNow } from "./core/clock";
   import { Poller } from "./core/poller";
   import { ui } from "./core/state.svelte";
@@ -23,6 +23,29 @@
   function select(hex: number | null): void {
     ui.selected = hex === null ? null : hex.toString(16).padStart(6, "0");
     writeUrl();
+    if (hex !== null) void revealSelected(hex);
+  }
+
+  let aircraftLayer: AircraftLayer | null = null;
+  let panelSlot: HTMLDivElement | undefined = $state();
+
+  /** Pan the map when the panel that just opened covers the selected aircraft. */
+  async function revealSelected(hex: number): Promise<void> {
+    await tick();
+    const pos = aircraftLayer?.screenPosition(hex);
+    if (!map || !pos || !panelSlot) return;
+    const box = panelSlot.getBoundingClientRect();
+    const mapBox = map.getContainer().getBoundingClientRect();
+    const x = pos.x + mapBox.left;
+    const y = pos.y + mapBox.top;
+    const margin = 32;
+    if (x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin) return;
+    const sidePanel = box.height > mapBox.height * 0.75;
+    const target = sidePanel
+      ? { x: box.right + (mapBox.right - box.right) / 2, y }
+      : { x, y: mapBox.top + (box.top - mapBox.top) / 2 };
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    map.panBy([x - target.x, y - target.y], { duration: reduced ? 0 : 450 });
   }
 
   let map: MapLibreMap | undefined;
@@ -123,6 +146,7 @@
         onSelect: select,
       });
       layerHandle.current.start();
+      aircraftLayer = layerHandle.current;
     } catch (err) {
       ui.webglError = err instanceof Error ? err.message : "WebGL unavailable";
     }
@@ -194,7 +218,7 @@
   <div class="legend-slot"><AltitudeLegend /></div>
 
   {#if ui.selected}
-    <div class="panel-slot">
+    <div class="panel-slot" bind:this={panelSlot}>
       <AircraftPanel {store} hex={ui.selected} onClose={() => select(null)} {onTrail} onLocate={locate} />
     </div>
   {/if}

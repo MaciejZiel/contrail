@@ -107,3 +107,24 @@ test("a deep link without a view centres on the aircraft", async ({ page }) => {
   const center = await page.evaluate(() => (window as any).__flights.map.getCenter());
   expect(Math.abs(center.lat - info.aircraft.lat)).toBeLessThan(6);
 });
+
+test("selecting an aircraft that the panel would cover pans it into view", async ({ page }) => {
+  await stubPlanespotters(page);
+  await openMap(page, "c=50,10&z=7");
+  const handle = await page.waitForFunction(() => {
+    const f = (window as any).__flights;
+    for (const p of f.store.planes) {
+      if (p.onGround || !p.callsign) continue;
+      const pos = f.layer.screenPosition(p.hex);
+      if (pos && pos.x > 60 && pos.x < 330 && pos.y > 150 && pos.y < 650) return { hex: p.hex, ...pos };
+    }
+    return null;
+  });
+  const target = (await handle.jsonValue()) as { hex: number; x: number; y: number };
+  await page.mouse.click(target.x, target.y);
+  await expect(page.getByTestId("aircraft-panel")).toBeVisible();
+  const panelRight = await page.locator(".panel-slot").evaluate((el) => el.getBoundingClientRect().right);
+  await expect
+    .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 0)
+    .toBeGreaterThan(panelRight);
+});
