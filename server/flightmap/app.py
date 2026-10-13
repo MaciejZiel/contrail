@@ -86,6 +86,7 @@ CONTENT_SECURITY_POLICY = (
     "connect-src 'self' https://api.planespotters.net https://tiles.openfreemap.org; "
     "font-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
 )
+ICON_FILES = frozenset({"favicon.svg", "favicon.ico", "favicon-32.png", "apple-touch-icon.png"})
 DATA_LICENSE = "ODbL-1.0; aircraft data from ADSB.lol (https://adsb.lol), see https://opendatacommons.org/licenses/odbl/1-0/"
 
 
@@ -115,6 +116,8 @@ class SecurityHeaders:
                     headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
                     if path.endswith(("/", ".html")) or "." not in path.rsplit("/", 1)[-1]:
                         headers["Cache-Control"] = "no-cache"
+                    elif path.rsplit("/", 1)[-1] in ICON_FILES:
+                        headers["Cache-Control"] = "public, max-age=86400"
                     elif "/assets/" in path or "/maplibre/" in path:
                         headers["Cache-Control"] = "public, max-age=31536000, immutable"
             await send(message)
