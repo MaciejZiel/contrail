@@ -31,8 +31,8 @@ test("an aircraft opens a bottom sheet with snap points that can be expanded and
   const sheet = page.locator(".sheet");
   await expect(sheet).toBeVisible();
   const height = () => sheet.evaluate((el) => el.getBoundingClientRect().height);
+  await expect.poll(height).toBeGreaterThan(300); // a real half-height sheet, not the 196 px peek
   const half = await height();
-  expect(half).toBeGreaterThan(300);
 
   // the handle is a button: keyboard users step through the snap points
   const grab = page.getByRole("button", { name: /Expand panel|Collapse panel/ });

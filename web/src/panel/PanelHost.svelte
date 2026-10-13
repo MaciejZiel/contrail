@@ -12,7 +12,8 @@
   const PEEK = 196;
   let desktop = $state(false);
   let vh = $state(800);
-  let height = $state(PEEK);
+  // open straight at the half snap point: starting from the peek would animate the sheet up from 196 px
+  let height = $state(typeof window === "undefined" ? PEEK : Math.round(window.innerHeight * 0.52));
   let dragging = $state(false);
   let startY = 0;
   let startH = 0;

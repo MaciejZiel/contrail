@@ -116,20 +116,20 @@ test("a deep link without a view centres on the aircraft", async ({ page }) => {
   expect(Math.abs(center.lat - info.aircraft.lat)).toBeLessThan(6);
 });
 
-async function selectByType(page: Page, wanted: (type: string) => boolean): Promise<string> {
-  const hex = await page.evaluate(async (src) => {
-    const test = new Function("t", `return (${src})(t)`) as (t: string) => boolean;
+async function selectByType(page: Page, wanted: (type: string) => boolean, manifest: object = {}): Promise<string> {
+  const hex = await page.evaluate(async ({ src, manifest }) => {
+    const test = new Function("t", "manifest", `return (${src})(t)`) as (t: string, m: object) => boolean;
     const f = (window as any).__flights;
     for (const p of f.store.planes.slice(0, 400)) {
       if (!p.callsign) continue;
       const info = (await (await fetch(`api/v1/aircraft/${p.id}`)).json()).aircraft;
-      if (info && info.type_code && test(info.type_code)) {
+      if (info && info.type_code && test(info.type_code, manifest)) {
         f.select(p.hex);
         return p.id as string;
       }
     }
     return null;
-  }, wanted.toString());
+  }, { src: wanted.toString(), manifest });
   expect(hex).not.toBeNull();
   return hex as string;
 }
@@ -138,7 +138,8 @@ test("without an airframe photo the panel shows a representative type photo with
   await stubPlanespotters(page, "empty");
   await openMap(page, "c=50,10&z=6");
   const manifest = await (await page.request.get("/type-photos/manifest.json")).json();
-  await selectByType(page, (t) => ["A320", "B738", "E190", "A333", "B77W", "B788", "A359", "DH8D"].includes(t));
+  // only types that really are in the gallery: a type without a photo correctly shows the illustration
+  await selectByType(page, (t) => t in manifest, manifest);
   const panel = page.getByTestId("aircraft-panel");
   await expect(panel.getByText("Representative photo, not this aircraft")).toBeVisible();
   const img = panel.locator("figure img");
