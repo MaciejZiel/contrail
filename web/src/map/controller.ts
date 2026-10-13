@@ -34,7 +34,11 @@ export interface ControllerOptions {
   onStatus: (s: FeedStatus) => void;
   onData: () => void;
   onZoom: (zoom: number) => void;
-  onWebglError: (message: string) => void;
+  /** URL of the checked MapLibre worker file. */
+  workerUrl: string;
+  onLoaded: () => void;
+  /** The basemap's style or tiles keep failing (blocked or unreachable); aircraft still work. */
+  onBasemapProblem: () => void;
 }
 
 const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
@@ -56,7 +60,7 @@ export class MapController {
   private catalogAbort = new AbortController();
 
   constructor(private o: ControllerOptions) {
-    setWorkerUrl(new URL(`maplibre/${__MAPLIBRE_VERSION__}/maplibre-gl-worker.mjs`, document.baseURI).href);
+    setWorkerUrl(o.workerUrl);
     const m = new MapLibreMap({
       container: o.container,
       style: o.offline ? offlineStyle() : onlineStyle(),
@@ -89,27 +93,22 @@ export class MapController {
     this.trail = new TrailLayer(m);
     this.airports = new AirportLayer(m, o.onSelectAirport);
 
-    let layer: AircraftLayer | null = null;
-    try {
-      layer = new AircraftLayer({
-        map: m,
-        store: o.store,
-        getSelected: o.getSelected,
-        accepts: o.accepts,
-        onSelect: (hex) => {
-          if (hex !== null) return o.onSelectAircraft(hex);
-          const airport = this.lastClick ? this.airports.pick(this.lastClick) : null;
-          if (airport) o.onSelectAirport(airport);
-          else o.onSelectAircraft(null);
-        },
-        onClickPoint: (e) => {
-          this.lastClick = e;
-        },
-      });
-      layer.start();
-    } catch (err) {
-      o.onWebglError(err instanceof Error ? err.message : "WebGL unavailable");
-    }
+    const layer = new AircraftLayer({
+      map: m,
+      store: o.store,
+      getSelected: o.getSelected,
+      accepts: o.accepts,
+      onSelect: (hex) => {
+        if (hex !== null) return o.onSelectAircraft(hex);
+        const airport = this.lastClick ? this.airports.pick(this.lastClick) : null;
+        if (airport) o.onSelectAirport(airport);
+        else o.onSelectAircraft(null);
+      },
+      onClickPoint: (e) => {
+        this.lastClick = e;
+      },
+    });
+    layer.start();
     this.aircraft = layer;
 
     this.poller = new Poller({
@@ -133,7 +132,18 @@ export class MapController {
       clearTimeout(this.moveTimer);
       this.moveTimer = setTimeout(() => this.poller.refreshNow(), 300);
     });
+    let basemapReported = false;
+    m.on("error", (e) => {
+      const msg = e.error?.message ?? "";
+      console.warn("[contrail] map error:", msg);
+      // style, tile and glyph failures from the basemap host: the map still works without a background
+      if (!basemapReported && /openfreemap|Failed to fetch|AJAXError|glyph/i.test(msg)) {
+        basemapReported = true;
+        o.onBasemapProblem();
+      }
+    });
     m.on("load", () => {
+      o.onLoaded();
       // the credits stay one tap away but do not cover a small map on first paint
       if (window.innerWidth < 900) {
         const attr = o.container.querySelector(".maplibregl-ctrl-attrib");

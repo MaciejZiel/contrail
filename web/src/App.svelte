@@ -6,7 +6,12 @@
   import { AircraftStore } from "./core/store";
   import { parseUrlState } from "./core/urlState";
   import FilterPopover from "./filters/FilterPopover.svelte";
+  import { installGlobalHandlers } from "./core/diagnostics";
+  import { startFallbackFeed } from "./core/fallbackFeed";
+  import type { Poller } from "./core/poller";
   import { MapController } from "./map/controller";
+  import { initProblem, resolveWorkerUrl, timeoutProblem, webgl2Available, webglProblem, type MapProblem } from "./map/startup";
+  import MapProblemView from "./ui/MapProblem.svelte";
   import AircraftPanel from "./panel/AircraftPanel.svelte";
   import PanelHost from "./panel/PanelHost.svelte";
   import AirportCard from "./panel/AirportCard.svelte";
@@ -17,6 +22,7 @@
   import FreshnessChip from "./ui/FreshnessChip.svelte";
 
   const store = new AircraftStore();
+  const view0 = parseUrlState(location.search);
   let container: HTMLDivElement;
   let ctl: MapController | undefined;
   let airlineLabel = $state<string | null>(null);
@@ -78,8 +84,12 @@
     airlineLabel = a.name;
   }
 
+  let pendingLocate: { lat: number; lon: number } | null = null;
+
   function locateSelected(lat: number, lon: number): void {
-    if (!hadCenterParam) ctl?.flyTo(lat, lon, 8);
+    if (hadCenterParam) return;
+    if (ctl) ctl.flyTo(lat, lon, 8);
+    else pendingLocate = { lat, lon }; // the panel can answer before the map has started
   }
 
   // filters change URL state; the aircraft layer reads them on every frame
@@ -88,6 +98,24 @@
     ctl?.syncUrl();
   });
 
+  let fallback: Poller | undefined;
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+
+  /** Show a clear message and keep a map-free aircraft list alive, whatever went wrong with the map. */
+  function showProblem(problem: MapProblem, view: { lat: number; lon: number; zoom: number }): void {
+    if (ui.problem) return;
+    console.error(`[contrail] map unavailable (${problem.kind}): ${problem.technical}`);
+    ui.problem = problem;
+    ctl?.destroy();
+    ctl = undefined;
+    fallback ??= startFallbackFeed(
+      store,
+      view,
+      (st) => (ui.status = st),
+      () => (ui.aircraftCount = store.size),
+    );
+  }
+
   onMount(() => {
     const view = parseUrlState(location.search);
     ui.selected = view.selected;
@@ -95,38 +123,77 @@
     ui.filters = view.filters;
     ui.zoom = view.zoom;
     const params = new URLSearchParams(location.search);
+    let alive = true;
+    let loaded = false;
 
-    const c = new MapController({
-      container,
-      store,
-      view,
-      offline: params.get("bm") === "offline",
-      getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters }),
-      accepts: (p) => accepts(p, ui.filters),
-      getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
-      onSelectAircraft: selectAircraft,
-      onSelectAirport: selectAirport,
-      onStatus: (s) => (ui.status = s),
-      onData: () => (ui.aircraftCount = store.size),
-      onZoom: (z) => (ui.zoom = z),
-      onWebglError: (m) => (ui.webglError = m),
+    installGlobalHandlers((message) => {
+      // a script error before the map has loaded means the page is not usable as a map
+      if (!loaded && alive && !ui.problem) showProblem(initProblem(message), view);
     });
-    ctl = c;
-    c.setAirportHighlight(ui.airport);
-    const code = view.filters.airline;
-    if (code) {
-      void fetchAirlineNames([code], new AbortController().signal).then(
-        (n) => (airlineLabel ??= n[code] ?? null),
-        () => undefined,
-      );
-    }
-    if (view.airport && !hadCenterParam) {
-      // centre on the airport once its coordinates are known
-      fetch(new URL(`api/v1/airports/${view.airport}`, document.baseURI))
-        .then((r) => r.json())
-        .then((d: { airport?: { lat: number; lon: number } }) => d.airport && c.flyTo(d.airport.lat, d.airport.lon, 10))
-        .catch(() => undefined);
-    }
+
+    // the status pill must never say "loading" for ever
+    timers.push(
+      setTimeout(() => {
+        if (ui.status.state === "loading") ui.status = { ...ui.status, state: "slow" };
+      }, 15000),
+    );
+
+    void (async () => {
+      if (!webgl2Available()) return showProblem(webglProblem(), view);
+      const worker = await resolveWorkerUrl(__MAPLIBRE_DIR__, document.baseURI);
+      if (!alive) return;
+      if ("problem" in worker) return showProblem(worker.problem, view);
+      let c: MapController;
+      try {
+        c = new MapController({
+          container,
+          store,
+          view,
+          offline: params.get("bm") === "offline",
+          workerUrl: worker.url,
+          getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters }),
+          accepts: (p) => accepts(p, ui.filters),
+          getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
+          onSelectAircraft: selectAircraft,
+          onSelectAirport: selectAirport,
+          onStatus: (st) => (ui.status = st),
+          onData: () => (ui.aircraftCount = store.size),
+          onZoom: (z) => (ui.zoom = z),
+          onLoaded: () => (loaded = true),
+          onBasemapProblem: () => (ui.basemapNotice = true),
+        });
+      } catch (err) {
+        return showProblem(initProblem(err instanceof Error ? err.message : String(err)), view);
+      }
+      ctl = c;
+      if (pendingLocate) c.flyTo(pendingLocate.lat, pendingLocate.lon, 8);
+      // the map must finish loading in reasonable time, or the visitor gets an explanation instead of a blank page
+      timers.push(setTimeout(() => !loaded && alive && showProblem(timeoutProblem(), view), 15000));
+      c.setAirportHighlight(ui.airport);
+      const code = view.filters.airline;
+      if (code) {
+        void fetchAirlineNames([code], new AbortController().signal).then(
+          (n) => (airlineLabel ??= n[code] ?? null),
+          () => undefined,
+        );
+      }
+      if (view.airport && !hadCenterParam) {
+        // centre on the airport once its coordinates are known
+        fetch(new URL(`api/v1/airports/${view.airport}`, document.baseURI))
+          .then((r) => r.json())
+          .then((d: { airport?: { lat: number; lon: number } }) => d.airport && c.flyTo(d.airport.lat, d.airport.lon, 10))
+          .catch(() => undefined);
+      }
+      if (params.has("e2e")) {
+        (window as unknown as Record<string, unknown>).__flights = {
+          map: c.map,
+          store,
+          layer: c.aircraft,
+          select: selectAircraft,
+        };
+      }
+    })();
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (ui.selected) selectAircraft(null);
@@ -134,17 +201,12 @@
       }
     };
     window.addEventListener("keydown", onKey);
-    if (params.has("e2e")) {
-      (window as unknown as Record<string, unknown>).__flights = {
-        map: c.map,
-        store,
-        layer: c.aircraft,
-        select: selectAircraft,
-      };
-    }
     return () => {
+      alive = false;
       window.removeEventListener("keydown", onKey);
-      c.destroy();
+      timers.forEach(clearTimeout);
+      fallback?.stop();
+      ctl?.destroy();
       ctl = undefined;
     };
   });
@@ -182,11 +244,12 @@
     {/key}
   {/if}
 
-  {#if ui.webglError}
-    <div class="fatal" role="alert">
-      <h1>This map needs WebGL 2</h1>
-      <p>{ui.webglError}. Try a current browser with hardware acceleration enabled.</p>
-    </div>
+  {#if ui.basemapNotice && !ui.problem}
+    <p class="notice" role="status">The map background could not be loaded (blocked or offline). Aircraft are still live.</p>
+  {/if}
+
+  {#if ui.problem}
+    <MapProblemView problem={ui.problem} {store} centre={{ lat: view0.lat, lon: view0.lon }} count={ui.aircraftCount} />
   {/if}
 </div>
 
@@ -235,14 +298,18 @@
   .sheet-open .legend-slot {
     display: none;
   }
-  .fatal {
+  .notice {
     position: absolute;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    text-align: center;
-    padding: 24px;
-    background: var(--bg);
-    z-index: 20;
+    left: 50%;
+    top: calc(64px + env(safe-area-inset-top));
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    z-index: 8;
+    max-width: calc(100vw - 24px);
   }
 </style>

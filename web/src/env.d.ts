@@ -1,1 +1,1 @@
-declare const __MAPLIBRE_VERSION__: string;
+declare const __MAPLIBRE_DIR__: string;

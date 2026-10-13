@@ -1,14 +1,12 @@
 // MapLibre loads its web worker (and the shared chunk it imports) as separate module files.
-// Vite does not emit them, so copy both next to the app and point MapLibre at them.
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+// Vite does not emit them, so copy both next to the app, in a directory named by content hash.
+import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { maplibreDir, maplibreDist, WORKER_FILES } from "./maplibre-dir.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const from = resolve(root, "node_modules/maplibre-gl/dist");
-// the files are named by version, so they can be cached for ever and an upgrade can never pair a new
-// main bundle with an old worker
-const version = JSON.parse(readFileSync(resolve(from, "../package.json"), "utf8")).version;
-const to = resolve(root, "public/maplibre", version);
+const to = resolve(root, "public/maplibre", maplibreDir(root));
 mkdirSync(to, { recursive: true });
-for (const f of ["maplibre-gl-worker.mjs", "maplibre-gl-shared.mjs"]) copyFileSync(resolve(from, f), resolve(to, f));
+for (const f of WORKER_FILES) copyFileSync(resolve(maplibreDist(root), f), resolve(to, f));
+console.log(`maplibre worker files -> ${to}`);
