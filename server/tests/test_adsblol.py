@@ -1,5 +1,6 @@
 import unittest
 
+from flightmap.codec import encode_aircraft
 from flightmap.models import Category
 from flightmap.providers.adsblol import parse_aircraft, parse_point_response
 from flightmap.upstream import UpstreamError
@@ -55,3 +56,23 @@ class ParseTest(unittest.TestCase):
             parse_point_response({"nope": 1})
         with self.assertRaises(UpstreamError):
             parse_point_response([])
+
+    def test_non_finite_numbers_are_unknown_not_a_crash(self) -> None:
+        nan, inf = float("nan"), float("inf")
+        a = parse_aircraft({**REAL_SHAPE, "gs": nan, "track": inf, "alt_baro": -inf, "baro_rate": nan})
+        assert a is not None
+        self.assertIsNone(a.ground_speed_kt)
+        self.assertIsNone(a.track_deg)
+        self.assertIsNone(a.altitude_ft)
+        self.assertIsNone(a.vertical_rate_fpm)
+        self.assertIsNone(parse_aircraft({**REAL_SHAPE, "lat": nan}))
+        self.assertEqual(len(encode_aircraft([a])), 32)
+
+    def test_malformed_record_is_skipped(self) -> None:
+        got = parse_point_response({"ac": [{**REAL_SHAPE, "hex": "48ad09", "dbFlags": "x"}, REAL_SHAPE]})
+        self.assertEqual([a.hex_str for a in got], ["48ad08"])
+
+    def test_at_signs_are_an_empty_callsign(self) -> None:
+        a = parse_aircraft({**REAL_SHAPE, "flight": "@@@@@@@@"})
+        assert a is not None
+        self.assertEqual(a.callsign, "")
