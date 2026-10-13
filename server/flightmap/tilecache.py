@@ -21,7 +21,7 @@ from .upstream import TokenBucket, UpstreamError
 
 log = logging.getLogger("flightmap.tiles")
 MAX_INFLIGHT = 4
-MIN_RPS = 0.08
+MIN_RPS = 0.15
 DEFAULT_MAX_AGE_S = 600.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
@@ -77,7 +77,7 @@ class TileCache:
         self._inflight: dict[Tile, asyncio.Task[None]] = {}
         self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
         self._version = 0
-        self._successes = 0
+        self._limited: list[float] = []
         self._paused_until = 0.0
         self._wake = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
@@ -140,6 +140,15 @@ class TileCache:
             "effective_ttl_s": round(self._effective_ttl(len(hot)), 1),
             "aircraft": sum(len(s.entry.aircraft) for s in self._states.values() if s.entry),
         }
+
+    def _on_rate_limited(self, retry_after: float | None) -> None:
+        """A few HTTP 429s are normal on a shared public API; sustained ones lower our request rate."""
+        now = time.monotonic()
+        self._paused_until = now + (retry_after or 4.0)
+        self._limited = [t for t in self._limited if now - t < 60.0] + [now]
+        if len(self._limited) >= 3:
+            self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.8)
+            self._limited.clear()
 
     async def with_budget[T](self, call: Callable[[], Awaitable[T]], wait_s: float = 6.0) -> T:
         """Run one extra upstream call (e.g. a single-aircraft lookup) against the shared budget."""
@@ -224,11 +233,7 @@ class TileCache:
             st.failures += 1
             st.next_attempt = time.monotonic() + min(60.0, 2.0**st.failures)
             if exc.status in (429, 503):
-                pause = exc.retry_after or min(60.0, 8.0 * st.failures)
-                self._paused_until = time.monotonic() + pause
-                # multiplicative decrease: the provider told us we are too fast
-                self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.7)
-                self._successes = 0
+                self._on_rate_limited(exc.retry_after)
             log.warning("tile %s fetch failed: %s", tile, exc)
             return
         except Exception:
@@ -241,9 +246,8 @@ class TileCache:
             return
         st.failures = 0
         st.next_attempt = 0.0
-        self._successes += 1
-        if self._successes % 25 == 0:  # additive increase back towards the configured budget
-            self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.02)
+        # additive increase back towards the configured budget
+        self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.005)
         self.status.ok = True
         self.status.last_error = ""
         self.status.last_success_at = time.time()

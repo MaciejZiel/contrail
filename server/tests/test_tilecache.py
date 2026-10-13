@@ -126,13 +126,26 @@ class TileCacheTest(unittest.IsolatedAsyncioTestCase):
 
 
 class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
-    async def test_rate_limit_lowers_the_request_rate(self) -> None:
+    async def test_sustained_rate_limits_lower_the_request_rate(self) -> None:
         p = FakeProvider()
-        p.fail = UpstreamError("slow down", 429, retry_after=1)
+        p.fail = UpstreamError("slow down", 429, retry_after=0.05)
+        cache = make(p, budget_rps=1.0)
+        cache.start()
+        try:
+            for x in range(4):
+                await cache.request([(8, x)], cold_deadline_s=1)
+                await asyncio.sleep(0.1)
+            self.assertLess(cache.snapshot_status()["current_rps"], 1.0)  # type: ignore[operator]
+        finally:
+            await cache.stop()
+
+    async def test_a_single_429_does_not_slow_us_down(self) -> None:
+        p = FakeProvider()
+        p.fail = UpstreamError("slow down", 429, retry_after=0.05)
         cache = make(p, budget_rps=1.0)
         cache.start()
         try:
             await cache.request([(8, 8)], cold_deadline_s=1)
-            self.assertLess(cache.snapshot_status()["current_rps"], 1.0)  # type: ignore[operator]
+            self.assertEqual(cache.snapshot_status()["current_rps"], 1.0)
         finally:
             await cache.stop()
