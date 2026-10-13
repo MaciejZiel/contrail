@@ -13,3 +13,4 @@ temp/
 server/node_modules/
 server/data/
 server/.e2e-data/
+tmpdir/
