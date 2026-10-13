@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { fetchAirport, fetchWeather, type AirportDetail, type Loaded, type NearbyAircraft, type Weather } from "../core/api";
   import { fmtAge, fmtAlt, fmtVrate } from "../core/format";
   import { CATEGORY_LABEL, cloudsText, pressureText, tempText, visibilityText, windText } from "../core/metar";
@@ -58,12 +59,15 @@
     ["ground", "On the ground"],
     ["other", "Nearby"],
   ];
+
+  let heading: HTMLHeadingElement | undefined;
+  onMount(() => heading?.focus({ preventScroll: true })); // a new panel takes keyboard focus
 </script>
 
 <aside class="panel" aria-label="Airport details" data-testid="airport-card">
   <header>
     <div class="titles">
-      <h2>{airport ? airport.iata || airport.icao : code}</h2>
+      <h2 tabindex="-1" bind:this={heading}>{airport ? airport.iata || airport.icao : code}</h2>
       <p class="sub">
         {#if airport}{airport.name}{:else if detail.state === "none"}Unknown airport{:else}&nbsp;{/if}
       </p>

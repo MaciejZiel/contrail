@@ -151,12 +151,15 @@
       /* clipboard may be blocked; the URL bar already has the link */
     }
   }
+
+  let heading: HTMLHeadingElement | undefined;
+  onMount(() => heading?.focus({ preventScroll: true })); // a new panel takes keyboard focus
 </script>
 
 <aside class="panel" aria-label="Aircraft details" data-testid="aircraft-panel">
   <header>
     <div class="titles">
-      <h2>{title}</h2>
+      <h2 tabindex="-1" bind:this={heading}>{title}</h2>
       <p class="sub">
         {#if data?.airline}{data.airline.name}{:else if data?.type_name}{data.type_name}{:else}&nbsp;{/if}
       </p>

@@ -13,6 +13,7 @@
   import SearchBox from "./search/SearchBox.svelte";
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
   import FilterChip from "./ui/FilterChip.svelte";
+  import ViewList from "./ui/ViewList.svelte";
   import FreshnessChip from "./ui/FreshnessChip.svelte";
 
   const store = new AircraftStore();
@@ -45,6 +46,7 @@
   }
 
   function selectAircraft(n: number | null): void {
+    if (n === null && ui.selected) queueMicrotask(() => ctl?.map.getCanvas().focus({ preventScroll: true }));
     ui.selected = n === null ? null : hex(n);
     if (n !== null) ui.airport = null;
     afterSelectionChange();
@@ -151,6 +153,8 @@
 
 <div class="app" class:has-panel={panelOpen} class:sheet-open={panelOpen && sheetHeight > 0} style={`--sheet-h:${panelOpen ? sheetHeight : 0}px`}>
   <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
+
+  <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={(p) => accepts(p, ui.filters)} onPick={(h) => { selectAircraft(h); }} />
 
   <div class="topbar">
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
