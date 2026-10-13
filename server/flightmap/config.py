@@ -1,0 +1,60 @@
+"""Runtime configuration, read only from environment variables."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+DEFAULT_CONTACT = "https://github.com/MaciejZiel/live_flights_map"
+
+
+def _bool(raw: str | None, default: bool) -> bool:
+    if raw is None or raw == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _base_path(raw: str) -> str:
+    raw = raw.strip().strip("/")
+    return f"/{raw}" if raw else ""
+
+
+@dataclass(frozen=True, slots=True)
+class Settings:
+    host: str = "127.0.0.1"
+    port: int = 8000
+    base_path: str = ""
+    data_dir: str = "./data"
+    static_dir: str = ""
+    demo_mode: bool = False
+    gzip: bool = True
+    adsblol_url: str = "https://api.adsb.lol"
+    upstream_budget_rps: float = 0.35
+    tile_ttl_s: float = 10.0
+    hot_window_s: float = 60.0
+    evict_after_s: float = 600.0
+    max_tiles_per_request: int = 800
+    user_agent: str = field(default=f"LiveFlightsMap/1.0 (+{DEFAULT_CONTACT})")
+
+    @classmethod
+    def from_env(cls, env: dict[str, str] | None = None) -> Settings:
+        e = dict(os.environ) if env is None else env
+        contact = e.get("USER_AGENT_CONTACT", DEFAULT_CONTACT)
+        return cls(
+            host=e.get("HOST", "127.0.0.1"),
+            port=int(e.get("PORT", "8000")),
+            base_path=_base_path(e.get("BASE_PATH", "")),
+            data_dir=e.get("DATA_DIR", "./data"),
+            static_dir=e.get("STATIC_DIR", ""),
+            demo_mode=_bool(e.get("DEMO_MODE"), False),
+            gzip=_bool(e.get("GZIP"), True),
+            adsblol_url=e.get("ADSBLOL_URL", "https://api.adsb.lol").rstrip("/"),
+            upstream_budget_rps=float(
+                e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.35")
+            ),
+            tile_ttl_s=float(e.get("TILE_TTL_S", "10")),
+            hot_window_s=float(e.get("HOT_WINDOW_S", "60")),
+            evict_after_s=float(e.get("EVICT_AFTER_S", "600")),
+            max_tiles_per_request=int(e.get("MAX_TILES_PER_REQUEST", "800")),
+            user_agent=f"LiveFlightsMap/1.0 (+{contact})",
+        )
