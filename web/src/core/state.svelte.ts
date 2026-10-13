@@ -1,9 +1,12 @@
+import { DEFAULT_FILTERS, type Filters } from "./filters";
 import { INITIAL_STATUS, type FeedStatus } from "./poller";
 
 /** Reactive UI state shared by components. */
 export const ui = $state({
   status: INITIAL_STATUS as FeedStatus,
   selected: null as string | null,
+  airport: null as string | null,
+  filters: DEFAULT_FILTERS as Filters,
   aircraftCount: 0,
   zoom: 5,
   webglError: "",

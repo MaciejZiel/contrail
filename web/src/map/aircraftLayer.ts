@@ -25,6 +25,8 @@ export interface AircraftLayerOptions {
   /** Return false to hide an aircraft (filters). */
   accepts?: (p: Plane) => boolean;
   onSelect: (hex: number | null) => void;
+  /** Called with every map click before ``onSelect`` (lets the owner resolve other targets on a miss). */
+  onClickPoint?: (e: MapMouseEvent) => void;
 }
 
 export function baseSize(zoom: number): number {
@@ -123,6 +125,7 @@ export class AircraftLayer {
   }
 
   private onClick = (e: MapMouseEvent): void => {
+    this.opts.onClickPoint?.(e);
     const p = this.hitTest(e.point.x, e.point.y, 18);
     this.opts.onSelect(p ? p.hex : null);
   };
@@ -131,6 +134,11 @@ export class AircraftLayer {
     const hit = this.hitTest(e.point.x, e.point.y, 14);
     this.opts.map.getCanvas().style.cursor = hit ? "pointer" : "";
   };
+
+  /** Distinct aircraft drawn in the last frame. */
+  visiblePlanes(): Plane[] {
+    return [...new Set(this.hitPlane.slice(0, this.hitCount))];
+  }
 
   /** Test hook: redraw synchronously and count painted pixels. */
   coveredPixels(): number {

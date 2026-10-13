@@ -1,201 +1,152 @@
 <script lang="ts">
-  import { AttributionControl, Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
   import { onMount } from "svelte";
-  import { serverNow } from "./core/clock";
-  import { Poller } from "./core/poller";
+  import { fetchAirlineNames, type SearchAircraft, type SearchAirline, type SearchAirport, type Trail } from "./core/api";
+  import { accepts } from "./core/filters";
   import { ui } from "./core/state.svelte";
   import { AircraftStore } from "./core/store";
-  import { rectForBounds } from "./core/tiles";
-  import { parseUrlState, preservedParams, serializeUrlState } from "./core/urlState";
-  import { AircraftLayer } from "./map/aircraftLayer";
-  import { TrailLayer } from "./map/trailLayer";
-  import type { Trail } from "./core/api";
-    import { offlineStyle, onlineStyle } from "./map/style";
-  import AltitudeLegend from "./ui/AltitudeLegend.svelte";
-  import FreshnessChip from "./ui/FreshnessChip.svelte";
+  import { parseUrlState } from "./core/urlState";
+  import FilterPopover from "./filters/FilterPopover.svelte";
+  import { MapController } from "./map/controller";
   import AircraftPanel from "./panel/AircraftPanel.svelte";
-
-  setWorkerUrl(new URL("maplibre/maplibre-gl-worker.mjs", document.baseURI).href);
+  import AirportCard from "./panel/AirportCard.svelte";
+  import SearchBox from "./search/SearchBox.svelte";
+  import AltitudeLegend from "./ui/AltitudeLegend.svelte";
+  import FilterChip from "./ui/FilterChip.svelte";
+  import FreshnessChip from "./ui/FreshnessChip.svelte";
 
   const store = new AircraftStore();
   let container: HTMLDivElement;
-
-  function select(hex: number | null): void {
-    ui.selected = hex === null ? null : hex.toString(16).padStart(6, "0");
-    writeUrl();
-  }
-
-  let map: MapLibreMap | undefined;
-  let trailLayer: TrailLayer | undefined;
-  let currentTrail: Trail | null = null;
+  let ctl: MapController | undefined;
+  let airlineLabel = $state<string | null>(null);
   const hadCenterParam = new URLSearchParams(location.search).has("c");
 
-  function onTrail(t: Trail | null): void {
-    currentTrail = t;
-    trailLayer?.setTrail(t);
-    updateLiveTrail();
+  const hex = (n: number) => n.toString(16).padStart(6, "0");
+
+  function selectAircraft(n: number | null): void {
+    ui.selected = n === null ? null : hex(n);
+    if (n !== null) ui.airport = null;
+    afterSelectionChange();
   }
 
-  /** Join the last recorded point to the live position and project the path 2 minutes ahead. */
-  function updateLiveTrail(): void {
-    if (!trailLayer) return;
-    const plane = ui.selected ? store.get(parseInt(ui.selected, 16)) : undefined;
-    if (!plane) {
-      trailLayer.setLive(null, null, null);
-      return;
-    }
-    const now = serverNow();
-    const pos = plane.positionAt(now);
-    const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
-    const live = { lat: toLat(pos.y), lon: pos.x * 360 - 180 };
-    const ahead = { lat: toLat(pos.y + plane.vy * 120), lon: (pos.x + plane.vx * 120) * 360 - 180 };
-    const n = currentTrail?.t.length ?? 0;
-    const last =
-      currentTrail && n > 0
-        ? { lat: currentTrail.lat[n - 1] as number, lon: currentTrail.lon[n - 1] as number, altFt: currentTrail.alt[n - 1] ?? null }
-        : null;
-    trailLayer.setLive(last, live, plane.speedKt ? ahead : null);
+  function selectAirport(icao: string | null): void {
+    ui.airport = icao;
+    if (icao) ui.selected = null;
+    afterSelectionChange();
   }
 
-  function locate(lat: number, lon: number): void {
-    if (!map || hadCenterParam) return;
-    map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 8), essential: false });
+  function afterSelectionChange(): void {
+    ctl?.setAirportHighlight(ui.airport);
+    ctl?.syncUrl();
   }
 
-  let lastUrlWrite = 0;
-  let urlTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function writeUrl(): void {
-    if (!map) return;
-    clearTimeout(urlTimer);
-    const wait = Math.max(0, 500 - (Date.now() - lastUrlWrite));
-    urlTimer = setTimeout(() => {
-      if (!map) return;
-      const c = map.getCenter().wrap();
-      const view = { lat: c.lat, lon: c.lng, zoom: map.getZoom(), selected: ui.selected };
-      const extra = preservedParams(location.search);
-      const q = serializeUrlState(view) + (extra.size ? `&${extra}` : "");
-      history.replaceState(null, "", `${location.pathname}?${q}${location.hash}`);
-      lastUrlWrite = Date.now();
-    }, wait);
+  function onSearchAircraft(a: SearchAircraft): void {
+    selectAircraft(parseInt(a.hex, 16));
+    ctl?.flyTo(a.lat, a.lon, 8);
   }
+  function onSearchAirport(a: SearchAirport): void {
+    selectAirport(a.icao);
+    ctl?.flyTo(a.lat, a.lon, 10);
+  }
+  function onSearchAirline(a: SearchAirline): void {
+    ui.filters = { ...ui.filters, airline: a.code };
+    airlineLabel = a.name;
+  }
+
+  function locateSelected(lat: number, lon: number): void {
+    if (!hadCenterParam) ctl?.flyTo(lat, lon, 8);
+  }
+
+  // filters change URL state; the aircraft layer reads them on every frame
+  $effect(() => {
+    void ui.filters;
+    ctl?.syncUrl();
+  });
 
   onMount(() => {
-    const params = new URLSearchParams(location.search);
     const view = parseUrlState(location.search);
     ui.selected = view.selected;
+    ui.airport = view.airport;
+    ui.filters = view.filters;
     ui.zoom = view.zoom;
+    const params = new URLSearchParams(location.search);
 
-    const m = new MapLibreMap({
+    const c = new MapController({
       container,
-      style: params.get("bm") === "offline" ? offlineStyle() : onlineStyle(),
-      center: [view.lon, view.lat],
-      zoom: view.zoom,
-      minZoom: 2,
-      maxZoom: 16,
-      attributionControl: false,
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      fadeDuration: 0,
-      canvasContextAttributes: { antialias: false },
+      store,
+      view,
+      offline: params.get("bm") === "offline",
+      getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters }),
+      accepts: (p) => accepts(p, ui.filters),
+      getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
+      onSelectAircraft: selectAircraft,
+      onSelectAirport: selectAirport,
+      onStatus: (s) => (ui.status = s),
+      onData: () => (ui.aircraftCount = store.size),
+      onZoom: (z) => (ui.zoom = z),
+      onWebglError: (m) => (ui.webglError = m),
     });
-    map = m;
-    trailLayer = new TrailLayer(m);
-    m.touchZoomRotate.disableRotation();
-    m.keyboard.disableRotation();
-    m.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
-    m.addControl(
-      new AttributionControl({
-        compact: true,
-        customAttribution:
-          '<a href="https://adsb.lol" target="_blank" rel="noopener">Aircraft data: ADSB.lol</a> (<a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>)',
-      }),
-      "bottom-right",
-    );
-
-    const layerHandle: { current: AircraftLayer | null } = { current: null };
-    try {
-      layerHandle.current = new AircraftLayer({
-        map: m,
-        store,
-        getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
-        onSelect: select,
-      });
-      layerHandle.current.start();
-    } catch (err) {
-      ui.webglError = err instanceof Error ? err.message : "WebGL unavailable";
+    ctl = c;
+    c.setAirportHighlight(ui.airport);
+    const code = view.filters.airline;
+    if (code) {
+      void fetchAirlineNames([code], new AbortController().signal).then(
+        (n) => (airlineLabel ??= n[code] ?? null),
+        () => undefined,
+      );
     }
-
-    const poller = new Poller({
-      baseUrl: "./",
-      getRect: () => {
-        const b = m.getBounds();
-        return rectForBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
-      },
-      onSnapshot: (snapshot) => {
-        store.apply(snapshot, serverNow());
-        ui.aircraftCount = store.size;
-      },
-      onStatus: (s) => {
-        ui.status = s;
-      },
-    });
-
-    let moveTimer: ReturnType<typeof setTimeout> | undefined;
-    m.on("moveend", () => {
-      ui.zoom = m.getZoom();
-      writeUrl();
-      clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => poller.refreshNow(), 300);
-    });
-    m.on("load", () => poller.start());
-
-    const liveTrail = setInterval(updateLiveTrail, 1000);
-    const prune = setInterval(() => {
-      store.prune(serverNow(), 900);
-      ui.aircraftCount = store.size;
-    }, 30000);
-
+    if (view.airport && !hadCenterParam) {
+      // centre on the airport once its coordinates are known
+      fetch(new URL(`api/v1/airports/${view.airport}`, document.baseURI))
+        .then((r) => r.json())
+        .then((d: { airport?: { lat: number; lon: number } }) => d.airport && c.flyTo(d.airport.lat, d.airport.lon, 10))
+        .catch(() => undefined);
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && ui.selected) select(null);
+      if (e.key === "Escape") {
+        if (ui.selected) selectAircraft(null);
+        else if (ui.airport) selectAirport(null);
+      }
     };
     window.addEventListener("keydown", onKey);
-
     if (params.has("e2e")) {
       (window as unknown as Record<string, unknown>).__flights = {
-        map: m,
+        map: c.map,
         store,
-        layer: layerHandle.current,
-        select,
+        layer: c.aircraft,
+        select: selectAircraft,
       };
     }
-
     return () => {
       window.removeEventListener("keydown", onKey);
-      clearInterval(prune);
-      clearInterval(liveTrail);
-      clearTimeout(moveTimer);
-      poller.stop();
-      layerHandle.current?.stop();
-      m.remove();
-      map = undefined;
+      c.destroy();
+      ctl = undefined;
     };
   });
+
+  const panelOpen = $derived(Boolean(ui.selected || ui.airport));
 </script>
 
-<div class="app">
+<div class="app" class:has-panel={panelOpen}>
   <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
 
   <div class="topbar">
+    <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
+    <FilterPopover bind:filters={ui.filters} {store} />
     <FreshnessChip status={ui.status} count={ui.aircraftCount} />
+    {#if ui.filters.airline}
+      <FilterChip label={airlineLabel ?? ui.filters.airline} onClear={() => { ui.filters = { ...ui.filters, airline: null }; airlineLabel = null; }} />
+    {/if}
   </div>
 
   <div class="legend-slot"><AltitudeLegend /></div>
 
   {#if ui.selected}
     <div class="panel-slot">
-      <AircraftPanel {store} hex={ui.selected} onClose={() => select(null)} {onTrail} onLocate={locate} />
+      <AircraftPanel {store} hex={ui.selected} onClose={() => selectAircraft(null)} onTrail={(t: Trail | null) => ctl?.setTrail(t)} onLocate={locateSelected} />
+    </div>
+  {:else if ui.airport}
+    <div class="panel-slot">
+      <AirportCard code={ui.airport} onClose={() => selectAirport(null)} onPick={(h) => selectAircraft(parseInt(h, 16))} />
     </div>
   {/if}
 
@@ -223,6 +174,8 @@
     left: var(--gutter);
     right: var(--gutter);
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
     pointer-events: none;
     z-index: 5;
@@ -233,7 +186,7 @@
   .legend-slot {
     position: absolute;
     right: var(--gutter);
-    top: calc(56px + env(safe-area-inset-top));
+    bottom: calc(140px + env(safe-area-inset-bottom));
     z-index: 4;
   }
   .panel-slot {
@@ -257,7 +210,7 @@
       width: 380px;
       max-height: none;
     }
-    .app:has(.panel-slot) .topbar {
+    .has-panel .topbar {
       left: calc(var(--gutter) + 392px);
     }
   }
