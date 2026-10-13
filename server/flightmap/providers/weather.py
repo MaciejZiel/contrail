@@ -87,6 +87,16 @@ def parse_metar(item: dict[str, Any]) -> Metar | None:
     )
 
 
+async def _get_with_retry(client: UpstreamClient, url: str) -> Any:
+    """The data API occasionally times out: one retry, but never when we are being rate limited."""
+    try:
+        return await client.get_json(url)
+    except UpstreamError as exc:
+        if exc.status == 429:
+            raise
+        return await client.get_json(url)
+
+
 class WeatherProvider:
     name = "aviationweather.gov"
 
@@ -98,7 +108,7 @@ class WeatherProvider:
         code = icao.upper()
         if not _ICAO.match(code):
             return None
-        payload = await self._client.get_json(f"{self._base}/api/data/metar?ids={code}&format=json")
+        payload = await _get_with_retry(self._client, f"{self._base}/api/data/metar?ids={code}&format=json")
         if not isinstance(payload, list):
             raise UpstreamError("unexpected METAR response shape")
         for item in cast(list[Any], payload):
@@ -112,7 +122,7 @@ class WeatherProvider:
         code = icao.upper()
         if not _ICAO.match(code):
             return None
-        payload = await self._client.get_json(f"{self._base}/api/data/taf?ids={code}&format=json")
+        payload = await _get_with_retry(self._client, f"{self._base}/api/data/taf?ids={code}&format=json")
         if not isinstance(payload, list):
             raise UpstreamError("unexpected TAF response shape")
         for item in cast(list[Any], payload):
