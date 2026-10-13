@@ -17,7 +17,7 @@ import math
 import sqlite3
 import time
 from array import array
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .models import Aircraft
@@ -229,6 +229,42 @@ class TrailStore:
             "gs": [None if v == _NONE_U16 else v / 10 for v in tr.gs],
             "vr": [None if v == _NONE_I16 else v * 64 for v in tr.vr],
         }
+
+    def recent(
+        self,
+        accept: Callable[[int, float, float], bool],
+        window_s: float = 1800.0,
+        max_points: int = 40,
+        max_age_s: float = 900.0,
+        now: float | None = None,
+    ) -> list[tuple[int, float, list[tuple[float, float, int | None]]]]:
+        """The last ``window_s`` seconds of every trail whose aircraft is still on the map.
+
+        ``accept(hex, lat, lon)`` is asked about the last known position first, so rejected aircraft
+        cost nothing more. Returns ``(hex, last_t, points)`` with each ``points`` thinned to at most
+        ``max_points`` evenly spaced fixes (always the newest) as ``(lon, lat, altitude_ft)``. Reads
+        memory only; it never causes an upstream request.
+        """
+        now = time.time() if now is None else now
+        out: list[tuple[int, float, list[tuple[float, float, int | None]]]] = []
+        for hex_, tr in self._trails.items():
+            if len(tr.t) < 2 or now - tr.t[-1] > max_age_s:
+                continue
+            if not accept(hex_, tr.lat[-1] / 1e5, tr.lon[-1] / 1e5):
+                continue
+            first = bisect.bisect_left(tr.t, tr.t[-1] - window_s)
+            idx = list(range(first, len(tr.t)))
+            if len(idx) < 2:
+                continue
+            if len(idx) > max_points:
+                step = (len(idx) - 1) / (max_points - 1)
+                idx = [idx[round(i * step)] for i in range(max_points)]
+            pts = [
+                (tr.lon[i] / 1e5, tr.lat[i] / 1e5, None if tr.alt[i] == _NONE_I16 else tr.alt[i] * 25)
+                for i in idx
+            ]
+            out.append((hex_, tr.t[-1], pts))
+        return out
 
     def __len__(self) -> int:
         return len(self._trails)
