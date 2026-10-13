@@ -3,22 +3,24 @@ import { fetchAirportCatalog, type RouteInfo, type Trail } from "../core/api";
 import { greatCircle } from "../core/geodesy";
 import { haversineKm } from "../core/format";
 import { serverNow } from "../core/clock";
-import type { Filters } from "../core/filters";
+import { serverFilterQuery, type Filters } from "../core/filters";
 import { limits, loadLimits } from "../core/staleness";
 import { Poller, type FeedStatus } from "../core/poller";
 import type { Plane } from "../core/plane";
 import type { AircraftStore } from "../core/store";
 import { rectForBounds } from "../core/tiles";
-import { preservedParams, serializeUrlState, type ViewState } from "../core/urlState";
+import { preservedParams, serializeUrlState, type TrailMinutes, type ViewState } from "../core/urlState";
 import { AircraftLayer } from "./aircraftLayer";
 import { AirportLayer } from "./airportLayer";
 import { offlineStyle, onlineStyle } from "./style";
+import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
 
 export interface UrlSelection {
   selected: string | null;
   airport: string | null;
   filters: Filters;
+  trails: TrailMinutes;
 }
 
 export interface ControllerOptions {
@@ -34,6 +36,7 @@ export interface ControllerOptions {
   onStatus: (s: FeedStatus) => void;
   onData: () => void;
   onZoom: (zoom: number) => void;
+  onTrailsStatus: (s: TrailsStatus) => void;
   /** URL of the checked MapLibre worker file. */
   workerUrl: string;
   onLoaded: () => void;
@@ -48,6 +51,7 @@ export class MapController {
   readonly map: MapLibreMap;
   readonly aircraft: AircraftLayer | null;
   private trail: TrailLayer;
+  readonly recentTrails: RecentTrailsLayer;
   private airports: AirportLayer;
   private poller: Poller;
   private currentTrail: Trail | null = null;
@@ -91,6 +95,7 @@ export class MapController {
       "bottom-right",
     );
     this.trail = new TrailLayer(m);
+    this.recentTrails = new RecentTrailsLayer(m, () => serverFilterQuery(o.getUrlSelection().filters, true), o.onTrailsStatus);
     this.airports = new AirportLayer(m, o.onSelectAirport);
 
     const layer = new AircraftLayer({
@@ -118,6 +123,7 @@ export class MapController {
         return rectForBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
       },
       getZoom: () => m.getZoom(),
+      getFilterQuery: () => serverFilterQuery(o.getUrlSelection().filters),
       getKeep: () => (o.getSelected() === null ? null : o.getSelected()!.toString(16).padStart(6, "0")),
       onSnapshot: (snapshot) => {
         o.store.apply(snapshot, serverNow());
@@ -172,7 +178,9 @@ export class MapController {
     this.timers.forEach(clearInterval);
     clearTimeout(this.moveTimer);
     clearTimeout(this.urlTimer);
+    clearTimeout(this.filterTimer);
     this.catalogAbort.abort();
+    this.recentTrails.destroy();
     this.poller.stop();
     this.aircraft?.stop();
     this.map.remove();
@@ -186,6 +194,22 @@ export class MapController {
   refresh(): void {
     this.poller.refreshNow();
   }
+
+  /** Draw (or stop drawing) the recent tracks of all aircraft in view. */
+  setRecentTrails(minutes: TrailMinutes): void {
+    this.recentTrails.setMinutes(minutes);
+    this.syncUrl();
+  }
+
+  /** The filters changed in a way that changes what the server returns (thinned tiles, tracks). */
+  filtersChanged(): void {
+    clearTimeout(this.filterTimer);
+    this.filterTimer = setTimeout(() => {
+      this.recentTrails.filtersChanged();
+      this.poller.refreshNow();
+    }, 400);
+  }
+  private filterTimer: ReturnType<typeof setTimeout> | undefined;
 
   setAirportHighlight(icao: string | null): void {
     this.airports.highlight(icao);

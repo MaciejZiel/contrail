@@ -30,9 +30,10 @@
 
 - **Smooth live map.** Every aircraft is extrapolated each frame from its track and ground speed and eased towards each new fix, so nothing jumps and nothing fades with age. How old the data is shows in a small status chip, never by hiding aircraft. About 60 fps with 15,000 aircraft on an integrated GPU.
 - **Flight panel.** Photo, callsign, airline, type, registration, route (from and to), live altitude, speed, vertical rate, squawk, altitude / speed / vertical-rate history, the whole track coloured by altitude, the rest of the route as a dashed line, distance flown and remaining, and an arrival estimate (clearly labelled as an estimate).
+- **Recent tracks for every aircraft.** Turn on 30 or 60 minute tracks and each aircraft in view gets a line behind it, coloured by its altitude. They are drawn from the server's own record of what it has seen, so they cost no extra request to the ADS-B source; they start when the server first saw the aircraft, not at take-off, and appear from zoom 6 (below that there are too many aircraft to read).
 - **Search** by callsign, registration, ICAO24, airport or airline, with a keyboard-friendly dropdown.
-- **Airport card** with decoded METAR and TAF and the aircraft that are on the ground or low around the field (inferred from position and vertical rate, not a timetable).
-- **Filters** for altitude, airline and ground traffic; everything, including the view, the selection and the filters, lives in the URL so any state can be shared.
+- **Airport view.** Click an airport on the map for decoded METAR and TAF, the airport's type, runways with length and surface, radio frequencies and links (OurAirports data), and counts and lists of arriving, departing and parked aircraft within 10 nm. Those are inferred from position and vertical rate, or from a route the server already knows; it is not a timetable.
+- **Filters** for altitude, airline, callsign prefix, aircraft type (ICAO codes, several at once, `A32*` for a family; type a name to find the code ) and ground traffic; everything, including the view, the selection, the filters and the track length, lives in the URL so any state can be shared.
 - **Phone-first layout**: a bottom sheet with three snap points on small screens, a side panel on desktop.
 - **Demo mode** with synthetic traffic, used by CI and for offline screenshots.
 
@@ -57,6 +58,9 @@ Demo mode:
 <p align="center">
   <img src="docs/screenshots/aircraft-panel.png" alt="Flight panel with photo, route, live values and charts" width="49%">
   <img src="docs/screenshots/airport-card.png" alt="Airport card with weather and nearby traffic" width="49%">
+  <img src="docs/screenshots/airport-info.png" alt="The same airport card scrolled to runways, frequencies and links" width="49%">
+  <img src="docs/screenshots/recent-tracks.png" alt="Europe with a 60 minute track behind every aircraft" width="49%">
+  <img src="docs/screenshots/filters.png" alt="Filter panel with callsign prefix, aircraft type and recent tracks, one aircraft type selected" width="49%">
   <img src="docs/screenshots/search.png" alt="Search results" width="49%">
   <img src="docs/screenshots/world-thinned.png" alt="Whole world, thinned to a few hundred aircraft" width="49%">
 </p>
@@ -65,6 +69,7 @@ Demo mode:
   <img src="docs/screenshots/mobile-map.png" alt="Phone: map" width="20%">
   <img src="docs/screenshots/mobile-sheet.png" alt="Phone: flight sheet" width="20%">
   <img src="docs/screenshots/mobile-sheet-full.png" alt="Phone: expanded sheet" width="20%">
+  <img src="docs/screenshots/mobile-filters.png" alt="Phone: filter panel with chips for the active filters" width="20%">
 </p>
 
 ## Quick start
@@ -118,6 +123,7 @@ flowchart LR
 
 - The server keeps a **tile cache** (5 degree tiles) that is filled on demand, shared by every viewer, and refreshed under a global request budget. Responses are a **compact binary format** (32 bytes per aircraft; 15,000 aircraft are about 300 KB gzipped, against 3.4 MB of JSON in the previous version), with a strong ETag so unchanged areas cost a 304.
 - At low zoom the server returns one representative aircraft per screen-sized grid cell, so weak devices never draw tens of thousands of icons. Full density from zoom 7.
+- Recent tracks for all aircraft in view come from `/api/v1/trails`, which reads the trail memory below for one box: at most 400 aircraft (nearest the centre), each thinned to 40 points, refreshed every 15 s while switched on. Measured with 5,000 trails of 30 minutes: 14 ms to select, about 95 KB gzipped for 400 aircraft, no extra memory (it reads the existing trails). No ADSB.lol request is involved (a test asserts that the request counter does not move).
 - Trails are compact arrays: the last 15 minutes at full resolution, older points thinned (Douglas-Peucker on position and altitude). 5,000 aircraft with 6 hours of flight each use about 38 MB. A checkpoint to SQLite survives restarts.
 - Each enrichment (route, photo, weather, aircraft identity) fails on its own and shows an honest message for that field only.
 - Pure Python dependencies only (Starlette, uvicorn, anyio, h11, click, idna), no native wheels, so it runs on Python 3.12 to 3.14 including on aarch64 Termux.
@@ -149,7 +155,7 @@ Read this before you rely on the map. The numbers below were measured while buil
 - The server is a polite client: one shared fetcher, a global budget (`UPSTREAM_BUDGET_RPS`, default 0.2), automatic back-off on 429, tiles that are usually empty (ocean, polar) are refreshed far less often, and the background plan is what it keeps warm.
 - **OpenSky Network is not used.** Its terms require a written licence for any operational use of its REST API in a live service. **airplanes.live is not used** either: its terms allow personal, non-commercial use only and forbid re-publishing the data. adsbdb.com is not used because its route data may not be copied into other databases.
 - The flight track is **our own record** of what the server has seen since it first looked at the aircraft. There is no permitted source for a complete trace from take-off, so a flight first seen mid-air gets a dashed, labelled "estimated path" from its origin airport.
-- Arrival times are estimates (remaining great-circle distance divided by current ground speed). Airport arrivals and departures are inferred from aircraft behaviour, not from schedules.
+- Arrival times are estimates (remaining great-circle distance divided by current ground speed). Airport arrivals and departures are inferred from aircraft behaviour (and from a route the server happens to have cached), not from schedules; the server never looks up routes for an airport page.
 - A personal, non-commercial deployment is assumed throughout.
 
 ## Self-hosting on Termux
@@ -184,7 +190,7 @@ The measurements in this README were taken on a development laptop, not on that 
 
 - `server/`: `python -m unittest discover -s tests -t .`, `ruff check`, `ruff format --check`, `npx pyright` (strict). Tests include the real provider against a fixture upstream that serves synthetic data shaped exactly like ADSB.lol responses.
 - `web/`: `npm run typecheck`, `npm test` (vitest), `npm run test:e2e` (Playwright against the real server and the built app, desktop and a Pixel 7 profile).
-- `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `server/scripts/measure_trails.py` measures trail memory.
+- `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `web/scripts/screenshots.mjs` and `screenshots-features.mjs` regenerate the demo screenshots; `server/scripts/measure_trails.py` measures trail memory.
 - CI (`.github/workflows/ci.yml`) runs all of it.
 
 ## Repository layout

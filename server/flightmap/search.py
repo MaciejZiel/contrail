@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from .airports import AirportCatalog, AirportRec, distance_nm
@@ -76,9 +77,18 @@ def search_all(
 
 
 def nearby_aircraft(
-    index: AircraftIndex, airport: AirportRec, radius_nm: float = NEARBY_RADIUS_NM, limit: int = 40
+    index: AircraftIndex,
+    airport: AirportRec,
+    radius_nm: float = NEARBY_RADIUS_NM,
+    limit: int = 40,
+    known_route: Callable[[str], tuple[str, str] | None] | None = None,
 ) -> list[dict[str, Any]]:
-    """Aircraft on the ground at or low around an airport, with an inferred arriving/departing state."""
+    """Aircraft on the ground at or low around an airport, with an inferred arriving/departing state.
+
+    ``known_route(callsign)`` may return the (origin, destination) ICAO codes of a route that is
+    already cached; it must not cause a lookup. A known route to or from this airport settles the
+    state of an airborne aircraft; without one the state comes from the vertical rate alone.
+    """
     elev = airport.elevation_ft or 0
     dlat = radius_nm / 60.0
     out: list[tuple[float, dict[str, Any]]] = []
@@ -100,7 +110,15 @@ def nearby_aircraft(
             state = "departing"
         else:
             state = "nearby"
+        route = known_route(a.callsign) if known_route and a.callsign and not a.on_ground else None
+        if route and state != "ground":
+            if route[1] == airport.icao:
+                state = "arriving"
+            elif route[0] == airport.icao:
+                state = "departing"
         item = aircraft_item(a)
+        if route:
+            item.update({"origin": route[0], "destination": route[1]})
         item.update({"state": state, "distance_nm": round(d, 1), "vertical_rate_fpm": a.vertical_rate_fpm})
         out.append((d, item))
     out.sort(key=lambda it: it[0])

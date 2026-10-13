@@ -17,7 +17,7 @@ import math
 import sqlite3
 import time
 from array import array
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .models import Aircraft
@@ -33,6 +33,18 @@ _POS_TOLERANCE_DEG = 0.012  # about 1.3 km
 _ALT_TOLERANCE_FT = 800.0
 PERSIST_SPACING_S = 30.0
 PERSIST_RETENTION_S = 3 * 3600.0
+
+
+# A track is drawn only from its last continuous stretch: a long silence or an implausible jump
+# (a position glitch, or an aircraft that left coverage and came back far away) must not become a line.
+BREAK_GAP_S = 300.0
+BREAK_JUMP_KM = 150.0
+
+
+def _jump_km(tr: _Trail, a: int, b: int) -> float:
+    dlat = (tr.lat[b] - tr.lat[a]) / 1e5
+    dlon = (tr.lon[b] - tr.lon[a]) / 1e5 * math.cos(math.radians(tr.lat[b] / 1e5))
+    return math.hypot(dlat, dlon) * 111.2
 
 
 class _Trail:
@@ -229,6 +241,56 @@ class TrailStore:
             "gs": [None if v == _NONE_U16 else v / 10 for v in tr.gs],
             "vr": [None if v == _NONE_I16 else v * 64 for v in tr.vr],
         }
+
+    def recent(
+        self,
+        accept: Callable[[int, float, float], bool],
+        rank: Callable[[float, float], float] | None = None,
+        limit: int = 400,
+        window_s: float = 1800.0,
+        max_points: int = 40,
+        max_age_s: float = 900.0,
+        now: float | None = None,
+    ) -> tuple[int, list[tuple[int, float, list[tuple[float, float, int | None]]]]]:
+        """The last ``window_s`` seconds of the trails whose aircraft are still on the map.
+
+        ``accept(hex, lat, lon)`` is asked about the last known position first, so rejected aircraft
+        cost nothing more. Of the accepted ones the ``limit`` with the lowest ``rank(lat, lon)`` are
+        returned (all, in insertion order, without a rank), each thinned to at most ``max_points``
+        evenly spaced fixes (always the newest) as ``(lon, lat, altitude_ft)``. The first value is how
+        many were accepted. Reads memory only; it never causes an upstream request.
+        """
+        now = time.time() if now is None else now
+        found: list[tuple[float, int, _Trail]] = []
+        for hex_, tr in self._trails.items():
+            if len(tr.t) < 2 or now - tr.t[-1] > max_age_s:
+                continue
+            la, lo = tr.lat[-1] / 1e5, tr.lon[-1] / 1e5
+            if accept(hex_, la, lo):
+                found.append((rank(la, lo) if rank else 0.0, hex_, tr))
+        total = len(found)
+        if rank:
+            found.sort(key=lambda it: it[0])
+        out: list[tuple[int, float, list[tuple[float, float, int | None]]]] = []
+        for _r, hex_, tr in found[:limit]:
+            first = bisect.bisect_left(tr.t, tr.t[-1] - window_s)
+            idx = list(range(first, len(tr.t)))
+            for k in range(len(idx) - 1, 0, -1):  # start after the last data gap or position jump
+                a, b = idx[k - 1], idx[k]
+                if tr.t[b] - tr.t[a] > BREAK_GAP_S or _jump_km(tr, a, b) > BREAK_JUMP_KM:
+                    idx = idx[k:]
+                    break
+            if len(idx) < 2:
+                continue
+            if len(idx) > max_points:
+                step = (len(idx) - 1) / (max_points - 1)
+                idx = [idx[round(i * step)] for i in range(max_points)]
+            pts = [
+                (tr.lon[i] / 1e5, tr.lat[i] / 1e5, None if tr.alt[i] == _NONE_I16 else tr.alt[i] * 25)
+                for i in idx
+            ]
+            out.append((hex_, tr.t[-1], pts))
+        return total, out
 
     def __len__(self) -> int:
         return len(self._trails)

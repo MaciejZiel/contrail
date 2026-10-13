@@ -135,3 +135,47 @@ class MetarTest(unittest.TestCase):
             (30, False, False, 4828, []),
         )
         self.assertIsNone(parse_metar({"icaoId": "X"}))
+
+
+class NearbyKnownRouteTest(unittest.TestCase):
+    def test_a_cached_route_settles_the_state_and_adds_the_endpoints(self) -> None:
+        epwa = load_catalog().get("EPWA")
+        assert epwa is not None
+        routes = {"LOT3": ("EGLL", "EPWA"), "LOT9": ("EPWA", "LFPG"), "WZZ2706": ("EPWA", "EGSS")}
+        got = {r["callsign"]: r for r in nearby_aircraft(make_index(), epwa, known_route=routes.get)}
+        self.assertEqual((got["LOT3"]["origin"], got["LOT3"]["destination"]), ("EGLL", "EPWA"))
+        self.assertEqual(got["LOT9"]["state"], "departing")
+        self.assertEqual(got["RYR12AB"]["state"], "ground")
+        self.assertNotIn("origin", got["RYR12AB"])
+
+    def test_a_route_to_this_airport_turns_a_level_flight_into_an_arrival(self) -> None:
+        epwa = load_catalog().get("EPWA")
+        assert epwa is not None
+        got = {r["callsign"]: r for r in nearby_aircraft(make_index(), epwa)}
+        self.assertEqual(got["LOT3"]["state"], "arriving")  # from the vertical rate alone
+        routes = {"LOT3": ("EPWA", "EPKK")}
+        got = {r["callsign"]: r for r in nearby_aircraft(make_index(), epwa, known_route=routes.get)}
+        self.assertEqual(got["LOT3"]["state"], "departing")  # a known route wins over the vertical rate
+
+
+class AirportDetailsTest(unittest.TestCase):
+    def test_frankfurt_has_runways_frequencies_and_links(self) -> None:
+        from flightmap.airports import airport_details
+
+        rec = load_catalog().get("EDDF")
+        assert rec is not None
+        d = airport_details(rec)
+        self.assertEqual(d["type"], "Large airport")
+        self.assertTrue(d["scheduled_service"])
+        self.assertEqual(d["region"], "DE-HE")
+        self.assertGreaterEqual(len(d["runways"]), 3)
+        self.assertEqual(d["runways"][0]["length_ft"], max(r["length_ft"] for r in d["runways"]))
+        self.assertTrue(any(f["type"] == "TWR" for f in d["frequencies"]))
+        self.assertTrue(d["wikipedia"].startswith("https://"))
+
+    def test_an_airport_without_details_still_answers(self) -> None:
+        from flightmap.airports import AirportRec, airport_details
+
+        rec = AirportRec("ZZZZ", "", "Nowhere", 0.0, 0.0, None, "S", "XX", "", False)
+        d = airport_details(rec)
+        self.assertEqual((d["runways"], d["frequencies"], d["wikipedia"]), ([], [], ""))

@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 dependencies = ["starlette==1.7.0", "uvicorn==0.54.0"]
 
 [tool.setuptools.package-data]
-flightmap = ["data/*.json"]
+flightmap = ["data/*.json", "data/*.tsv"]
 
 [tool.ruff]
 line-length = 110

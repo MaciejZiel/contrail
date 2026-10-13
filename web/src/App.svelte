@@ -4,6 +4,9 @@
   import { accepts } from "./core/filters";
   import { ui } from "./core/state.svelte";
   import { AircraftStore } from "./core/store";
+  import { TypeHexes } from "./core/typeHexes";
+  import type { Plane } from "./core/plane";
+  import type { TrailMinutes } from "./core/urlState";
   import { parseUrlState } from "./core/urlState";
   import FilterPopover from "./filters/FilterPopover.svelte";
   import { installGlobalHandlers } from "./core/diagnostics";
@@ -22,6 +25,8 @@
   import FreshnessChip from "./ui/FreshnessChip.svelte";
 
   const store = new AircraftStore();
+  const typeHexes = new TypeHexes();
+  const accept = (p: Plane) => accepts(p, ui.filters, typeHexes.set);
   const view0 = parseUrlState(location.search);
   let container: HTMLDivElement;
   let ctl: MapController | undefined;
@@ -94,9 +99,16 @@
 
   // filters change URL state; the aircraft layer reads them on every frame
   $effect(() => {
-    void ui.filters;
+    const f = ui.filters;
+    typeHexes.setTypes(f.types);
     ctl?.syncUrl();
+    ctl?.filtersChanged();
   });
+
+  function setTrails(m: TrailMinutes): void {
+    ui.trails = m;
+    ctl?.setRecentTrails(m);
+  }
 
   let fallback: Poller | undefined;
   const timers: Array<ReturnType<typeof setTimeout>> = [];
@@ -121,6 +133,8 @@
     ui.selected = view.selected;
     ui.airport = view.airport;
     ui.filters = view.filters;
+    ui.trails = view.trails;
+    typeHexes.setTypes(view.filters.types);
     ui.zoom = view.zoom;
     const params = new URLSearchParams(location.search);
     let alive = true;
@@ -151,8 +165,9 @@
           view,
           offline: params.get("bm") === "offline",
           workerUrl: worker.url,
-          getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters }),
-          accepts: (p) => accepts(p, ui.filters),
+          getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters, trails: ui.trails }),
+          accepts: accept,
+          onTrailsStatus: (st) => (ui.trailsStatus = st),
           getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
           onSelectAircraft: selectAircraft,
           onSelectAirport: selectAirport,
@@ -166,6 +181,7 @@
         return showProblem(initProblem(err instanceof Error ? err.message : String(err)), view);
       }
       ctl = c;
+      if (view.trails) c.setRecentTrails(view.trails);
       if (pendingLocate) c.flyTo(pendingLocate.lat, pendingLocate.lon, 8);
       // the map must finish loading in reasonable time, or the visitor gets an explanation instead of a blank page
       timers.push(setTimeout(() => !loaded && alive && showProblem(timeoutProblem(), view), 15000));
@@ -190,6 +206,7 @@
           store,
           layer: c.aircraft,
           select: selectAircraft,
+          recentTrails: c.recentTrails,
         };
       }
     })();
@@ -203,6 +220,7 @@
     window.addEventListener("keydown", onKey);
     return () => {
       alive = false;
+      typeHexes.stop();
       window.removeEventListener("keydown", onKey);
       timers.forEach(clearTimeout);
       fallback?.stop();
@@ -217,14 +235,33 @@
 <div class="app" class:has-panel={panelOpen} class:sheet-open={panelOpen && sheetHeight > 0} style={`--sheet-h:${panelOpen ? sheetHeight : 0}px`}>
   <div class="map" bind:this={container} role="application" aria-label="Live aircraft map"></div>
 
-  <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={(p) => accepts(p, ui.filters)} onPick={(h) => { selectAircraft(h); }} />
+  <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={accept} onPick={(h) => { selectAircraft(h); }} />
 
   <div class="topbar">
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
-    <FilterPopover bind:filters={ui.filters} {store} />
+    <FilterPopover bind:filters={ui.filters} {store} onTrails={setTrails} />
     <FreshnessChip status={ui.status} count={ui.aircraftCount} />
     {#if ui.filters.airline}
-      <FilterChip label={airlineLabel ?? ui.filters.airline} onClear={() => { ui.filters = { ...ui.filters, airline: null }; airlineLabel = null; }} />
+      <FilterChip
+        id="chip-airline"
+        label={`Only ${airlineLabel ?? ui.filters.airline}`}
+        clearLabel={`Show all airlines instead of only ${airlineLabel ?? ui.filters.airline}`}
+        onClear={() => { ui.filters = { ...ui.filters, airline: null }; airlineLabel = null; }}
+      />
+    {/if}
+    {#if ui.filters.callsign}
+      <FilterChip id="chip-callsign" label={`Callsign ${ui.filters.callsign}*`} clearLabel="Remove the callsign filter" onClear={() => (ui.filters = { ...ui.filters, callsign: "" })} />
+    {/if}
+    {#if ui.filters.types.length}
+      <FilterChip id="chip-types" label={`Type ${ui.filters.types.join(", ")}`} clearLabel="Remove the aircraft type filter" onClear={() => (ui.filters = { ...ui.filters, types: [] })} />
+    {/if}
+    {#if ui.trails}
+      <FilterChip
+        id="chip-trails"
+        label={ui.trailsStatus.state === "zoom" ? `Tracks ${ui.trails} min, zoom in` : `Tracks ${ui.trails} min`}
+        clearLabel="Turn recent tracks off"
+        onClear={() => setTrails(0)}
+      />
     {/if}
   </div>
 

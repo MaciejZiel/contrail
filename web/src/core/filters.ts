@@ -5,19 +5,69 @@ export interface Filters {
   altMax: number;
   airline: string | null;
   hideGround: boolean;
+  /** Callsign prefix, upper case, up to 8 characters ("LO", "RYR1"). */
+  callsign: string;
+  /** ICAO type codes; a trailing "*" matches a family ("A32*"). */
+  types: string[];
 }
 
 export const ALT_LIMIT = 45000;
 
-export const DEFAULT_FILTERS: Filters = { altMin: 0, altMax: ALT_LIMIT, airline: null, hideGround: false };
+export const DEFAULT_FILTERS: Filters = { altMin: 0, altMax: ALT_LIMIT, airline: null, hideGround: false, callsign: "", types: [] };
+
+export const MAX_TYPES = 8;
 
 export function activeFilterCount(f: Filters): number {
-  return (f.altMin > 0 || f.altMax < ALT_LIMIT ? 1 : 0) + (f.airline ? 1 : 0) + (f.hideGround ? 1 : 0);
+  return (
+    (f.altMin > 0 || f.altMax < ALT_LIMIT ? 1 : 0) +
+    (f.airline ? 1 : 0) +
+    (f.hideGround ? 1 : 0) +
+    (f.callsign ? 1 : 0) +
+    (f.types.length ? 1 : 0)
+  );
 }
 
-export function accepts(p: Plane, f: Filters): boolean {
+/** A callsign prefix as typed: letters and digits only, upper case, at most 8 characters. */
+export function cleanCallsign(text: string): string {
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+
+/** Type codes from free text such as "a32*, B738 b789": upper case, valid shape, no repeats. */
+export function parseTypes(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.toUpperCase().split(/[\s,;]+/)) {
+    if (/^[A-Z0-9-]{1,4}\*?$/.test(raw) && !out.includes(raw)) out.push(raw);
+  }
+  return out.slice(0, MAX_TYPES);
+}
+
+/**
+ * Query string for the server. For aircraft tiles only the callsign and type parts matter (a thinned
+ * world view is then thinned among matching aircraft); ``all`` adds altitude and ground traffic,
+ * which the track endpoint applies too.
+ */
+export function serverFilterQuery(f: Filters, all = false): string {
+  const q = new URLSearchParams();
+  if (all) {
+    if (f.altMin > 0 || f.altMax < ALT_LIMIT) q.set("alt", `${f.altMin}-${f.altMax}`);
+    if (f.hideGround) q.set("gnd", "0");
+  }
+  if (f.callsign) q.set("cs", f.callsign);
+  if (f.airline) q.set("air", f.airline);
+  if (f.types.length) q.set("ty", f.types.join(","));
+  const s = q.toString();
+  return s ? `&${s}` : "";
+}
+
+/**
+ * ``typeHexes`` holds the ICAO24 of every tracked aircraft of the wanted types (the map data does
+ * not carry the type); null means it has not arrived yet, so a type filter shows nothing meanwhile.
+ */
+export function accepts(p: Plane, f: Filters, typeHexes: ReadonlySet<number> | null = null): boolean {
   if (f.hideGround && p.onGround) return false;
   if (f.airline && p.callsign.slice(0, 3) !== f.airline) return false;
+  if (f.callsign && !p.callsign.startsWith(f.callsign)) return false;
+  if (f.types.length && !(typeHexes?.has(p.hex) ?? false)) return false;
   if (f.altMin > 0 || f.altMax < ALT_LIMIT) {
     const alt = p.onGround ? 0 : p.altFt;
     if (alt !== null) {

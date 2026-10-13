@@ -106,3 +106,72 @@ test.describe("on a 400 x 800 phone", () => {
     await expect(route).toBeInViewport({ ratio: 1 });
   });
 });
+
+test.describe("filters, tracks and airports on a 400 x 800 phone", () => {
+  test.use({ viewport: { width: 400, height: 800 } });
+
+  const open = async (page: import("@playwright/test").Page, query: string, min = 20) => {
+    await page.goto(`/?e2e=1&bm=offline&${query}`);
+    await page.waitForFunction((n) => (window as any).__flights?.store.size >= n, min);
+  };
+  const noSideScroll = async (page: import("@playwright/test").Page) =>
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+  test("the filter panel fits the screen, scrolls inside itself and every control can be used", async ({ page }) => {
+    await open(page, "c=50,10&z=6.5");
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    const panel = page.locator("#filter-panel");
+    const box = (await panel.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(400);
+    expect(box.y + box.height).toBeLessThanOrEqual(800);
+    await noSideScroll(page);
+
+    const code = await page.evaluate(() => (window as any).__flights.store.planes.find((p: any) => /^[A-Z]{3}\d/.test(p.callsign)).callsign.slice(0, 2) as string);
+    const callsign = page.getByLabel("Callsign starts with");
+    await callsign.scrollIntoViewIfNeeded();
+    await callsign.fill(code);
+    await expect(page).toHaveURL(new RegExp(`cs=${code}`));
+
+    const radio = page.getByRole("radio", { name: "30 min" });
+    await radio.scrollIntoViewIfNeeded();
+    const rb = (await radio.locator("xpath=..").boundingBox())!;
+    expect(rb.height).toBeGreaterThanOrEqual(44); // a comfortable touch target
+    await radio.check();
+    await expect(page).toHaveURL(/tr=30/);
+    await expect(page.getByTestId("chip-callsign")).toBeVisible();
+    await expect(page.getByTestId("chip-trails")).toBeVisible();
+    await page.screenshot({ path: "test-results/mobile-filters.png" });
+    await noSideScroll(page);
+  });
+
+  test("the chips wrap instead of overflowing", async ({ page }) => {
+    await open(page, "c=50,10&z=5&cs=LO&ty=A32*,B738&tr=60&air=LOT", 0);
+    await expect(page.getByTestId("chip-types")).toBeVisible();
+    await noSideScroll(page);
+    for (const id of ["chip-callsign", "chip-types", "chip-trails"]) {
+      const b = (await page.getByTestId(id).boundingBox())!;
+      expect(b.x + b.width).toBeLessThanOrEqual(400);
+    }
+  });
+
+  test("tracks appear when zoomed in", async ({ page }) => {
+    await open(page, "c=50,10&z=6.5&tr=30");
+    await expect.poll(() => page.evaluate(() => (window as any).__flights.recentTrails.featureCount), { timeout: 40_000 }).toBeGreaterThan(5);
+  });
+
+  test("the airport sheet shows runways, frequencies and traffic", async ({ page }) => {
+    await open(page, "c=50.03,8.57&z=9&a=EDDF");
+    const card = page.getByTestId("airport-card");
+    await expect(card).toBeVisible();
+    const info = card.getByTestId("airport-info");
+    await info.scrollIntoViewIfNeeded();
+    await expect(info.getByRole("table", { name: "Runways" })).toBeVisible();
+    const t = (await info.getByRole("table", { name: "Runways" }).boundingBox())!;
+    expect(t.x + t.width).toBeLessThanOrEqual(400);
+    await card.getByTestId("airport-summary").scrollIntoViewIfNeeded();
+    await expect(card.getByTestId("airport-summary")).toBeVisible();
+    await noSideScroll(page);
+    await page.screenshot({ path: "test-results/mobile-airport.png" });
+  });
+});

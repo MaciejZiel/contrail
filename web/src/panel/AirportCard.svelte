@@ -60,6 +60,13 @@
     ["other", "Nearby"],
   ];
 
+  const FREQ_NAMES: Record<string, string> = { ATIS: "ATIS", TWR: "Tower", GND: "Ground", CLD: "Clearance", DEL: "Delivery", APP: "Approach", DEP: "Departure", CTAF: "CTAF", UNICOM: "Unicom", "A/D": "Arrival / departure", AFIS: "AFIS", ATF: "ATF" };
+  const SURFACES: Array<[RegExp, string]> = [[/^(ASP|ASPH)/, "asphalt"], [/^(CON|CONC)/, "concrete"], [/^(GRS|GRASS|TURF)/, "grass"], [/^(GRV|GRVL|GRAVEL)/, "gravel"], [/^(DIRT|EARTH)/, "dirt"], [/^(WATER)/, "water"], [/^(SAND)/, "sand"], [/^(SNOW|ICE)/, "snow or ice"]];
+  function surfaceName(code: string): string {
+    const c = code.toUpperCase();
+    return SURFACES.find(([re]) => re.test(c))?.[1] ?? (code ? code.toLowerCase() : "surface unknown");
+  }
+
   let heading: HTMLHeadingElement | undefined;
   onMount(() => heading?.focus({ preventScroll: true })); // a new panel takes keyboard focus
 </script>
@@ -75,6 +82,7 @@
         <p class="sub small">
           {airport.icao}{airport.iata ? ` · ${airport.iata}` : ""} · {[airport.city, airport.country].filter(Boolean).join(", ")}{airport.elevation_ft !== null ? ` · ${airport.elevation_ft.toLocaleString("en")} ft` : ""}
         </p>
+        <p class="sub small">{airport.type}{airport.scheduled_service ? ", scheduled service" : ""}{airport.region ? ` · ${airport.region}` : ""}</p>
       {/if}
     </div>
     <button class="close" onclick={onClose} aria-label="Close airport details">×</button>
@@ -114,6 +122,13 @@
 
   <section class="block" aria-label="Traffic">
     <h3>Traffic within 10 nm</h3>
+    {#if detail.state === "ok"}
+      <p class="summary" data-testid="airport-summary">
+        <span><b>{detail.value.counts.arriving}</b> arriving</span>
+        <span><b>{detail.value.counts.departing}</b> departing</span>
+        <span><b>{detail.value.counts.ground}</b> on the ground</span>
+      </p>
+    {/if}
     {#if detail.state === "loading"}
       <div class="skeleton" aria-hidden="true"></div>
     {:else if nearby.length === 0}
@@ -122,7 +137,7 @@
       {#each LABELS as [key, label] (key)}
         {#if groups[key].length}
           <h4>{label} <small>{groups[key].length}</small></h4>
-          <ul>
+          <ul data-group={key}>
             {#each groups[key] as n (n.hex)}
               {@render row(n)}
             {/each}
@@ -130,15 +145,52 @@
         {/if}
       {/each}
     {/if}
-    <p class="note">Inferred from position and vertical rate of tracked aircraft. This is not a flight schedule.</p>
+    <p class="note">Inferred from position and vertical rate of tracked aircraft; a route the server already knows settles arriving or departing. This is not a flight schedule.</p>
   </section>
+
+  {#if airport}
+    <section class="block" aria-label="Airport information" data-testid="airport-info">
+      <h3>Airport</h3>
+      {#if airport.runways.length}
+        <table aria-label="Runways">
+          <thead><tr><th scope="col">Runway</th><th scope="col">Length</th><th scope="col">Surface</th></tr></thead>
+          <tbody>
+            {#each airport.runways as r (r.ends.join("/"))}
+              <tr>
+                <th scope="row">{r.ends.filter(Boolean).join(" / ")}</th>
+                <td>{Math.round(r.length_ft * 0.3048).toLocaleString("en")} m <small>({r.length_ft.toLocaleString("en")} ft)</small></td>
+                <td>{surfaceName(r.surface)}{r.lighted ? ", lit" : ""}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else}
+        <p class="muted">No runway data for this airport.</p>
+      {/if}
+      {#if airport.frequencies.length}
+        <h4>Frequencies</h4>
+        <ul class="freqs" aria-label="Frequencies">
+          {#each airport.frequencies as f, i (`${f.type}${f.mhz}${i}`)}
+            <li><span>{FREQ_NAMES[f.type] ?? f.type}</span><b class="mono">{f.mhz.toFixed(3)}</b></li>
+          {/each}
+        </ul>
+      {/if}
+      {#if airport.wikipedia || airport.website}
+        <p class="links">
+          {#if airport.wikipedia}<a href={airport.wikipedia} target="_blank" rel="noopener noreferrer">Wikipedia</a>{/if}
+          {#if airport.website}<a href={airport.website} target="_blank" rel="noopener noreferrer">Airport website</a>{/if}
+        </p>
+      {/if}
+      <p class="note">Airport data: <a href="https://ourairports.com" target="_blank" rel="noopener noreferrer">OurAirports</a> (public domain). Frequencies may be out of date; do not use them for navigation.</p>
+    </section>
+  {/if}
 </aside>
 
 {#snippet row(n: NearbyAircraft)}
   <li>
     <button class="plane" onclick={() => onPick(n.hex)}>
       <strong class="mono">{n.callsign || n.registration || n.hex.toUpperCase()}</strong>
-      <span class="meta">{[n.airline, n.type_code].filter(Boolean).join(" · ")}</span>
+      <span class="meta">{[n.origin && n.destination ? `${n.origin} → ${n.destination}` : null, n.airline, n.type_code].filter(Boolean).join(" · ")}</span>
       <span class="side">{n.state === "ground" ? `${n.distance_nm} nm` : `${fmtAlt(n.altitude_ft)} · ${fmtVrate(n.vertical_rate_fpm)}`}</span>
     </button>
   </li>
@@ -313,6 +365,64 @@
   .side {
     font: 12px var(--mono);
     color: var(--text-dim);
+  }
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 0 0 4px;
+    font-size: 13px;
+  }
+  .summary b {
+    font-family: var(--mono);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th,
+  td {
+    padding: 5px 4px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+  }
+  tbody th {
+    font: 600 13px var(--mono);
+    white-space: nowrap;
+  }
+  td small {
+    color: var(--text-dim);
+  }
+  .freqs li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 4px;
+    font-size: 13px;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin: 10px 0 0;
+  }
+  .links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--accent);
+  }
+  .note a {
+    color: var(--accent);
   }
   .muted,
   .note {

@@ -145,9 +145,30 @@ export async function searchAll(q: string, signal: AbortSignal): Promise<SearchR
   return { aircraft: r.aircraft ?? [], airports: r.airports ?? [], airlines: r.airlines ?? [] };
 }
 
+export interface Runway {
+  ends: [string, string];
+  length_ft: number;
+  surface: string;
+  lighted: boolean;
+}
+
+export interface AirportMeta {
+  /** "Large airport", "Medium airport" or "Small airport" (OurAirports classification). */
+  type: string;
+  scheduled_service: boolean;
+  region: string;
+  runways: Runway[];
+  frequencies: Array<{ type: string; mhz: number }>;
+  wikipedia: string;
+  website: string;
+}
+
+export type AirportCounts = Record<"arriving" | "departing" | "ground" | "nearby", number>;
+
 export interface AirportDetail {
-  airport: SearchAirport & { elevation_ft: number | null; kind: string };
+  airport: SearchAirport & AirportMeta & { elevation_ft: number | null; kind: string };
   nearby: NearbyAircraft[];
+  counts: AirportCounts;
   radius_nm: number;
 }
 
@@ -155,6 +176,9 @@ export interface NearbyAircraft extends SearchAircraft {
   state: "ground" | "arriving" | "departing" | "nearby";
   distance_nm: number;
   vertical_rate_fpm: number | null;
+  /** ICAO codes of the route, only when the server already knew it. */
+  origin?: string;
+  destination?: string;
 }
 
 export interface MetarData {
@@ -184,7 +208,8 @@ export async function fetchAirport(code: string, signal: AbortSignal): Promise<L
   if (status === 404) return { state: "none", reason: "unknown_airport" };
   const env = (body ?? {}) as Envelope & Partial<AirportDetail>;
   if (status !== 200 || !env.ok || !env.airport) return { state: "error", reason: `HTTP ${status}` };
-  return { state: "ok", value: { airport: env.airport, nearby: env.nearby ?? [], radius_nm: env.radius_nm ?? 10 } };
+  const empty: AirportCounts = { arriving: 0, departing: 0, ground: 0, nearby: 0 };
+  return { state: "ok", value: { airport: env.airport, nearby: env.nearby ?? [], counts: env.counts ?? empty, radius_nm: env.radius_nm ?? 10 } };
 }
 
 function part<T>(raw: unknown): Loaded<T> {
@@ -212,4 +237,52 @@ export async function fetchAirportCatalog(signal: AbortSignal): Promise<AirportR
   const res = await fetch(`${base()}api/v1/airports/catalog`, { signal });
   if (!res.ok) throw new Error(`catalog HTTP ${res.status}`);
   return (await res.json()) as AirportRow[];
+}
+
+
+export interface TypeSuggestion {
+  code: string;
+  name: string;
+  /** Aircraft of this type tracked right now. */
+  count: number;
+}
+
+export async function fetchTypeSuggestions(query: string, signal: AbortSignal): Promise<TypeSuggestion[]> {
+  const { status, body } = await getJson(`api/v1/types${query ? `?q=${encodeURIComponent(query)}` : ""}`, signal);
+  if (status !== 200) return [];
+  return ((body ?? {}) as { types?: TypeSuggestion[] }).types ?? [];
+}
+
+/** ICAO24 (as numbers) of the tracked aircraft whose type matches, e.g. ["A32*", "B738"]. */
+export async function fetchTypeHexes(types: string[], signal: AbortSignal): Promise<Set<number>> {
+  const { status, body } = await getJson(`api/v1/type-hexes?ty=${encodeURIComponent(types.join(","))}`, signal);
+  if (status !== 200) throw new Error(`type lookup failed (HTTP ${status})`);
+  const hexes = ((body ?? {}) as { hexes?: string[] }).hexes ?? [];
+  return new Set(hexes.map((h) => parseInt(h, 16)));
+}
+
+export interface RecentTrail {
+  h: string;
+  /** [lon, lat, altitude in hundreds of feet or null] */
+  p: Array<[number, number, number | null]>;
+}
+
+export interface RecentTrails {
+  total: number;
+  trails: RecentTrail[];
+}
+
+export interface BoundsBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+export async function fetchRecentTrails(box: BoundsBox, minutes: number, filterQuery: string, signal: AbortSignal): Promise<RecentTrails> {
+  const q = `w=${box.west.toFixed(3)}&s=${box.south.toFixed(3)}&e=${box.east.toFixed(3)}&n=${box.north.toFixed(3)}&window=${minutes * 60}`;
+  const { status, body } = await getJson(`api/v1/trails?${q}${filterQuery}`, signal);
+  if (status !== 200) throw new Error(`trails failed (HTTP ${status})`);
+  const b = (body ?? {}) as Partial<RecentTrails>;
+  return { total: b.total ?? 0, trails: b.trails ?? [] };
 }
