@@ -112,6 +112,7 @@ export class MapController {
         const b = m.getBounds();
         return rectForBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
       },
+      getZoom: () => m.getZoom(),
       onSnapshot: (snapshot) => {
         o.store.apply(snapshot, serverNow());
         o.onData();

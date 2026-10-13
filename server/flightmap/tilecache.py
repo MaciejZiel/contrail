@@ -22,6 +22,7 @@ from .upstream import TokenBucket, UpstreamError
 log = logging.getLogger("flightmap.tiles")
 MAX_INFLIGHT = 4
 MIN_RPS = 0.08
+DEFAULT_MAX_AGE_S = 600.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
 
@@ -63,10 +64,16 @@ class TileCache:
     ttl_s: float = 10.0
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
+    max_age_s: float = DEFAULT_MAX_AGE_S
+    prefetch_tiles: list[Tile] = field(default_factory=lambda: list[Tile]())
+    prefetch_idle_s: float = 900.0
+    prefetch_always: bool = False
     listeners: list[UpdateListener] = field(default_factory=lambda: list[UpdateListener]())
 
     def __post_init__(self) -> None:
         self._states: dict[Tile, TileState] = {}
+        self._prefetch_set = frozenset(self.prefetch_tiles)
+        self._last_request = 0.0
         self._inflight: dict[Tile, asyncio.Task[None]] = {}
         self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
         self._version = 0
@@ -79,10 +86,12 @@ class TileCache:
     # -- public API -------------------------------------------------------------------
 
     def entries(self, tiles: Iterable[Tile]) -> list[TileEntry]:
+        """Current tile data; tiles that could not be refreshed for ``max_age_s`` are dropped."""
         out: list[TileEntry] = []
+        now = time.time()
         for t in tiles:
             st = self._states.get(t)
-            if st and st.entry:
+            if st and st.entry and now - st.entry.fetched_at <= self.max_age_s:
                 out.append(st.entry)
         return out
 
@@ -93,6 +102,7 @@ class TileCache:
     async def request(self, tiles: Iterable[Tile], cold_deadline_s: float = 4.0) -> None:
         """Declare demand for tiles; wait (bounded) for tiles that were never fetched."""
         now = time.monotonic()
+        self._last_request = now
         cold: list[Tile] = []
         for rank, t in enumerate(tiles):
             st = self._states.setdefault(t, TileState())
@@ -111,7 +121,7 @@ class TileCache:
         now = time.monotonic()
         wall = time.time()
         hot = [s for s in self._states.values() if now - s.last_demand <= self.hot_window_s]
-        ages = [wall - s.entry.fetched_at for s in self._states.values() if s.entry]
+        ages = sorted(wall - s.entry.fetched_at for s in self._states.values() if s.entry)
         return {
             "provider": self.provider.name,
             "ok": self.status.ok,
@@ -120,8 +130,11 @@ class TileCache:
             "errors": self.status.errors,
             "tiles_cached": len(ages),
             "tiles_hot": len(hot),
-            "oldest_tile_age_s": round(max(ages), 1) if ages else None,
-            "newest_tile_age_s": round(min(ages), 1) if ages else None,
+            "prefetch_tiles": len(self.prefetch_tiles),
+            "prefetch_active": self._prefetch_active(now),
+            "median_tile_age_s": round(ages[len(ages) // 2], 1) if ages else None,
+            "oldest_tile_age_s": round(ages[-1], 1) if ages else None,
+            "newest_tile_age_s": round(ages[0], 1) if ages else None,
             "budget_rps": self.budget_rps,
             "current_rps": round(self._bucket.rate, 3),
             "effective_ttl_s": round(self._effective_ttl(len(hot)), 1),
@@ -150,6 +163,31 @@ class TileCache:
             overdue = (now - st.last_attempt) / ttl if st.last_attempt else 1e9 - st.rank
             if overdue >= 1.0 and (best is None or overdue > best[0]):
                 best = (overdue, tile)
+        return best[1] if best else None
+
+    def _prefetch_active(self, now: float) -> bool:
+        if not self.prefetch_tiles:
+            return False
+        return self.prefetch_always or (
+            self._last_request > 0 and now - self._last_request < self.prefetch_idle_s
+        )
+
+    def _pick_prefetch(self, now: float) -> Tile | None:
+        """Oldest prefetch-region tile, only with spare capacity and while somebody has looked recently."""
+        if not self._prefetch_active(now):
+            return None
+        best: tuple[float, Tile] | None = None
+        for tile in self.prefetch_tiles:
+            if tile in self._inflight:
+                continue
+            st = self._states.get(tile)
+            if st is not None and now < st.next_attempt:
+                continue
+            last = st.last_attempt if st else 0.0
+            if last and now - last < self.ttl_s:
+                continue
+            if best is None or last < best[0]:
+                best = (last, tile)
         return best[1] if best else None
 
     def _ensure_fetch(self, tile: Tile) -> asyncio.Task[None]:
@@ -233,7 +271,7 @@ class TileCache:
             self._evict(now)
             scheduled = 0
             while len(self._inflight) < MAX_INFLIGHT and self._bucket.available():
-                tile = self._pick(now)
+                tile = self._pick(now) or self._pick_prefetch(now)
                 if tile is None:
                     break
                 self._ensure_fetch(tile)
@@ -250,7 +288,9 @@ class TileCache:
         for tile in [
             t
             for t, s in self._states.items()
-            if now - s.last_demand > self.evict_after_s and t not in self._inflight
+            if now - s.last_demand > self.evict_after_s
+            and t not in self._inflight
+            and t not in self._prefetch_set
         ]:
             del self._states[tile]
 

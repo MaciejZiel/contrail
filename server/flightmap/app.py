@@ -23,7 +23,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import __version__
 from .airports import load_catalog
-from .codec import encode_response
+from .codec import encode_aircraft, encode_response
 from .config import Settings
 from .demo import DemoProvider, DemoWeather
 from .enrich import EnrichmentCache
@@ -35,8 +35,9 @@ from .providers.routes import Route, RouteProvider, is_plausible, progress
 from .providers.weather import Metar, WeatherProvider
 from .reference import airline_for_callsign, airline_name, type_name
 from .search import aircraft_item, nearby_aircraft, search_all
-from .tilecache import TileCache
-from .tiles import Tile, tiles_in_rect
+from .thinning import level_for_zoom, thin
+from .tilecache import TileCache, TileEntry
+from .tiles import Tile, parse_region, tiles_in_rect
 from .trafficmask import load_traffic_tiles
 from .trails import TrailStore
 from .upstream import UpstreamClient, UpstreamError
@@ -139,10 +140,12 @@ class Api:
             return JSONResponse({"error": "too many tiles requested"}, status_code=400)
         cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
+        zoom_raw = request.query_params.get("z")
+        level = level_for_zoom(int(zoom_raw)) if zoom_raw and zoom_raw.lstrip("-").isdigit() else 0
         await self.cache.request(tiles)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
-            ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries).encode()
+            (f"L{level}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
         ).hexdigest()[:20]
         etag = f'"{digest}"'
         newest = max((e.fetched_at for e in entries), default=0.0)
@@ -157,26 +160,40 @@ class Api:
             return Response(status_code=304, headers=headers)
         body = self._snapshots.get(digest)
         if body is None:
-            body = encode_response(
-                int(time.time() * 1000),
-                (
-                    (
-                        e.tile[0],
-                        e.tile[1],
-                        int(e.fetched_at * 1000),
-                        len(e.payload) // 32,
-                        e.source,
-                        e.payload,
-                    )
-                    for e in entries
-                ),
-            )
+            body = encode_response(int(time.time() * 1000), self._blocks(entries, level))
             self._snapshots[digest] = body
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
                 self._snapshots.popitem(last=False)
         else:
             self._snapshots.move_to_end(digest)
         return Response(body, media_type="application/octet-stream", headers=headers)
+
+    @staticmethod
+    def _blocks(entries: list[TileEntry], level: int) -> list[tuple[int, int, int, int, int, bytes]]:
+        """Tile blocks for the response; at low zoom one representative aircraft per grid cell."""
+        if level == 0:
+            return [
+                (e.tile[0], e.tile[1], int(e.fetched_at * 1000), len(e.payload) // 32, e.source, e.payload)
+                for e in entries
+            ]
+        owned = [(i, a) for i, e in enumerate(entries) for a in e.aircraft]
+        kept: dict[int, list[Aircraft]] = {}
+        for i, a in thin(owned, level):
+            kept.setdefault(i, []).append(a)
+        out: list[tuple[int, int, int, int, int, bytes]] = []
+        for i, e in enumerate(entries):
+            subset = kept.get(i, [])
+            out.append(
+                (
+                    e.tile[0],
+                    e.tile[1],
+                    int(e.fetched_at * 1000),
+                    len(subset),
+                    e.source,
+                    encode_aircraft(subset),
+                )
+            )
+        return out
 
     # -- single aircraft ---------------------------------------------------------------
 
@@ -364,12 +381,17 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     settings = settings or Settings.from_env()
     client = None if settings.demo_mode and provider is None else UpstreamClient(settings.user_agent)
     tile_provider = provider or build_provider(settings, client)
+    traffic_tiles = load_traffic_tiles()
     cache = TileCache(
         provider=tile_provider,
         budget_rps=settings.upstream_budget_rps,
         ttl_s=settings.tile_ttl_s,
         hot_window_s=settings.hot_window_s,
         evict_after_s=settings.evict_after_s,
+        max_age_s=settings.max_tile_age_s,
+        prefetch_tiles=[t for t in parse_region(settings.prefetch_region) if t in traffic_tiles],
+        prefetch_idle_s=settings.prefetch_idle_s,
+        prefetch_always=settings.prefetch_always,
     )
     index = AircraftIndex()
     cache.listeners.append(index.update)

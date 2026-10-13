@@ -85,3 +85,14 @@ def tile_id(tile: Tile) -> str:
 
 def tile_ids(tiles: Iterable[Tile]) -> list[str]:
     return [tile_id(t) for t in tiles]
+
+
+def parse_region(raw: str) -> list[Tile]:
+    """Tiles covered by "south,north,west,east" (degrees); empty or invalid input gives no tiles."""
+    try:
+        south, north, west, east = (float(p) for p in raw.split(","))
+    except ValueError:
+        return []
+    y0, y1 = tile_of(south, 0)[1], tile_of(north, 0)[1]
+    x0, x1 = tile_of(0, west)[0], tile_of(0, east)[0]
+    return tiles_in_rect(x0, y0, x1, y1)

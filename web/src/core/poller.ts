@@ -28,6 +28,8 @@ export const INITIAL_STATUS: FeedStatus = {
 export interface PollerOptions {
   baseUrl: string;
   getRect: () => TileRect;
+  /** Current map zoom; the server thins aircraft at low zoom. */
+  getZoom: () => number;
   onSnapshot: (s: Snapshot) => void;
   onStatus: (s: FeedStatus) => void;
   fetchImpl?: typeof fetch;
@@ -112,7 +114,8 @@ export class Poller {
     const ctl = new AbortController();
     this.abort = ctl;
     const rect = this.opts.getRect();
-    const key = rectKey(rect);
+    const zoom = Math.floor(this.opts.getZoom());
+    const key = `${rectKey(rect)},${zoom}`;
     if (rectTileCount(rect) > 800) {
       this.fail("viewport too large");
       this.schedule(ERROR_MS);
@@ -120,7 +123,7 @@ export class Poller {
     }
     let next = IDLE_MS;
     try {
-      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}`, {
+      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}`, {
         signal: ctl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

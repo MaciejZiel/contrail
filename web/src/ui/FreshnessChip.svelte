@@ -10,9 +10,9 @@
       case "offline":
         return "Offline, retrying";
       case "live":
-        return status.pending > 0 ? `Loading areas · ${count.toLocaleString("en")} aircraft` : `Live · ${count.toLocaleString("en")} aircraft`;
+        return `${status.pending > 0 ? "Loading areas" : "Live"} · ${count.toLocaleString("en")} aircraft${oldest()}`;
       default:
-        return `Data ${age(status.medianAgeS)} old · ${count.toLocaleString("en")} aircraft`;
+        return `Data ${age(status.medianAgeS)} old · ${count.toLocaleString("en")} aircraft${oldest()}`;
     }
   });
 
@@ -23,6 +23,11 @@
           ". Aircraft keep moving between updates by dead reckoning."
       : (status.error || "Waiting for the first data"),
   );
+
+  /** The oldest area is always shown honestly once it is noticeably behind. */
+  function oldest(): string {
+    return status.oldestAgeS > 90 ? ` · oldest area ${age(status.oldestAgeS)}` : "";
+  }
 
   function age(s: number): string {
     if (s < 90) return `${Math.max(1, Math.round(s))} s`;
