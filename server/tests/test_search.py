@@ -5,7 +5,7 @@ from flightmap.airports import load_catalog
 from flightmap.index import AircraftIndex
 from flightmap.models import Aircraft
 from flightmap.providers.weather import parse_metar
-from flightmap.search import nearby_aircraft, search_aircraft, search_all
+from flightmap.search import nearby_aircraft, nearby_traffic, search_aircraft, search_all
 
 
 def make_index() -> AircraftIndex:
@@ -156,6 +156,31 @@ class NearbyKnownRouteTest(unittest.TestCase):
         routes = {"LOT3": ("EPWA", "EPKK")}
         got = {r["callsign"]: r for r in nearby_aircraft(make_index(), epwa, known_route=routes.get)}
         self.assertEqual(got["LOT3"]["state"], "departing")  # a known route wins over the vertical rate
+
+    def test_a_return_route_keeps_the_vertical_rate_state(self) -> None:
+        epwa = load_catalog().get("EPWA")
+        assert epwa is not None
+        routes = {"LOT9": ("EPWA", "EPWA"), "LOT3": ("EPWA", "EPWA")}  # out and straight back
+        got = {r["callsign"]: r for r in nearby_aircraft(make_index(), epwa, known_route=routes.get)}
+        self.assertEqual((got["LOT9"]["state"], got["LOT3"]["state"]), ("departing", "arriving"))
+
+    def test_counts_cover_every_aircraft_not_just_the_nearest_ones(self) -> None:
+        epwa = load_catalog().get("EPWA")
+        assert epwa is not None
+        idx = AircraftIndex()
+        idx.update(
+            (40, 28),
+            [
+                Aircraft(
+                    hex=0x500000 + i, lat=epwa.lat + 0.001 * i, lon=epwa.lon, callsign=f"X{i}", on_ground=True
+                )
+                for i in range(60)
+            ],
+            1000.0,
+        )
+        items, counts = nearby_traffic(idx, epwa)
+        self.assertEqual(len(items), 40)
+        self.assertEqual(counts["ground"], 60)
 
 
 class AirportDetailsTest(unittest.TestCase):

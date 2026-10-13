@@ -76,14 +76,17 @@ def search_all(
     return {"aircraft": aircraft, "airports": airports, "airlines": airlines}
 
 
-def nearby_aircraft(
+def nearby_traffic(
     index: AircraftIndex,
     airport: AirportRec,
     radius_nm: float = NEARBY_RADIUS_NM,
     limit: int = 40,
     known_route: Callable[[str], tuple[str, str] | None] | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Aircraft on the ground at or low around an airport, with an inferred arriving/departing state.
+
+    Returns the ``limit`` nearest and the counts per state over *all* of them, so a busy airport is
+    not undercounted by the cut.
 
     ``known_route(callsign)`` may return the (origin, destination) ICAO codes of a route that is
     already cached; it must not cause a lookup. A known route to or from this airport settles the
@@ -92,6 +95,7 @@ def nearby_aircraft(
     elev = airport.elevation_ft or 0
     dlat = radius_nm / 60.0
     out: list[tuple[float, dict[str, Any]]] = []
+    counts = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
     for a, _t in index.values():
         if abs(a.lat - airport.lat) > dlat:
             continue
@@ -111,7 +115,8 @@ def nearby_aircraft(
         else:
             state = "nearby"
         route = known_route(a.callsign) if known_route and a.callsign and not a.on_ground else None
-        if route and state != "ground":
+        # a return route (A to B to A) says nothing about which leg this is: keep the vertical-rate state
+        if route and state != "ground" and route[0] != route[1]:
             if route[1] == airport.icao:
                 state = "arriving"
             elif route[0] == airport.icao:
@@ -120,6 +125,18 @@ def nearby_aircraft(
         if route:
             item.update({"origin": route[0], "destination": route[1]})
         item.update({"state": state, "distance_nm": round(d, 1), "vertical_rate_fpm": a.vertical_rate_fpm})
+        counts[state] += 1
         out.append((d, item))
     out.sort(key=lambda it: it[0])
-    return [item for _d, item in out[:limit]]
+    return [item for _d, item in out[:limit]], counts
+
+
+def nearby_aircraft(
+    index: AircraftIndex,
+    airport: AirportRec,
+    radius_nm: float = NEARBY_RADIUS_NM,
+    limit: int = 40,
+    known_route: Callable[[str], tuple[str, str] | None] | None = None,
+) -> list[dict[str, Any]]:
+    """The nearest aircraft of :func:`nearby_traffic`, without the counts."""
+    return nearby_traffic(index, airport, radius_nm, limit, known_route)[0]

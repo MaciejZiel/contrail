@@ -40,7 +40,7 @@ from .providers.routes import Route, RouteProvider, is_plausible, progress
 from .providers.weather import Metar, WeatherProvider
 from .reference import airline_for_callsign, airline_name, type_name
 from .regions import build_plan, parse_regions
-from .search import aircraft_item, nearby_aircraft, search_all
+from .search import aircraft_item, nearby_traffic, search_all
 from .thinning import level_for_zoom, thin
 from .tilecache import TileCache, TileEntry
 from .tiles import Tile, tile_of, tiles_in_rect
@@ -550,10 +550,7 @@ class Api:
         rec = self.airports.get(str(request.path_params["code"]))
         if rec is None:
             return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
-        nearby = nearby_aircraft(self.index, rec, known_route=self._cached_route)
-        counts: dict[str, int] = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
-        for item in nearby:
-            counts[str(item["state"])] += 1
+        nearby, counts = nearby_traffic(self.index, rec, known_route=self._cached_route)
         return JSONResponse(
             {
                 "ok": True,
