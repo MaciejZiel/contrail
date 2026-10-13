@@ -1,3 +1,4 @@
+import asyncio
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -55,6 +56,25 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.status, 304)
         self.assertEqual(second.body, b"")
         self.assertEqual(self.app.state.cache.status.requests, calls)
+
+    async def test_server_time_is_current_even_when_tiles_are_unchanged(self) -> None:
+        first = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+        await asyncio.sleep(0.05)
+        second = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+        self.assertEqual(first.headers["etag"], second.headers["etag"])
+        t1, tiles1 = codec.decode_response(first.body)
+        t2, tiles2 = codec.decode_response(second.body)
+        self.assertGreaterEqual(t2 - t1, 40)  # clients sync their clock from this field
+        self.assertEqual([t.fetched_at_ms for t in tiles1], [t.fetched_at_ms for t in tiles2])
+        self.assertEqual(first.body[16:], second.body[16:])
+
+    async def test_weak_and_strong_forms_of_the_etag_both_revalidate(self) -> None:
+        first = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+        tag = first.headers["etag"]
+        self.assertTrue(tag.startswith('W/"'))
+        for sent in (tag, tag.removeprefix("W/"), f'"nope", {tag}'):
+            r = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}", {"If-None-Match": sent})
+            self.assertEqual(r.status, 304, sent)
 
     async def test_bad_parameters(self) -> None:
         self.assertEqual((await asgi_get(self.app, "/api/v1/aircraft?x0=1")).status, 400)

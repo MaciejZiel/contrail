@@ -19,7 +19,7 @@ from starlette.routing import BaseRoute, Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from . import __version__
-from .codec import encode_response
+from .codec import encode_header, encode_tiles
 from .config import Settings
 from .demo import DemoProvider
 from .providers import TileProvider
@@ -43,12 +43,18 @@ def _int_param(request: Request, name: str) -> int:
         raise ValueError(f"missing or invalid '{name}'") from exc
 
 
+def _etag_matches(if_none_match: str, digest: str) -> bool:
+    """Weak comparison (RFC 9110): W/"x" and "x" both match."""
+    tags = (t.strip().removeprefix("W/") for t in if_none_match.split(","))
+    return f'"{digest}"' in tags or if_none_match.strip() == "*"
+
+
 class Api:
     def __init__(self, settings: Settings, cache: TileCache) -> None:
         self.settings = settings
         self.cache = cache
         self.traffic = load_traffic_tiles()
-        self._snapshots: OrderedDict[str, bytes] = OrderedDict()
+        self._snapshots: OrderedDict[str, tuple[int, bytes]] = OrderedDict()
 
     def select_tiles(self, x0: int, y0: int, x1: int, y1: int) -> list[Tile]:
         tiles = tiles_in_rect(x0, y0, x1, y1)
@@ -71,7 +77,8 @@ class Api:
         digest = hashlib.sha1(
             ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries).encode()
         ).hexdigest()[:20]
-        etag = f'"{digest}"'
+        # Weak: the tile data is identical for equal tags, but every body carries the current server time.
+        etag = f'W/"{digest}"'
         newest = max((e.fetched_at for e in entries), default=0.0)
         headers = {
             "ETag": etag,
@@ -80,29 +87,20 @@ class Api:
             "X-Tiles": str(len(entries)),
             "X-Pending": str(len(tiles) - len(entries)),
         }
-        if request.headers.get("if-none-match") == etag:
+        if _etag_matches(request.headers.get("if-none-match", ""), digest):
             return Response(status_code=304, headers=headers)
-        body = self._snapshots.get(digest)
-        if body is None:
-            body = encode_response(
-                int(time.time() * 1000),
-                (
-                    (
-                        e.tile[0],
-                        e.tile[1],
-                        int(e.fetched_at * 1000),
-                        len(e.payload) // 32,
-                        e.source,
-                        e.payload,
-                    )
-                    for e in entries
-                ),
+        cached = self._snapshots.get(digest)
+        if cached is None:
+            cached = encode_tiles(
+                (e.tile[0], e.tile[1], int(e.fetched_at * 1000), len(e.payload) // 32, e.source, e.payload)
+                for e in entries
             )
-            self._snapshots[digest] = body
+            self._snapshots[digest] = cached
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
                 self._snapshots.popitem(last=False)
         else:
             self._snapshots.move_to_end(digest)
+        body = encode_header(cached[0], int(time.time() * 1000)) + cached[1]
         return Response(body, media_type="application/octet-stream", headers=headers)
 
     async def status(self, _request: Request) -> Response:
