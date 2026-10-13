@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { fetchAirlineNames, fetchTypeSuggestions, type TypeSuggestion } from "../core/api";
-  import { ALT_LIMIT, activeFilterCount, airlineCounts, cleanCallsign, DEFAULT_FILTERS, parseTypes, type Filters } from "../core/filters";
+  import { ALT_LIMIT, activeFilterCount, airlineCounts, DEFAULT_FILTERS, parseCallsigns, parseTypes, type Filters } from "../core/filters";
   import { ui } from "../core/state.svelte";
   import type { AircraftStore } from "../core/store";
   import type { TrailMinutes } from "../core/urlState";
@@ -9,6 +9,7 @@
   let { filters = $bindable(), store, onTrails }: { filters: Filters; store: AircraftStore; onTrails: (m: TrailMinutes) => void } = $props();
 
   let typeDraft = $state(filters.types.join(", "));
+  let callsignDraft = $state(filters.callsigns.join(", "));
   let suggestions = $state<TypeSuggestion[]>([]);
   let suggestTimer: ReturnType<typeof setTimeout> | undefined;
   let suggestAbort: AbortController | undefined;
@@ -18,6 +19,17 @@
     const joined = filters.types.join(", ");
     if (untrack(() => parseTypes(typeDraft).join(", ")) !== joined) typeDraft = joined;
   });
+
+  $effect(() => {
+    const joined = filters.callsigns.join(", ");
+    if (untrack(() => parseCallsigns(callsignDraft).join(", ")) !== joined) callsignDraft = joined;
+  });
+
+  function onCallsignInput(e: Event & { currentTarget: HTMLInputElement }): void {
+    callsignDraft = e.currentTarget.value;
+    const callsigns = parseCallsigns(callsignDraft);
+    if (callsigns.join(",") !== filters.callsigns.join(",")) filters = { ...filters, callsigns };
+  }
 
   function onTypeInput(e: Event & { currentTarget: HTMLInputElement }): void {
     const inputType = (e as unknown as InputEvent).inputType;
@@ -122,17 +134,12 @@
         <input
           type="text"
           class="text"
-          maxlength="8"
           autocomplete="off"
           autocapitalize="characters"
           spellcheck="false"
           placeholder="LO, RYR1, N12"
-          value={filters.callsign}
-          oninput={(e) => {
-            const v = cleanCallsign(e.currentTarget.value);
-            e.currentTarget.value = v;
-            filters = { ...filters, callsign: v };
-          }}
+          value={callsignDraft}
+          oninput={onCallsignInput}
         />
       </label>
 

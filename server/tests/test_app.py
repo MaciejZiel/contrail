@@ -261,6 +261,17 @@ class SearchAndAirportTest(AppBase):
         self.assertGreater(len(json.loads(cat.body)), 2500)
         self.assertIn("max-age=86400", cat.headers["cache-control"])
 
+    async def test_an_airport_without_a_weather_station_answers_200_with_no_station(self) -> None:
+        hagr = self.app.state.api.airports.get("HAGR")
+        assert hagr is not None
+        self.assertFalse(hagr.scheduled and hagr.kind in ("L", "M"))
+        r = await asgi_get(self.app, "/api/v1/airports/HAGR/weather")
+        self.assertEqual(r.status, 200)
+        w = json.loads(r.body)
+        self.assertEqual(w["metar"], {"ok": False, "reason": "no_station"})
+        self.assertEqual(w["taf"], {"ok": False, "reason": "no_station"})
+        self.assertEqual((await asgi_get(self.app, "/api/v1/airports/ZZZZ/weather")).status, 404)
+
     async def test_a_failing_weather_source_degrades_only_the_weather(self) -> None:
         class Broken:
             async def metar(self, icao: str) -> None:

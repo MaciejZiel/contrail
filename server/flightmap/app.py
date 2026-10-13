@@ -279,7 +279,9 @@ class Api:
         # Only a thinned response needs the filter (thinning would otherwise keep aircraft the client
         # then hides); full-density responses are shared and filtered by the client.
         flt = (
-            AircraftFilter(callsign_prefix=parsed.callsign_prefix, airline=parsed.airline, types=parsed.types)
+            AircraftFilter(
+                callsign_prefixes=parsed.callsign_prefixes, airline=parsed.airline, types=parsed.types
+            )
             if level > 0
             else AircraftFilter()
         )
@@ -613,7 +615,12 @@ class Api:
         if rec is None:
             return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
         if not (rec.scheduled and rec.kind in ("L", "M")):  # only airports that publish reports we can use
-            return JSONResponse({"ok": False, "reason": "no_weather_service"}, status_code=404)
+            # a known airport without a METAR station is an answer, not an error: 200, so the
+            # browser does not log a failed request for every such airport card
+            none = {"ok": False, "reason": "no_station"}
+            return JSONResponse(
+                {"ok": True, "metar": none, "taf": none}, headers={"Cache-Control": "public, max-age=3600"}
+            )
         station = rec.icao.upper()
 
         async def part(cache: EnrichmentCache, loader: Callable[[], Awaitable[object]]) -> dict[str, object]:

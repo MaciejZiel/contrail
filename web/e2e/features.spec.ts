@@ -32,6 +32,29 @@ test("a callsign prefix hides every other aircraft, shows a chip and survives a 
   await expect.poll(async () => new Set((await visibleCallsigns(page)).map((c) => c.slice(0, 2))).size).toBeGreaterThan(3);
 });
 
+test("several callsign prefixes can be typed with commas and keep every matching aircraft", async ({ page }) => {
+  await openMap(page, "c=50,10&z=5");
+  const prefixes = await page.evaluate(() => {
+    const seen = new Set<string>();
+    for (const p of (window as any).__flights.layer.visiblePlanes()) if (p.callsign.length >= 2) seen.add(p.callsign.slice(0, 2));
+    return [...seen].slice(0, 2);
+  });
+  expect(prefixes).toHaveLength(2);
+  await openFilters(page);
+  const box = page.getByLabel("Callsign starts with");
+  await box.pressSequentially(`${prefixes[0]!.toLowerCase()},${prefixes[1]}`);
+  await expect(box).toHaveValue(`${prefixes[0]!.toLowerCase()},${prefixes[1]}`);
+  await expect(page).toHaveURL(new RegExp(`cs=${prefixes[0]}(%2C|,)${prefixes[1]}`));
+  await expect(page.getByTestId("chip-callsign")).toContainText(`${prefixes[0]}*, ${prefixes[1]}*`);
+  await expect
+    .poll(async () => {
+      const all = await visibleCallsigns(page);
+      const heads = new Set(all.map((c) => c.slice(0, 2)));
+      return all.length > 0 && heads.size === 2 && all.every((c) => prefixes.some((p) => c.startsWith(p)));
+    })
+    .toBe(true);
+});
+
 test("an aircraft type filter keeps only that type, also on a thinned world view", async ({ page }) => {
   await openMap(page, "c=50,10&z=5");
   const type = await aKnownType(page);
@@ -134,6 +157,25 @@ test("the airport view lists runways, frequencies, links and nearby traffic", as
   await expect(info.getByText(/OurAirports/)).toBeVisible();
   await expect(card.getByTestId("airport-summary")).toContainText(/arriving .* on the ground/);
   await expect(card.getByText(/not a flight schedule/)).toBeVisible();
+});
+
+test("an airport without a weather station says so and causes no failed request or console error", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (m) => m.type() === "error" && problems.push(m.text()));
+  page.on("pageerror", (e) => problems.push(e.message));
+  const weather = page.waitForResponse((r) => r.url().includes("/api/v1/airports/HAGR/weather"));
+  await openMap(page, "c=8.16,35.55&z=9&a=HAGR", 0);
+  expect((await weather).status()).toBe(200);
+  const card = page.getByTestId("airport-card");
+  await expect(card.getByText("This airport has no weather station.")).toBeVisible();
+  await expect(card.getByText("Weather is temporarily unavailable.")).toHaveCount(0);
+  expect(problems).toEqual([]);
+});
+
+test("runways the data leaves unnamed are numbered instead of shown blank", async ({ page }) => {
+  await openMap(page, "c=8.16,35.55&z=9&a=HAGR", 0);
+  const runways = page.getByTestId("airport-card").getByTestId("airport-info").getByRole("table", { name: "Runways" });
+  await expect(runways.getByRole("rowheader")).toHaveText(["Runway 1", "Runway 2"]);
 });
 
 test("clicking an aircraft in the airport list opens it", async ({ page }) => {

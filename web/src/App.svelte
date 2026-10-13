@@ -249,8 +249,8 @@
         onClear={() => { ui.filters = { ...ui.filters, airline: null }; airlineLabel = null; }}
       />
     {/if}
-    {#if ui.filters.callsign}
-      <FilterChip id="chip-callsign" label={`Callsign ${ui.filters.callsign}*`} clearLabel="Remove the callsign filter" onClear={() => (ui.filters = { ...ui.filters, callsign: "" })} />
+    {#if ui.filters.callsigns.length}
+      <FilterChip id="chip-callsign" label={`Callsign ${ui.filters.callsigns.map((c) => `${c}*`).join(", ")}`} clearLabel="Remove the callsign filter" onClear={() => (ui.filters = { ...ui.filters, callsigns: [] })} />
     {/if}
     {#if ui.filters.types.length}
       <FilterChip id="chip-types" label={`Type ${ui.filters.types.join(", ")}`} clearLabel="Remove the aircraft type filter" onClear={() => (ui.filters = { ...ui.filters, types: [] })} />
