@@ -26,7 +26,7 @@
 
 <p align="center"><sub>This screenshot and the demo-mode gallery below use the built-in demo mode: the aircraft are synthetic. With the real feed the map looks the same.</sub></p>
 
-## ✨ Features
+## Features
 
 - **Smooth live map.** Every aircraft is extrapolated each frame from its track and ground speed and eased towards each new fix, so nothing jumps and nothing fades with age. How old the data is shows in a small status chip, never by hiding aircraft. About 60 fps with 15,000 aircraft on an integrated GPU.
 - **Flight panel.** Photo, callsign, airline, type, registration, route (from and to), live altitude, speed, vertical rate, squawk, altitude / speed / vertical-rate history, the whole track coloured by altitude, the rest of the route as a dashed line, distance flown and remaining, and an arrival estimate (clearly labelled as an estimate).
@@ -36,7 +36,7 @@
 - **Phone-first layout**: a bottom sheet with three snap points on small screens, a side panel on desktop.
 - **Demo mode** with synthetic traffic, used by CI and for offline screenshots.
 
-## 📸 Screenshots
+## Screenshots
 
 Self-hosted on a home server: [contrail.maciejzielinski.dev](https://contrail.maciejzielinski.dev) runs the real ADSB.lol feed, so coverage and freshness are limited by the public API (see below) and the status chip says how old the data is. These screenshots come from the live site:
 
@@ -67,7 +67,7 @@ Demo mode:
   <img src="docs/screenshots/mobile-sheet-full.png" alt="Phone: expanded sheet" width="20%">
 </p>
 
-## 🚀 Quick start
+## Quick start
 
 
 Docker is for local development and CI only.
@@ -103,7 +103,7 @@ cd ../web && npm ci && npm run dev               # app on http://localhost:5173 
 
 The API is documented in [server/README.md](server/README.md).
 
-## 🧭 Architecture
+## Architecture
 
 
 ```mermaid
@@ -122,7 +122,7 @@ flowchart LR
 - Each enrichment (route, photo, weather, aircraft identity) fails on its own and shows an honest message for that field only.
 - Pure Python dependencies only (Starlette, uvicorn, anyio, h11, click, idna), no native wheels, so it runs on Python 3.12 to 3.14 including on aarch64 Termux.
 
-## 📡 Data sources and limits
+## Data sources and limits
 
 
 Read this before you rely on the map. The numbers below were measured while building it.
@@ -152,7 +152,7 @@ Read this before you rely on the map. The numbers below were measured while buil
 - Arrival times are estimates (remaining great-circle distance divided by current ground speed). Airport arrivals and departures are inferred from aircraft behaviour, not from schedules.
 - A personal, non-commercial deployment is assumed throughout.
 
-## 🏠 Self-hosting on Termux
+## Self-hosting on Termux
 
 
 Contrail runs as plain processes on a small always-on server; Termux on an aarch64 Android device is one target (nothing here needs a native wheel). The public name is `contrail.maciejzielinski.dev`, reached through a tunnel with no open ports.
@@ -170,7 +170,7 @@ Contrail runs as plain processes on a small always-on server; Termux on an aarch
 
 The measurements in this README were taken on a development laptop, not on that hardware.
 
-## 🛠 Tech stack
+## Tech stack
 
 | Layer | Used |
 |---|---|
@@ -179,7 +179,7 @@ The measurements in this README were taken on a development laptop, not on that 
 | Serving | nginx (static files, gzip, 2 s micro-cache) |
 | Quality | unittest, ruff, pyright (strict), vitest, Playwright |
 
-## 🧪 Tests
+## Tests
 
 
 - `server/`: `python -m unittest discover -s tests -t .`, `ruff check`, `ruff format --check`, `npx pyright` (strict). Tests include the real provider against a fixture upstream that serves synthetic data shaped exactly like ADSB.lol responses.
@@ -187,7 +187,7 @@ The measurements in this README were taken on a development laptop, not on that 
 - `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `server/scripts/measure_trails.py` measures trail memory.
 - CI (`.github/workflows/ci.yml`) runs all of it.
 
-## 🗂 Repository layout
+## Repository layout
 
 
 ```
@@ -201,7 +201,7 @@ deploy/termux/      start script, env example, nginx snippet, boot script
 docs/design.md      the design this was built from, with amendments
 ```
 
-## 📄 Licence and attribution
+## Licence and attribution
 
 
 Code: MIT, see [LICENSE](LICENSE). Third-party components and data, including one line per type photo, are listed in [3rdparty_licenses.md](3rdparty_licenses.md); photo credits are in [web/public/type-photos/ATTRIBUTIONS.md](web/public/type-photos/ATTRIBUTIONS.md). Aircraft data: [ADSB.lol](https://adsb.lol) (ODbL 1.0). Map data: OpenStreetMap contributors via OpenFreeMap and OpenMapTiles. Weather: NOAA Aviation Weather Center. Photos: Planespotters.net photographers and Wikimedia Commons authors as credited next to each image.
