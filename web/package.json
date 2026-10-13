@@ -1,0 +1,30 @@
+{
+  "name": "live-flights-map-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "vite build && playwright test",
+    "prepare:maplibre": "node scripts/copy-maplibre-worker.mjs",
+    "predev": "npm run prepare:maplibre",
+    "prebuild": "npm run prepare:maplibre"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.11.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@sveltejs/vite-plugin-svelte": "6.2.4",
+    "@types/node": "^24.19.0",
+    "svelte": "5.57.1",
+    "svelte-check": "4.7.6",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "5.0.2"
+  }
+}
