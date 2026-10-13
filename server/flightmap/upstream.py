@@ -14,6 +14,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -98,14 +99,15 @@ class UpstreamClient:
 class TokenBucket:
     """Global request budget: ``rate`` requests per second with a small burst."""
 
-    def __init__(self, rate: float, burst: float = 2.0) -> None:
+    def __init__(self, rate: float, burst: float = 2.0, clock: Callable[[], float] = time.monotonic) -> None:
         self.rate = max(rate, 0.01)
         self.burst = burst
+        self._clock = clock
         self._tokens = burst
-        self._stamp = time.monotonic()
+        self._stamp = clock()
 
     def _refill(self) -> None:
-        now = time.monotonic()
+        now = self._clock()
         self._tokens = min(self.burst, self._tokens + (now - self._stamp) * self.rate)
         self._stamp = now
 

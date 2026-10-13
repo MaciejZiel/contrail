@@ -1,7 +1,7 @@
 import asyncio
 import json
-import time
 import unittest
+from typing import ClassVar
 
 from flightmap import codec
 from flightmap.app import create_app
@@ -15,6 +15,7 @@ from flightmap.trafficmask import load_traffic_tiles
 from flightmap.upstream import UpstreamError
 
 from .asgi import asgi_get
+from .clock import FakeClock, cache_with, run_for
 
 
 class CountingProvider:
@@ -51,98 +52,77 @@ class RegionTest(unittest.TestCase):
 
 
 class PrefetchTest(unittest.IsolatedAsyncioTestCase):
-    def make(self, p: CountingProvider, **kw: object) -> TileCache:
+    """Scheduler tests run on a fake clock: no real waiting, so they cannot flake under load."""
+
+    REGION: ClassVar[list[Tile]] = [(1, 1), (2, 1), (3, 1)]
+
+    def make(self, clock: FakeClock, p: CountingProvider, **kw: object) -> TileCache:
         base: dict[str, object] = {
             "budget_rps": 100.0, "ttl_s": 0.05, "hot_window_s": 5.0,
-            "prefetch_plan": {t: PrefetchSpec(1, 0.05) for t in [(1, 1), (2, 1), (3, 1)]},
+            "prefetch_plan": {t: PrefetchSpec(1, 0.05) for t in self.REGION},
             "prefetch_idle_s": 5.0,
         }  # fmt: skip
         base.update(kw)
-        return TileCache(provider=p, **base)  # type: ignore[arg-type]
+        return cache_with(clock, provider=p, **base)
 
     async def test_prefetch_warms_the_region_after_a_viewer_appeared(self) -> None:
-        p = CountingProvider()
-        c = self.make(p)
-        c.start()
-        try:
-            await c.request([(9, 9)])  # somebody looks at an unrelated tile
-            await asyncio.sleep(0.4)
-            self.assertTrue({(1, 1), (2, 1), (3, 1)} <= set(p.calls))
-            self.assertEqual(len(c.entries([(1, 1), (2, 1), (3, 1)])), 3)
-        finally:
-            await c.stop()
+        clock, p = FakeClock(), CountingProvider()
+        c = self.make(clock, p)
+        await c.request([(9, 9)])  # somebody looks at an unrelated tile
+        await run_for(c, clock, 0.4)
+        self.assertTrue(set(self.REGION) <= set(p.calls))
+        self.assertEqual(len(c.entries(self.REGION)), 3)
 
     async def test_no_prefetch_without_viewers_or_after_they_left(self) -> None:
-        p = CountingProvider()
-        c = self.make(p, prefetch_idle_s=0.2)
-        c.start()
-        try:
-            await asyncio.sleep(0.3)
-            self.assertEqual(p.calls, [])  # nobody has ever looked
-            await c.request([(9, 9)])
-            await asyncio.sleep(0.5)  # idle window passes
-            region = {(1, 1), (2, 1), (3, 1)}
-            n = sum(t in region for t in p.calls)
-            await asyncio.sleep(0.4)
-            self.assertEqual(sum(t in region for t in p.calls), n)  # prefetch paused again
-        finally:
-            await c.stop()
+        clock, p = FakeClock(), CountingProvider()
+        c = self.make(clock, p, prefetch_idle_s=0.2)
+        await run_for(c, clock, 0.3)
+        self.assertEqual(p.calls, [])  # nobody has ever looked
+        await c.request([(9, 9)])
+        await run_for(c, clock, 0.5)  # the idle window passes
+        n = sum(t in self.REGION for t in p.calls)
+        await run_for(c, clock, 0.4)
+        self.assertEqual(sum(t in self.REGION for t in p.calls), n)  # prefetch paused again
 
     async def test_usually_empty_tiles_are_refreshed_much_less_often(self) -> None:
-        p = CountingProvider()
+        clock, p = FakeClock(), CountingProvider()
         p.empty = {(2, 1)}  # open ocean
         c = self.make(
+            clock,
             p,
             prefetch_always=True,
             ttl_s=0.3,
-            prefetch_plan={t: PrefetchSpec(1, 0.3) for t in [(1, 1), (2, 1), (3, 1)]},
+            prefetch_plan={t: PrefetchSpec(1, 0.3) for t in self.REGION},
         )
-        c.start()
-        try:
-            await asyncio.sleep(3.2)
-            busy = p.calls.count((1, 1))
-            empty = p.calls.count((2, 1))
-            self.assertGreaterEqual(busy, 6)
-            self.assertLess(empty * 2, busy)
-        finally:
-            await c.stop()
+        await run_for(c, clock, 3.2)
+        busy, empty = p.calls.count((1, 1)), p.calls.count((2, 1))
+        self.assertGreaterEqual(busy, 9)
+        self.assertLessEqual(empty, 3)
+        self.assertLess(empty * 2, busy)
 
     async def test_always_on_prefetch_works_without_viewers(self) -> None:
-        p = CountingProvider()
-        c = self.make(p, prefetch_always=True)
-        c.start()
-        try:
-            await asyncio.sleep(0.4)
-            self.assertTrue({(1, 1), (2, 1), (3, 1)} <= set(p.calls))
-        finally:
-            await c.stop()
+        clock, p = FakeClock(), CountingProvider()
+        c = self.make(clock, p, prefetch_always=True)
+        await run_for(c, clock, 0.4)
+        self.assertTrue(set(self.REGION) <= set(p.calls))
 
     async def test_demanded_tiles_are_fetched_before_prefetch_tiles(self) -> None:
-        p = CountingProvider()
-        c = self.make(p, budget_rps=3.0)
-        c.start()
-        try:
-            await c.request([(9, 9), (9, 8)], cold_deadline_s=0.05)
-            await asyncio.sleep(0.9)
-            first_prefetch = min(i for i, t in enumerate(p.calls) if t in {(1, 1), (2, 1), (3, 1)})
-            demanded = [i for i, t in enumerate(p.calls) if t in {(9, 9), (9, 8)}]
-            self.assertTrue(demanded and min(demanded) < first_prefetch)
-        finally:
-            await c.stop()
+        clock, p = FakeClock(), CountingProvider()
+        c = self.make(clock, p, budget_rps=3.0)
+        await c.request([(9, 9), (9, 8)], cold_deadline_s=0.05)
+        await run_for(c, clock, 0.9)
+        first_prefetch = min(i for i, t in enumerate(p.calls) if t in self.REGION)
+        demanded = [i for i, t in enumerate(p.calls) if t in {(9, 9), (9, 8)}]
+        self.assertTrue(demanded and min(demanded) < first_prefetch)
 
     async def test_tiles_that_cannot_refresh_expire(self) -> None:
-        p = CountingProvider()
-        c = self.make(p, max_age_s=0.3, prefetch_plan={})
-        c.start()
-        try:
-            await c.request([(5, 5)])
-            self.assertEqual(len(c.entries([(5, 5)])), 1)
-            p.fail = True
-            await asyncio.sleep(0.6)
-            self.assertEqual(c.entries([(5, 5)]), [])  # too old to show
-        finally:
-            await c.stop()
-        self.assertGreater(time.time(), 0)
+        clock, p = FakeClock(), CountingProvider()
+        c = self.make(clock, p, max_age_s=0.3, prefetch_plan={})
+        await c.request([(5, 5)])
+        self.assertEqual(len(c.entries([(5, 5)])), 1)
+        p.fail = True
+        await run_for(c, clock, 0.6)
+        self.assertEqual(c.entries([(5, 5)]), [])  # too old to show
 
 
 def planes() -> list[tuple[int, Aircraft]]:
@@ -179,71 +159,69 @@ class RegionPlanTest(unittest.TestCase):
 
 class SchedulerFairnessTest(unittest.IsolatedAsyncioTestCase):
     async def test_classes_share_spare_capacity_by_weight_and_nobody_starves(self) -> None:
-        p = CountingProvider()
+        clock, p = FakeClock(), CountingProvider()
         plan = {
             **{(x, 1): PrefetchSpec(1, 0.05) for x in range(10)},
             **{(x, 2): PrefetchSpec(2, 0.05) for x in range(10)},
             **{(x, 3): PrefetchSpec(3, 0.05) for x in range(10)},
         }
-        c = TileCache(provider=p, budget_rps=40.0, ttl_s=0.05, prefetch_plan=plan, prefetch_always=True)
-        c.start()
-        try:
-            await asyncio.sleep(3.0)
-        finally:
-            await c.stop()
+        c = cache_with(
+            clock, provider=p, budget_rps=40.0, ttl_s=0.05, prefetch_plan=plan, prefetch_always=True
+        )
+        await run_for(c, clock, 3.0)
         served = {prio: sum(1 for t in p.calls if t[1] == prio) for prio in (1, 2, 3)}
         total = sum(served.values())
-        self.assertGreater(total, 30)
+        self.assertGreater(total, 100)
         self.assertGreater(served[3], 0)  # the lowest class is never starved
         self.assertGreater(served[1], served[2])
         self.assertGreater(served[2], served[3])
-        self.assertAlmostEqual(served[1] / total, 0.6, delta=0.12)
-        self.assertAlmostEqual(served[3] / total, 0.1, delta=0.08)
+        self.assertAlmostEqual(served[1] / total, 0.6, delta=0.05)
+        self.assertAlmostEqual(served[2] / total, 0.3, delta=0.05)
+        self.assertAlmostEqual(served[3] / total, 0.1, delta=0.05)
 
     async def test_a_class_without_due_tiles_hands_its_share_to_the_others(self) -> None:
-        p = CountingProvider()
+        clock, p = FakeClock(), CountingProvider()
         plan = {(x, 1): PrefetchSpec(1, 0.05) for x in range(6)} | {
             (x, 3): PrefetchSpec(3, 0.05) for x in range(6)
         }
-        c = TileCache(provider=p, budget_rps=40.0, ttl_s=0.05, prefetch_plan=plan, prefetch_always=True)
-        c.start()
-        try:
-            await asyncio.sleep(1.5)
-        finally:
-            await c.stop()
-        self.assertTrue(any(t[1] == 3 for t in p.calls) and any(t[1] == 1 for t in p.calls))
+        c = cache_with(
+            clock, provider=p, budget_rps=40.0, ttl_s=0.05, prefetch_plan=plan, prefetch_always=True
+        )
+        await run_for(c, clock, 1.5)
+        served = {prio: sum(1 for t in p.calls if t[1] == prio) for prio in (1, 3)}
+        self.assertGreater(served[3], 0)
+        self.assertGreater(served[1], served[3])  # classes 1 and 3 only: priority 2's share is not wasted
+        self.assertAlmostEqual(served[1] / (served[1] + served[3]), 0.6 / 0.7, delta=0.06)
 
     async def test_the_viewport_beats_background_tiles_anywhere_in_the_world(self) -> None:
-        p = CountingProvider()
+        clock, p = FakeClock(), CountingProvider()
         plan = {(x, 1): PrefetchSpec(1, 0.05) for x in range(20)}
-        c = TileCache(provider=p, budget_rps=3.0, ttl_s=0.2, prefetch_plan=plan, prefetch_always=True)
-        c.start()
-        try:
-            await asyncio.sleep(0.5)  # background work is under way
-            before = len(p.calls)
-            await c.request([(60, 5)], cold_deadline_s=3.0)  # a viewer far away from every region
-            fetched_at = next(i for i, t in enumerate(p.calls) if t == (60, 5))
-            self.assertLess(fetched_at - before, 4)  # served within a few fetches, not after the sweep
-            self.assertEqual(len(c.entries([(60, 5)])), 1)
-        finally:
-            await c.stop()
+        c = cache_with(clock, provider=p, budget_rps=3.0, ttl_s=0.2, prefetch_plan=plan, prefetch_always=True)
+        await run_for(c, clock, 0.5)  # background work is under way
+        before = len(p.calls)
+        await c.request([(60, 5)], cold_deadline_s=3.0)  # a viewer far away from every region
+        fetched_at = next(i for i, t in enumerate(p.calls) if t == (60, 5))
+        self.assertLess(fetched_at - before, 4)  # served within a few fetches, not after the sweep
+        self.assertEqual(len(c.entries([(60, 5)])), 1)
 
     async def test_old_tile_data_is_freed_and_listeners_are_told(self) -> None:
-        p = CountingProvider()
-        c = TileCache(
-            provider=p, budget_rps=100.0, ttl_s=0.05, max_age_s=0.2, hot_window_s=0.05, prefetch_plan={}
+        clock, p = FakeClock(), CountingProvider()
+        c = cache_with(
+            clock,
+            provider=p,
+            budget_rps=100.0,
+            ttl_s=0.05,
+            max_age_s=0.2,
+            hot_window_s=0.05,
+            prefetch_plan={},
         )
         expired: list[Tile] = []
         c.expire_listeners.append(expired.append)
-        c.start()
-        try:
-            await c.request([(5, 5)])
-            p.fail = True  # the tile can no longer be refreshed
-            await asyncio.sleep(0.7)
-            self.assertIn((5, 5), expired)
-            self.assertEqual(c.snapshot_status()["tiles_cached"], 0)
-        finally:
-            await c.stop()
+        await c.request([(5, 5)])
+        p.fail = True  # the tile can no longer be refreshed
+        await run_for(c, clock, 0.7)
+        self.assertIn((5, 5), expired)
+        self.assertEqual(c.snapshot_status()["tiles_cached"], 0)
 
 
 class ThinningTest(unittest.TestCase):
@@ -288,11 +266,13 @@ class ThinnedResponseTest(unittest.IsolatedAsyncioTestCase):
         try:
             rect = "x0=30&y0=24&x1=46&y1=32"
             full = await asgi_get(app, f"/api/v1/aircraft?{rect}&z=9")
-            for _ in range(40):  # the demo cache fills over a few requests
+            for _ in range(
+                2000
+            ):  # the demo cache fills over a few requests; bounded by progress, not by time
                 full = await asgi_get(app, f"/api/v1/aircraft?{rect}&z=9")
                 if full.headers["x-pending"] == "0":
                     break
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.005)
             thinned = await asgi_get(app, f"/api/v1/aircraft?{rect}&z=3")
             n_full = sum(len(t.aircraft) for t in codec.decode_response(full.body)[1])
             n_thin = sum(len(t.aircraft) for t in codec.decode_response(thinned.body)[1])

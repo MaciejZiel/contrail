@@ -78,6 +78,10 @@ class TileCache:
     prefetch_plan: dict[Tile, PrefetchSpec] = field(default_factory=lambda: dict[Tile, PrefetchSpec]())
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = False
+    # injectable clocks: tests drive the scheduler with a fake clock instead of waiting
+    clock: Callable[[], float] = time.monotonic
+    wall_clock: Callable[[], float] = time.time
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     listeners: list[UpdateListener] = field(default_factory=lambda: list[UpdateListener]())
 
     def __post_init__(self) -> None:
@@ -87,7 +91,9 @@ class TileCache:
         self.expire_listeners: list[Callable[[Tile], None]] = []
         self._last_request = 0.0
         self._inflight: dict[Tile, asyncio.Task[None]] = {}
-        self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
+        self._bucket = TokenBucket(
+            self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0, clock=self.clock
+        )
         self._version = 0
         self._limited: list[float] = []
         self._last_rate_change = 0.0  # monotonic
@@ -98,10 +104,16 @@ class TileCache:
 
     # -- public API -------------------------------------------------------------------
 
+    def _now(self) -> float:
+        return self.clock()
+
+    def _wall(self) -> float:
+        return self.wall_clock()
+
     def entries(self, tiles: Iterable[Tile]) -> list[TileEntry]:
         """Current tile data; tiles that could not be refreshed for ``max_age_s`` are dropped."""
         out: list[TileEntry] = []
-        now = time.time()
+        now = self._wall()
         for t in tiles:
             st = self._states.get(t)
             if st and st.entry and now - st.entry.fetched_at <= self.max_age_s:
@@ -118,7 +130,7 @@ class TileCache:
         ``focus`` marks a zoomed-in view. Focus tiles are refreshed first, so one viewer looking
         at the whole world cannot stretch the refresh interval of a city somebody else watches.
         """
-        now = time.monotonic()
+        now = self._now()
         self._last_request = now
         cold: list[Tile] = []
         for rank, t in enumerate(tiles):
@@ -163,8 +175,8 @@ class TileCache:
         return out
 
     def snapshot_status(self) -> dict[str, object]:
-        now = time.monotonic()
-        wall = time.time()
+        now = self._now()
+        wall = self._wall()
         hot = [s for s in self._states.values() if now - s.last_demand <= self.hot_window_s]
         ages = sorted(wall - s.entry.fetched_at for s in self._states.values() if s.entry)
         return {
@@ -189,7 +201,7 @@ class TileCache:
 
     def _on_rate_limited(self, retry_after: float | None) -> None:
         """A few HTTP 429s are normal on a shared public API; sustained ones lower our request rate."""
-        now = time.monotonic()
+        now = self._now()
         self._paused_until = now + (retry_after or 4.0)
         self._last_rate_change = now  # no recovery step until things have been quiet for a while
         self._limited = [t for t in self._limited if now - t < 60.0] + [now]
@@ -281,21 +293,21 @@ class TileCache:
         return task
 
     async def _take_budget(self, wait_s: float = 6.0) -> bool:
-        deadline = time.monotonic() + wait_s
-        while time.monotonic() < deadline:
-            if time.monotonic() < self._paused_until:
-                await asyncio.sleep(min(1.0, self._paused_until - time.monotonic()))
+        deadline = self._now() + wait_s
+        while self._now() < deadline:
+            if self._now() < self._paused_until:
+                await self.sleep(min(1.0, self._paused_until - self._now()))
                 continue
             if self._bucket.try_take():
                 return True
-            await asyncio.sleep(min(0.5, self._bucket.wait_time()))
+            await self.sleep(max(0.01, min(0.5, self._bucket.wait_time())))
         return False
 
     async def _fetch(self, tile: Tile) -> None:
         st = self._states.setdefault(tile, TileState())
         if not await self._take_budget():
             return
-        st.last_attempt = time.monotonic()
+        st.last_attempt = self._now()
         self.status.requests += 1
         try:
             aircraft = await self.provider.fetch_tile(tile)
@@ -304,7 +316,7 @@ class TileCache:
             self.status.ok = False
             self.status.last_error = str(exc)
             st.failures += 1
-            st.next_attempt = time.monotonic() + min(60.0, 2.0**st.failures)
+            st.next_attempt = self._now() + min(60.0, 2.0**st.failures)
             if exc.status in (429, 503):
                 self._on_rate_limited(exc.retry_after)
             log.warning("tile %s fetch failed: %s", tile, exc)
@@ -314,17 +326,17 @@ class TileCache:
             self.status.ok = False
             self.status.last_error = "internal provider error"
             st.failures += 1
-            st.next_attempt = time.monotonic() + min(60.0, 2.0**st.failures)
+            st.next_attempt = self._now() + min(60.0, 2.0**st.failures)
             log.exception("tile %s provider crashed", tile)
             return
         st.failures = 0
         st.next_attempt = 0.0
-        self._recover_rate(time.monotonic())
+        self._recover_rate(self._now())
         self.status.ok = True
         self.status.last_error = ""
-        self.status.last_success_at = time.time()
+        self.status.last_success_at = self._wall()
         self._version += 1
-        now_wall = time.time()
+        now_wall = self._wall()
         st.entry = TileEntry(
             tile=tile,
             aircraft=aircraft,
@@ -353,19 +365,31 @@ class TileCache:
             self._bucket.rate = min(self.budget_rps, self._bucket.rate + RECOVERY_STEP_RPS)
             self._last_rate_change = now
 
+    async def tick(self) -> int:
+        """One scheduling pass: start as many fetches as budget and slots allow. Returns how many."""
+        now = self._now()
+        self._evict(now)
+        if now < self._paused_until:
+            return 0  # rate limited: do not start fetches that would only sit waiting for the pause to end
+        scheduled = 0
+        while len(self._inflight) < MAX_INFLIGHT and self._bucket.available():
+            tile = self._pick(now) or self._pick_prefetch(now)
+            if tile is None:
+                break
+            self._ensure_fetch(tile)
+            scheduled += 1
+            await asyncio.sleep(0)  # let the fetch start and take its budget token
+        return scheduled
+
+    async def settle(self) -> None:
+        """Wait until every running fetch has finished (used by tests with a fake clock)."""
+        while self._inflight:
+            await asyncio.gather(*list(self._inflight.values()), return_exceptions=True)
+            await asyncio.sleep(0)  # let the completion callbacks run
+
     async def _loop(self) -> None:
         while True:
-            now = time.monotonic()
-            self._evict(now)
-            scheduled = 0
-            while len(self._inflight) < MAX_INFLIGHT and self._bucket.available():
-                tile = self._pick(now) or self._pick_prefetch(now)
-                if tile is None:
-                    break
-                self._ensure_fetch(tile)
-                scheduled += 1
-                await asyncio.sleep(0)  # let the fetch start and take its budget token
-            if scheduled:
+            if await self.tick():
                 await asyncio.sleep(0.02)
                 continue
             self._wake.clear()
@@ -374,7 +398,7 @@ class TileCache:
 
     def _expire_old_entries(self) -> None:
         """Free memory of tile data too old to be served and tell listeners (the search index)."""
-        wall = time.time()
+        wall = self._wall()
         for tile, st in self._states.items():
             if st.entry is not None and wall - st.entry.fetched_at > self.max_age_s * 1.5:
                 st.entry = None

@@ -30,14 +30,16 @@ class SlowProvider:
     name = "slow"
     source_id = 9
 
-    def __init__(self, delay: float) -> None:
+    def __init__(self, delay: float = 0.0) -> None:
         self.delay = delay
+        self.gate: asyncio.Event | None = None  # when set, tile fetches wait until the test opens it
         self.calls: list[Tile] = []
         self.exact: list[tuple[str, str]] = []
 
     async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
         self.calls.append(tile)
-        await asyncio.sleep(self.delay)
+        if self.gate is not None:
+            await self.gate.wait()
         return [Aircraft(hex=1, lat=1.0, lon=1.0)]
 
     async def fetch_hex(self, hex_str: str) -> Aircraft | None:
@@ -50,18 +52,16 @@ class SlowProvider:
 
 class C1SharedFetchesTest(unittest.IsolatedAsyncioTestCase):
     async def test_a_viewer_that_stops_waiting_does_not_cancel_the_shared_fetch(self) -> None:
-        p = SlowProvider(delay=0.8)
+        p = SlowProvider()
+        p.gate = asyncio.Event()  # the provider answers only when the test says so: no timing involved
         cache = TileCache(provider=p, budget_rps=50.0, ttl_s=30.0)
-        cache.start()
-        try:
-            await cache.request([(3, 3)], cold_deadline_s=0.2)  # gives up long before the provider answers
-            self.assertEqual(cache.entries([(3, 3)]), [])
-            await asyncio.sleep(1.0)
-            self.assertEqual(len(cache.entries([(3, 3)])), 1)  # the fetch finished anyway
-            self.assertEqual(p.calls.count((3, 3)), 1)  # and was not repeated
-            self.assertEqual(cache.status.requests, 1)
-        finally:
-            await cache.stop()
+        await cache.request([(3, 3)], cold_deadline_s=0.05)  # gives up while the provider is still busy
+        self.assertEqual(cache.entries([(3, 3)]), [])
+        p.gate.set()
+        await cache.settle()
+        self.assertEqual(len(cache.entries([(3, 3)])), 1)  # the fetch finished anyway
+        self.assertEqual(p.calls.count((3, 3)), 1)  # and was not repeated
+        self.assertEqual(cache.status.requests, 1)
 
 
 def make_app(provider: Any = None, **kw: Any) -> Any:
