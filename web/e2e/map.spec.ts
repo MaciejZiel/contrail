@@ -44,9 +44,9 @@ test("clicking an aircraft selects it and mirrors it in the URL", async ({ page 
   await page.mouse.click(target.x, target.y);
   const hex = target.hex.toString(16).padStart(6, "0");
   await expect(page).toHaveURL(new RegExp(`s=${hex}`));
-  await expect(page.getByRole("complementary", { name: "Selected aircraft" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Aircraft details" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("complementary", { name: "Selected aircraft" })).toBeHidden();
+  await expect(page.getByRole("complementary", { name: "Aircraft details" })).toBeHidden();
   await expect(page).not.toHaveURL(/s=/);
 });
 
@@ -59,7 +59,7 @@ test("restores the view and selection from the URL", async ({ page }) => {
   expect(view.lat).toBeCloseTo(48.85, 1);
   expect(view.lon).toBeCloseTo(2.35, 1);
   expect(view.zoom).toBeCloseTo(7.5, 1);
-  await expect(page.getByRole("complementary", { name: "Selected aircraft" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Aircraft details" })).toBeVisible();
 });
 
 test("polling stays frugal: a few requests while idle and one per pan", async ({ page }) => {
