@@ -8,9 +8,22 @@
 
 **A fast, smooth live air-traffic map you can run on your own server: aircraft glide between updates, a click opens the flight (photo, route, altitude and speed history, track), and you can look up airports with weather.**
 
+**[Try it live](https://contrail.maciejzielinski.dev)** · [Status](https://status.maciejzielinski.dev) · [Portfolio](https://maciejzielinski.dev)
+
 ![Europe with live traffic, drawn on a dark basemap with altitude-coloured aircraft](docs/screenshots/map-europe.png)
 
 *Screenshots use the built-in demo mode: the aircraft are synthetic. With the real feed the map looks the same.*
+
+## Live
+
+Self-hosted on a home server: [contrail.maciejzielinski.dev](https://contrail.maciejzielinski.dev) runs the real ADSB.lol feed, so coverage and freshness are limited by the public API (see below) and the status chip says how old the data is. Screenshots taken from the live site:
+
+| | |
+|---|---|
+| ![Live map of Europe with real traffic, aircraft coloured by altitude](docs/screenshots/live-map.webp) | ![Open flight panel with an airframe photo, route, live values and the coloured track on the map](docs/screenshots/live-panel.webp) |
+| ![Live map on a small screen](docs/screenshots/live-mobile-map.webp) ![Flight sheet on a small screen with route and photo](docs/screenshots/live-mobile-sheet.webp) | |
+
+Aircraft photo in the screenshots: © Howard Wang, via [Planespotters.net](https://www.planespotters.net).
 
 ## What it does
 
