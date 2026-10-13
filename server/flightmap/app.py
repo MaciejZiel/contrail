@@ -31,7 +31,7 @@ from .codec import encode_aircraft, encode_header, encode_tiles
 from .config import Settings
 from .demo import DemoProvider, DemoWeather
 from .enrich import EnrichmentCache
-from .filtering import AircraftFilter, hexes_matching, type_counts
+from .filtering import AircraftFilter, hexes_matching, suggest_types, type_counts
 from .index import AircraftIndex
 from .models import Aircraft
 from .providers import TileProvider
@@ -476,10 +476,10 @@ class Api:
         }  # fmt: skip
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
 
-    async def types(self, _request: Request) -> Response:
-        return JSONResponse(
-            {"ok": True, "types": type_counts(self.index)}, headers={"Cache-Control": "public, max-age=10"}
-        )
+    async def types(self, request: Request) -> Response:
+        q = request.query_params.get("q", "").strip()[:30]
+        found = suggest_types(self.index, q) if q else type_counts(self.index)
+        return JSONResponse({"ok": True, "types": found}, headers={"Cache-Control": "public, max-age=10"})
 
     async def type_hexes(self, request: Request) -> Response:
         flt = AircraftFilter.from_params({"ty": request.query_params.get("ty", "")})

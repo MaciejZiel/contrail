@@ -44,3 +44,17 @@ def search_airlines(query: str, limit: int = 5) -> list[tuple[str, str]]:
             out.append((code, name))
     out.sort(key=lambda it: (it[0].lower() != q, not it[1].lower().startswith(q), len(it[1])))
     return out[:limit]
+
+
+def search_types(query: str, limit: int = 12) -> list[tuple[str, str]]:
+    """Aircraft types whose ICAO code starts with the query or whose name contains it."""
+    q = query.strip().lower()
+    if len(q) < 2:
+        return []
+    out: list[tuple[str, str]] = []
+    for code, name in _load("types").items():
+        low = name.lower()
+        if code.lower().startswith(q) or q in low:
+            out.append((code, name))
+    out.sort(key=lambda it: (not it[0].lower().startswith(q), not it[1].lower().startswith(q), it[0]))
+    return out[:limit]

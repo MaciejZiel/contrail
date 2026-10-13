@@ -13,7 +13,7 @@ from typing import Any
 
 from .index import AircraftIndex
 from .models import Aircraft
-from .reference import type_name
+from .reference import search_types, type_name
 
 _CALLSIGN_RE = re.compile(r"^[A-Z0-9]{1,8}$")
 _TYPE_RE = re.compile(r"^[A-Z0-9-]{1,4}\*?$")
@@ -107,3 +107,17 @@ def hexes_matching(index: AircraftIndex, flt: AircraftFilter, limit: int = 8000)
     """ICAO24 of every tracked aircraft whose type matches the filter (the map does not carry types)."""
     out = [a.hex_str for a, _t in index.values() if flt.matches_type(a.type_code)]
     return out[:limit]
+
+
+def suggest_types(index: AircraftIndex, query: str, limit: int = 12) -> list[dict[str, Any]]:
+    """Types matching a code prefix or a name fragment, with how many are tracked right now.
+
+    Types that are in the air now come first; the rest of the reference list follows.
+    """
+    counts = Counter(a.type_code.upper() for a, _t in index.values() if a.type_code)
+    found = [
+        {"code": code, "name": name, "count": counts.get(code, 0)}
+        for code, name in search_types(query, limit=60)
+    ]
+    found.sort(key=lambda it: -it["count"])
+    return found[:limit]

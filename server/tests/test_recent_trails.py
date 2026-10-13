@@ -84,6 +84,19 @@ class FilterTest(unittest.TestCase):
         self.assertEqual(hexes_matching(idx, AircraftFilter(types=("B78*",))), ["48ae23"])
 
 
+class SuggestTest(unittest.TestCase):
+    def test_by_name_and_by_code_with_live_counts_first(self) -> None:
+        from flightmap.filtering import suggest_types
+
+        idx = make_index()
+        by_name = suggest_types(idx, "boeing 787")
+        self.assertTrue(by_name)
+        self.assertEqual(by_name[0]["code"], "B789")  # the one that is tracked now comes first
+        self.assertEqual(by_name[0]["count"], 1)
+        self.assertEqual(suggest_types(idx, "a21")[0]["code"], "A21N")
+        self.assertEqual(suggest_types(idx, "x"), [])
+
+
 class RecentTrailsEndpointTest(AppBase):
     async def _warm(self) -> None:
         await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
@@ -128,6 +141,15 @@ class RecentTrailsEndpointTest(AppBase):
         await asgi_get(self.app, "/api/v1/type-hexes?ty=A32*")
         await asgi_get(self.app, "/api/v1/airports/EPWA")
         self.assertEqual(self.app.state.cache.status.requests, before)
+
+    async def test_type_suggestions_over_http(self) -> None:
+        await self._warm()
+        r = json.loads((await asgi_get(self.app, "/api/v1/types?q=airbus")).body)
+        self.assertTrue(r["ok"])
+        self.assertTrue(r["types"])
+        self.assertTrue(
+            all("airbus" in t["name"].lower() or t["code"].lower().startswith("airbus") for t in r["types"])
+        )
 
     async def test_types_and_type_hexes(self) -> None:
         await self._warm()
