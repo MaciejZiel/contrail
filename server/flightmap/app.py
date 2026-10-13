@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Protocol
 
 from starlette.applications import Starlette
+from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
@@ -20,10 +21,11 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import BaseRoute, Mount
 from starlette.routing import Route as HttpRoute
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import __version__
 from .airports import load_catalog
-from .codec import encode_aircraft, encode_response
+from .codec import encode_aircraft, encode_header, encode_tiles
 from .config import Settings
 from .demo import DemoProvider, DemoWeather
 from .enrich import EnrichmentCache
@@ -40,13 +42,48 @@ from .tilecache import TileCache, TileEntry
 from .tiles import Tile, parse_region, tiles_in_rect
 from .trafficmask import load_traffic_tiles
 from .trails import TrailStore
-from .upstream import UpstreamClient, UpstreamError
+from .upstream import TokenBucket, UpstreamClient, UpstreamError
 
 log = logging.getLogger("flightmap")
 
 WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
+# Lookups of aircraft outside every cached tile may use this share of the upstream budget.
+LOOKUP_SHARE = 0.15
+LOOKUP_RETRY_AFTER_S = 20
+
+
+class LookupsExhausted(Exception):
+    """Too many single-aircraft upstream lookups right now."""
+
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "SAMEORIGIN",
+}
+
+
+class SecurityHeaders:
+    """Baseline response headers, also for the static app when the server serves it itself."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for key, value in SECURITY_HEADERS.items():
+                    headers.setdefault(key, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def _int_param(request: Request, name: str) -> int:
@@ -99,6 +136,20 @@ class WeatherSource(Protocol):
     async def taf(self, icao: str) -> str | None: ...
 
 
+def _etag_matches(if_none_match: str, digest: str) -> bool:
+    """Weak comparison (RFC 9110): W/"x" and "x" both match."""
+    tags = (t.strip().removeprefix("W/") for t in if_none_match.split(","))
+    return f'"{digest}"' in tags or if_none_match.strip() == "*"
+
+
+def _busy() -> Response:
+    return JSONResponse(
+        {"ok": False, "reason": "busy"},
+        status_code=503,
+        headers={"Retry-After": str(LOOKUP_RETRY_AFTER_S), "Cache-Control": "no-store"},
+    )
+
+
 class Api:
     def __init__(
         self,
@@ -114,7 +165,7 @@ class Api:
         self.index = index
         self.trails = trails
         self.traffic = load_traffic_tiles()
-        self._snapshots: OrderedDict[str, bytes] = OrderedDict()
+        self._snapshots: OrderedDict[str, tuple[int, bytes]] = OrderedDict()
         self._route_lookup = route_lookup
         self._weather = weather
         self.airports = load_catalog()
@@ -123,6 +174,9 @@ class Api:
         self._searches = EnrichmentCache(ttl_s=30.0, neg_ttl_s=60.0)
         self._routes = EnrichmentCache(ttl_s=6 * 3600, neg_ttl_s=120.0)
         self._hexes = EnrichmentCache(ttl_s=20.0, neg_ttl_s=30.0)
+        # Any client can name any ICAO24, so lookups get their own small allowance on top of the
+        # shared budget: random addresses must not be able to starve the tiles everybody watches.
+        self._lookups = TokenBucket(settings.upstream_budget_rps * LOOKUP_SHARE, burst=3.0)
 
     def select_tiles(self, x0: int, y0: int, x1: int, y1: int) -> list[Tile]:
         tiles = tiles_in_rect(x0, y0, x1, y1)
@@ -136,18 +190,20 @@ class Api:
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         tiles = self.select_tiles(x0, y0, x1, y1)
-        if len(tiles) > self.settings.max_tiles_per_request:
-            return JSONResponse({"error": "too many tiles requested"}, status_code=400)
         cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
         zoom_raw = request.query_params.get("z")
         level = level_for_zoom(int(zoom_raw)) if zoom_raw and zoom_raw.lstrip("-").isdigit() else 0
-        await self.cache.request(tiles)
+        # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
+        del tiles[self.settings.max_tiles_per_request :]
+        focus = len(tiles_in_rect(x0, y0, x1, y1)) <= WIDE_REQUEST_TILES
+        await self.cache.request(tiles, focus=focus)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
             (f"L{level}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
         ).hexdigest()[:20]
-        etag = f'"{digest}"'
+        # Weak: the tile data is identical for equal tags, but every body carries the current server time.
+        etag = f'W/"{digest}"'
         newest = max((e.fetched_at for e in entries), default=0.0)
         headers = {
             "ETag": etag,
@@ -156,16 +212,17 @@ class Api:
             "X-Tiles": str(len(entries)),
             "X-Pending": str(len(tiles) - len(entries)),
         }
-        if request.headers.get("if-none-match") == etag:
+        if _etag_matches(request.headers.get("if-none-match", ""), digest):
             return Response(status_code=304, headers=headers)
-        body = self._snapshots.get(digest)
-        if body is None:
-            body = encode_response(int(time.time() * 1000), self._blocks(entries, level))
-            self._snapshots[digest] = body
+        cached = self._snapshots.get(digest)
+        if cached is None:
+            cached = encode_tiles(self._blocks(entries, level))
+            self._snapshots[digest] = cached
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
                 self._snapshots.popitem(last=False)
         else:
             self._snapshots.move_to_end(digest)
+        body = encode_header(cached[0], int(time.time() * 1000)) + cached[1]
         return Response(body, media_type="application/octet-stream", headers=headers)
 
     @staticmethod
@@ -201,6 +258,8 @@ class Api:
         found = self.index.get(int(hex_str, 16))
         if found:
             return found
+        if not self._hexes.has(hex_str) and not self._lookups.try_take():
+            raise LookupsExhausted
         try:
             ac = await self._hexes.get(
                 hex_str, lambda: self.cache.with_budget(lambda: self.cache.provider.fetch_hex(hex_str))
@@ -219,7 +278,10 @@ class Api:
         hex_str = self._hex_or_error(request)
         if isinstance(hex_str, Response):
             return hex_str
-        found = await self._find(hex_str)
+        try:
+            found = await self._find(hex_str)
+        except LookupsExhausted:
+            return _busy()
         if not found:
             return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
         return JSONResponse(
@@ -230,7 +292,10 @@ class Api:
         hex_str = self._hex_or_error(request)
         if isinstance(hex_str, Response):
             return hex_str
-        found = await self._find(hex_str)
+        try:
+            found = await self._find(hex_str)
+        except LookupsExhausted:
+            return _busy()
         if not found:
             return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
         ac = found[0]
@@ -446,7 +511,9 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     ]
     if settings.static_dir and os.path.isdir(settings.static_dir):
         routes.append(Mount("/", StaticFiles(directory=settings.static_dir, html=True)))
-    middleware = [Middleware(GZipMiddleware, minimum_size=500)] if settings.gzip else []
+    middleware = [Middleware(SecurityHeaders)]
+    if settings.gzip:
+        middleware.append(Middleware(GZipMiddleware, minimum_size=500))
     inner = Starlette(routes=routes, middleware=middleware)
     if settings.base_path:
         outer = Starlette(routes=[Mount(settings.base_path, app=inner)], lifespan=lifespan)

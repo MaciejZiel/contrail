@@ -94,14 +94,29 @@ class DecodedTile:
     aircraft: list[Aircraft]
 
 
-def encode_response(now_ms: int, tiles: Iterable[tuple[int, int, int, int, int, bytes]]) -> bytes:
-    """tiles: (tx, ty, fetched_at_ms, count, source, record bytes)."""
-    blocks = list(tiles)
-    out = bytearray(HEADER.pack(MAGIC, len(blocks), 0, now_ms))
-    for tx, ty, fetched, count, source, payload in blocks:
+def encode_header(tile_count: int, now_ms: int) -> bytes:
+    """Response header; written per response so the server time in it is always current."""
+    return HEADER.pack(MAGIC, tile_count, 0, now_ms)
+
+
+def encode_tiles(tiles: Iterable[tuple[int, int, int, int, int, bytes]]) -> tuple[int, bytes]:
+    """Tile blocks without the response header: (tile count, bytes).
+
+    tiles: (tx, ty, fetched_at_ms, count, source, record bytes).
+    """
+    out = bytearray()
+    n = 0
+    for tx, ty, fetched, count, source, payload in tiles:
         out += TILE_HEADER.pack(tx, ty, fetched, count, source, 0)
         out += payload
-    return bytes(out)
+        n += 1
+    return n, bytes(out)
+
+
+def encode_response(now_ms: int, tiles: Iterable[tuple[int, int, int, int, int, bytes]]) -> bytes:
+    """tiles: (tx, ty, fetched_at_ms, count, source, record bytes)."""
+    n, body = encode_tiles(tiles)
+    return encode_header(n, now_ms) + body
 
 
 def decode_response(data: bytes) -> tuple[int, list[DecodedTile]]:
