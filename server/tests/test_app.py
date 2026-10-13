@@ -1,3 +1,5 @@
+import json
+import tempfile
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -15,15 +17,24 @@ from .asgi import asgi_get
 RECT = "x0=39&y0=27&x1=41&y1=29"
 
 
-class AppTest(unittest.IsolatedAsyncioTestCase):
+class AppBase(unittest.IsolatedAsyncioTestCase):
     """Runs the real app and the real ADSB.lol provider against the fixture upstream."""
 
     def setUp(self) -> None:
         self.upstream = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(DemoTraffic(3000)))
-        threading.Thread(target=self.upstream.serve_forever, daemon=True).start()
+        threading.Thread(
+            target=self.upstream.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True
+        ).start()
         port = self.upstream.server_address[1]
+        self.tmp = tempfile.TemporaryDirectory()
         self.settings = Settings(
-            adsblol_url=f"http://127.0.0.1:{port}", upstream_budget_rps=50.0, tile_ttl_s=30.0, gzip=False
+            adsblol_url=f"http://127.0.0.1:{port}",
+            routes_url=f"http://127.0.0.1:{port}",
+            data_dir=self.tmp.name,
+            upstream_budget_rps=50.0,
+            tile_ttl_s=30.0,
+            trail_min_interval_s=0.0,
+            gzip=False,
         )
         self.app = create_app(self.settings)
         self.app.state.cache.start()
@@ -32,7 +43,10 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         await self.app.state.cache.stop()
         self.upstream.shutdown()
         self.upstream.server_close()
+        self.tmp.cleanup()
 
+
+class AppTest(AppBase):
     async def test_returns_decodable_binary_snapshot(self) -> None:
         r = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
         self.assertEqual(r.status, 200)
@@ -88,3 +102,69 @@ class BasePathTest(unittest.IsolatedAsyncioTestCase):
         r = await asgi_get(app, "/flights/api/v1/health")
         self.assertEqual(r.status, 200)
         self.assertEqual((await asgi_get(app, "/api/v1/health")).status, 404)
+
+
+class AircraftDetailTest(AppBase):
+    async def _any_aircraft(self) -> tuple[str, str]:
+        r = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+        _now, tiles = codec.decode_response(r.body)
+        for t in tiles:
+            for a in t.aircraft:
+                if a.callsign and not a.on_ground:
+                    return a.hex_str, a.callsign
+        raise AssertionError("no aircraft")
+
+    async def test_detail_has_identity_fields(self) -> None:
+        hex_str, callsign = await self._any_aircraft()
+        r = await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}")
+        self.assertEqual(r.status, 200)
+        body = json.loads(r.body)["aircraft"]
+        self.assertEqual(body["hex"], hex_str)
+        self.assertEqual(body["callsign"], callsign)
+        self.assertTrue(body["registration"])
+        self.assertTrue(body["type_name"])
+        self.assertIsNotNone(body["altitude_ft"])
+
+    async def test_unknown_and_invalid_hex(self) -> None:
+        self.assertEqual((await asgi_get(self.app, "/api/v1/aircraft/zzzzzz")).status, 400)
+        r = await asgi_get(self.app, "/api/v1/aircraft/000000")
+        self.assertEqual(r.status, 404)
+        self.assertFalse(json.loads(r.body)["ok"])
+
+    async def test_route_comes_from_the_standing_data_upstream(self) -> None:
+        hex_str, _cs = await self._any_aircraft()
+        r = await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}/route")
+        self.assertEqual(r.status, 200)
+        body = json.loads(r.body)
+        self.assertTrue(body["ok"], body)
+        route = body["route"]
+        self.assertTrue(route["origin"]["icao"])
+        self.assertNotEqual(route["origin"]["icao"], route["destination"]["icao"])
+        self.assertIsInstance(route["plausible"], bool)
+        self.assertTrue(0.0 <= route["progress"] <= 1.0)
+
+    async def test_route_failure_degrades_only_the_route(self) -> None:
+        hex_str, _cs = await self._any_aircraft()
+        # point the route provider at a dead port: the endpoint must still answer 200 with ok=false
+        self.app.state.api._route_lookup = _dead_route
+        r = await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}/route")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(json.loads(r.body), {"ok": False, "reason": "unavailable"})
+        detail = await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}")
+        self.assertEqual(detail.status, 200)  # identity is unaffected
+
+    async def test_trail_accumulates_positions(self) -> None:
+        hex_str, _cs = await self._any_aircraft()
+        r = await asgi_get(self.app, f"/api/v1/aircraft/{hex_str}/trail")
+        body = json.loads(r.body)
+        self.assertTrue(body["ok"])
+        self.assertGreaterEqual(len(body["t"]), 1)
+        self.assertEqual(len(body["t"]), len(body["lat"]))
+        empty = json.loads((await asgi_get(self.app, "/api/v1/aircraft/000000/trail")).body)
+        self.assertEqual(empty["t"], [])
+
+
+async def _dead_route(_callsign: str) -> None:
+    from flightmap.upstream import UpstreamError
+
+    raise UpstreamError("route source down")

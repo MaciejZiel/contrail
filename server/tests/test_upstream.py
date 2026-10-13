@@ -37,7 +37,9 @@ class Handler(BaseHTTPRequestHandler):
 class UpstreamTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        threading.Thread(
+            target=self.server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True
+        ).start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.client = UpstreamClient("test/1.0 (+https://example.test)", timeout_s=3)
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import time
 from collections import OrderedDict
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
@@ -15,19 +16,26 @@ from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import BaseRoute, Mount, Route
+from starlette.routing import BaseRoute, Mount
+from starlette.routing import Route as HttpRoute
 from starlette.staticfiles import StaticFiles
 
 from . import __version__
 from .codec import encode_response
 from .config import Settings
 from .demo import DemoProvider
+from .enrich import EnrichmentCache
+from .index import AircraftIndex
+from .models import Aircraft
 from .providers import TileProvider
 from .providers.adsblol import AdsbLolProvider
+from .providers.routes import Route, RouteProvider, is_plausible, progress
+from .reference import airline_for_callsign, type_name
 from .tilecache import TileCache
 from .tiles import Tile, tiles_in_rect
 from .trafficmask import load_traffic_tiles
-from .upstream import UpstreamClient
+from .trails import TrailStore
+from .upstream import UpstreamClient, UpstreamError
 
 log = logging.getLogger("flightmap")
 
@@ -43,12 +51,61 @@ def _int_param(request: Request, name: str) -> int:
         raise ValueError(f"missing or invalid '{name}'") from exc
 
 
+_HEX_RE = re.compile(r"^[0-9a-f]{6}$")
+_CATEGORY_NAMES = {
+    0: "unknown",
+    1: "light",
+    2: "jet",
+    3: "heavy",
+    4: "rotorcraft",
+    5: "glider",
+    6: "ground",
+    7: "other",
+}
+
+
+def aircraft_json(a: Aircraft, fetched_at: float) -> dict[str, object]:
+    airline = airline_for_callsign(a.callsign)
+    return {
+        "hex": a.hex_str,
+        "callsign": a.callsign,
+        "registration": a.registration,
+        "type_code": a.type_code,
+        "type_name": type_name(a.type_code) if a.type_code else None,
+        "airline": {"code": airline[0], "name": airline[1]} if airline else None,
+        "category": _CATEGORY_NAMES.get(int(a.category), "unknown"),
+        "squawk": a.squawk,
+        "on_ground": a.on_ground,
+        "military": a.military,
+        "emergency": a.emergency,
+        "lat": a.lat,
+        "lon": a.lon,
+        "altitude_ft": a.altitude_ft,
+        "speed_kt": a.ground_speed_kt,
+        "track": a.track_deg,
+        "vertical_rate_fpm": a.vertical_rate_fpm,
+        "position_time": round(fetched_at - a.position_age_s, 1),
+    }
+
+
 class Api:
-    def __init__(self, settings: Settings, cache: TileCache) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        cache: TileCache,
+        index: AircraftIndex,
+        trails: TrailStore,
+        route_lookup: Callable[[str], Awaitable[Route | None]],
+    ) -> None:
         self.settings = settings
         self.cache = cache
+        self.index = index
+        self.trails = trails
         self.traffic = load_traffic_tiles()
         self._snapshots: OrderedDict[str, bytes] = OrderedDict()
+        self._route_lookup = route_lookup
+        self._routes = EnrichmentCache(ttl_s=6 * 3600, neg_ttl_s=120.0)
+        self._hexes = EnrichmentCache(ttl_s=20.0, neg_ttl_s=30.0)
 
     def select_tiles(self, x0: int, y0: int, x1: int, y1: int) -> list[Tile]:
         tiles = tiles_in_rect(x0, y0, x1, y1)
@@ -62,10 +119,10 @@ class Api:
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         tiles = self.select_tiles(x0, y0, x1, y1)
-        cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
-        tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
         if len(tiles) > self.settings.max_tiles_per_request:
             return JSONResponse({"error": "too many tiles requested"}, status_code=400)
+        cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
+        tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
         await self.cache.request(tiles)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
@@ -105,10 +162,88 @@ class Api:
             self._snapshots.move_to_end(digest)
         return Response(body, media_type="application/octet-stream", headers=headers)
 
+    # -- single aircraft ---------------------------------------------------------------
+
+    async def _find(self, hex_str: str) -> tuple[Aircraft, float] | None:
+        found = self.index.get(int(hex_str, 16))
+        if found:
+            return found
+        try:
+            ac = await self._hexes.get(
+                hex_str, lambda: self.cache.with_budget(lambda: self.cache.provider.fetch_hex(hex_str))
+            )
+        except UpstreamError:
+            return None
+        return (ac, time.time()) if ac else None
+
+    def _hex_or_error(self, request: Request) -> str | Response:
+        hex_str = str(request.path_params["hex"]).lower()
+        if not _HEX_RE.match(hex_str):
+            return JSONResponse({"error": "invalid ICAO24"}, status_code=400)
+        return hex_str
+
+    async def aircraft_detail(self, request: Request) -> Response:
+        hex_str = self._hex_or_error(request)
+        if isinstance(hex_str, Response):
+            return hex_str
+        found = await self._find(hex_str)
+        if not found:
+            return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
+        return JSONResponse(
+            {"ok": True, "aircraft": aircraft_json(*found)}, headers={"Cache-Control": "public, max-age=5"}
+        )
+
+    async def route(self, request: Request) -> Response:
+        hex_str = self._hex_or_error(request)
+        if isinstance(hex_str, Response):
+            return hex_str
+        found = await self._find(hex_str)
+        if not found:
+            return JSONResponse({"ok": False, "reason": "not_tracked"}, status_code=404)
+        ac = found[0]
+        headers = {"Cache-Control": "public, max-age=60"}
+        if not ac.callsign:
+            return JSONResponse({"ok": False, "reason": "no_callsign"}, headers=headers)
+        try:
+            route = await self._routes.get(ac.callsign, lambda: self._route_lookup(ac.callsign))
+        except UpstreamError:
+            return JSONResponse({"ok": False, "reason": "unavailable"}, headers={"Cache-Control": "no-store"})
+        if route is None:
+            return JSONResponse({"ok": False, "reason": "unknown_route"}, headers=headers)
+        airports = [a.as_dict() for a in route.airports]
+        return JSONResponse(
+            {
+                "ok": True,
+                "route": {
+                    "origin": airports[0],
+                    "destination": airports[-1],
+                    "stops": airports[1:-1],
+                    "flight_number": route.flight_number,
+                    "plausible": is_plausible(route, ac.lat, ac.lon),
+                    "progress": progress(route, ac.lat, ac.lon),
+                },
+            },
+            headers=headers,
+        )
+
+    async def trail(self, request: Request) -> Response:
+        hex_str = self._hex_or_error(request)
+        if isinstance(hex_str, Response):
+            return hex_str
+        snap = self.trails.snapshot(int(hex_str, 16))
+        body: dict[str, object] = {
+            "ok": True,
+            **(snap or {"t": [], "lat": [], "lon": [], "alt": [], "gs": [], "vr": []}),
+        }
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
+
     async def status(self, _request: Request) -> Response:
         data = self.cache.snapshot_status()
         data["version"] = __version__
         data["demo"] = self.settings.demo_mode
+        data["trails"] = len(self.trails)
+        data["trail_points"] = self.trails.points
+        data["indexed_aircraft"] = len(self.index)
         return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
     async def health(self, _request: Request) -> Response:
@@ -124,29 +259,50 @@ def build_provider(settings: Settings, client: UpstreamClient | None) -> TilePro
 def create_app(settings: Settings | None = None, provider: TileProvider | None = None) -> Starlette:
     settings = settings or Settings.from_env()
     client = None if settings.demo_mode and provider is None else UpstreamClient(settings.user_agent)
+    tile_provider = provider or build_provider(settings, client)
     cache = TileCache(
-        provider=provider or build_provider(settings, client),
+        provider=tile_provider,
         budget_rps=settings.upstream_budget_rps,
         ttl_s=settings.tile_ttl_s,
         hot_window_s=settings.hot_window_s,
         evict_after_s=settings.evict_after_s,
     )
-    api = Api(settings, cache)
+    index = AircraftIndex()
+    cache.listeners.append(index.update)
+    db_path = None
+    if settings.data_dir:
+        os.makedirs(settings.data_dir, exist_ok=True)
+        db_path = os.path.join(settings.data_dir, "flightmap.sqlite3")
+    trails = TrailStore(settings.trail_retention_s, settings.trail_min_interval_s, db_path)
+    cache.listeners.append(trails.on_tile_update)
+
+    demo_routes = getattr(tile_provider, "lookup_route", None)
+    if demo_routes is not None:
+        route_lookup: Callable[[str], Awaitable[Route | None]] = demo_routes
+    else:
+        route_client = client or UpstreamClient(settings.user_agent)
+        route_lookup = RouteProvider(route_client, settings.routes_url).lookup
+    api = Api(settings, cache, index, trails, route_lookup)
 
     @asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
+        await trails.start()
         cache.start()
         try:
             yield
         finally:
             await cache.stop()
+            await trails.stop()
             if client:
                 client.close()
 
     routes: list[BaseRoute] = [
-        Route("/api/v1/aircraft", api.aircraft),
-        Route("/api/v1/status", api.status),
-        Route("/api/v1/health", api.health),
+        HttpRoute("/api/v1/aircraft", api.aircraft),
+        HttpRoute("/api/v1/aircraft/{hex}", api.aircraft_detail),
+        HttpRoute("/api/v1/aircraft/{hex}/route", api.route),
+        HttpRoute("/api/v1/aircraft/{hex}/trail", api.trail),
+        HttpRoute("/api/v1/status", api.status),
+        HttpRoute("/api/v1/health", api.health),
     ]
     if settings.static_dir and os.path.isdir(settings.static_dir):
         routes.append(Mount("/", StaticFiles(directory=settings.static_dir, html=True)))

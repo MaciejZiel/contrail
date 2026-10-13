@@ -13,11 +13,11 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "S", "RUF"]
-ignore = ["S101", "S311", "S324"]
+ignore = ["S101", "S311", "S324", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S"]
-"flightmap/demo.py" = ["E501"]
+"scripts/*" = ["S310"]
 
 [tool.pyright]
 include = ["flightmap", "tests"]

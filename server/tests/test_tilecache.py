@@ -24,6 +24,9 @@ class FakeProvider:
             raise self.fail
         return [Aircraft(hex=tile[0] * 100 + tile[1], lat=1.0, lon=1.0)]
 
+    async def fetch_hex(self, hex_str: str) -> Aircraft | None:
+        return None
+
 
 def make(provider: FakeProvider, budget_rps: float = 50.0, ttl_s: float = 0.2) -> TileCache:
     return TileCache(provider=provider, budget_rps=budget_rps, ttl_s=ttl_s, hot_window_s=5.0)

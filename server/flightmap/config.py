@@ -29,6 +29,9 @@ class Settings:
     demo_mode: bool = False
     gzip: bool = True
     adsblol_url: str = "https://api.adsb.lol"
+    routes_url: str = "https://vrs-standing-data.adsb.lol"
+    trail_retention_s: float = 2700.0
+    trail_min_interval_s: float = 10.0
     upstream_budget_rps: float = 0.35
     tile_ttl_s: float = 10.0
     hot_window_s: float = 60.0
@@ -49,6 +52,9 @@ class Settings:
             demo_mode=_bool(e.get("DEMO_MODE"), False),
             gzip=_bool(e.get("GZIP"), True),
             adsblol_url=e.get("ADSBLOL_URL", "https://api.adsb.lol").rstrip("/"),
+            routes_url=e.get("ROUTES_URL", "https://vrs-standing-data.adsb.lol").rstrip("/"),
+            trail_retention_s=float(e.get("TRAIL_RETENTION_S", "2700")),
+            trail_min_interval_s=float(e.get("TRAIL_MIN_INTERVAL_S", "10")),
             upstream_budget_rps=float(
                 e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.35")
             ),
