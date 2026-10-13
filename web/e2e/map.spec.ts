@@ -9,6 +9,13 @@ test("shows live aircraft with a freshness indicator", async ({ page }) => {
   await page.screenshot({ path: "test-results/map.png" });
 });
 
+test("the fully zoomed-out world view still shows traffic", async ({ page }) => {
+  await openMap(page, "c=30,0&z=2");
+  await expect(page.locator(".chip")).not.toContainText("Offline");
+  const covered = await page.evaluate(() => (window as any).__flights.layer.coveredPixels());
+  expect(covered).toBeGreaterThan(1000);
+});
+
 test("aircraft keep moving between updates without jumps", async ({ page }) => {
   await openMap(page, "c=50,10&z=7");
   const { hex } = await pickVisibleMover(page);
