@@ -70,7 +70,7 @@ flowchart LR
 Docker is for local development and CI only.
 
 ```bash
-docker compose up --build        # demo traffic on http://localhost:8080
+docker compose up --build        # demo traffic on http://localhost:18080
 DEMO_MODE=0 docker compose up    # the real ADSB.lol feed (read the limits above)
 ```
 
