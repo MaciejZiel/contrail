@@ -36,8 +36,8 @@ class Settings:
     max_tile_age_s: float = 900.0
     prefetch_region: str = "35,72,-25,45"  # south,north,west,east in degrees; empty disables prefetching
     prefetch_idle_s: float = 900.0
-    prefetch_always: bool = False
-    upstream_budget_rps: float = 0.35
+    prefetch_always: bool = True
+    upstream_budget_rps: float = 0.2
     tile_ttl_s: float = 10.0
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
@@ -66,9 +66,9 @@ class Settings:
                 "PREFETCH_REGION", "" if _bool(e.get("DEMO_MODE"), False) else "35,72,-25,45"
             ),
             prefetch_idle_s=float(e.get("PREFETCH_IDLE_S", "900")),
-            prefetch_always=_bool(e.get("PREFETCH_ALWAYS"), False),
+            prefetch_always=_bool(e.get("PREFETCH_ALWAYS"), True),
             upstream_budget_rps=float(
-                e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.35")
+                e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.2")
             ),
             tile_ttl_s=float(e.get("TILE_TTL_S", "10")),
             hot_window_s=float(e.get("HOT_WINDOW_S", "60")),

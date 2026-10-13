@@ -382,6 +382,10 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     client = None if settings.demo_mode and provider is None else UpstreamClient(settings.user_agent)
     tile_provider = provider or build_provider(settings, client)
     traffic_tiles = load_traffic_tiles()
+    region = [t for t in parse_region(settings.prefetch_region) if t in traffic_tiles]
+    if region:  # start in the middle of the region, where most of the traffic is
+        cx, cy = sum(t[0] for t in region) / len(region), sum(t[1] for t in region) / len(region)
+        region.sort(key=lambda t: (t[0] - cx) ** 2 + (t[1] - cy) ** 2)
     cache = TileCache(
         provider=tile_provider,
         budget_rps=settings.upstream_budget_rps,
@@ -389,7 +393,7 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         hot_window_s=settings.hot_window_s,
         evict_after_s=settings.evict_after_s,
         max_age_s=settings.max_tile_age_s,
-        prefetch_tiles=[t for t in parse_region(settings.prefetch_region) if t in traffic_tiles],
+        prefetch_tiles=region,
         prefetch_idle_s=settings.prefetch_idle_s,
         prefetch_always=settings.prefetch_always,
     )

@@ -22,12 +22,15 @@ class CountingProvider:
     def __init__(self) -> None:
         self.calls: list[Tile] = []
         self.fail = False
+        self.empty: set[Tile] = set()
 
     async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
         self.calls.append(tile)
         if self.fail:
             raise UpstreamError("down", 500)
-        return [Aircraft(hex=tile[0] * 100 + tile[1], lat=1.0, lon=1.0)]
+        if tile in self.empty:
+            return []
+        return [Aircraft(hex=tile[0] * 100 + tile[1] + n, lat=1.0, lon=1.0) for n in range(20)]
 
     async def fetch_hex(self, hex_str: str) -> Aircraft | None:
         return None
@@ -79,6 +82,20 @@ class PrefetchTest(unittest.IsolatedAsyncioTestCase):
             n = sum(t in region for t in p.calls)
             await asyncio.sleep(0.4)
             self.assertEqual(sum(t in region for t in p.calls), n)  # prefetch paused again
+        finally:
+            await c.stop()
+
+    async def test_usually_empty_tiles_are_refreshed_much_less_often(self) -> None:
+        p = CountingProvider()
+        p.empty = {(2, 1)}  # open ocean
+        c = self.make(p, prefetch_always=True, ttl_s=0.3)
+        c.start()
+        try:
+            await asyncio.sleep(3.2)
+            busy = p.calls.count((1, 1))
+            empty = p.calls.count((2, 1))
+            self.assertGreaterEqual(busy, 6)
+            self.assertLess(empty * 2, busy)
         finally:
             await c.stop()
 

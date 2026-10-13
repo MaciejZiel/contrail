@@ -21,7 +21,7 @@ from .upstream import TokenBucket, UpstreamError
 
 log = logging.getLogger("flightmap.tiles")
 MAX_INFLIGHT = 4
-MIN_RPS = 0.15
+MIN_RPS = 0.1
 DEFAULT_MAX_AGE_S = 900.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
@@ -45,6 +45,8 @@ class TileState:
     failures: int = 0
     next_attempt: float = 0.0  # monotonic
     ever_had_traffic: bool = False
+    avg_count: float = -1.0  # smoothed number of aircraft in the tile; negative until first fetch
+    observations: int = 0
     rank: int = 0  # position in the latest request, nearest the view centre first
 
 
@@ -60,7 +62,7 @@ class ProviderStatus:
 @dataclass
 class TileCache:
     provider: TileProvider
-    budget_rps: float = 0.35
+    budget_rps: float = 0.2
     ttl_s: float = 10.0
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
@@ -147,7 +149,7 @@ class TileCache:
         self._paused_until = now + (retry_after or 4.0)
         self._limited = [t for t in self._limited if now - t < 60.0] + [now]
         if len(self._limited) >= 3:
-            self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.8)
+            self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.7)
             self._limited.clear()
 
     async def with_budget[T](self, call: Callable[[], Awaitable[T]], wait_s: float = 6.0) -> T:
@@ -181,8 +183,21 @@ class TileCache:
             self._last_request > 0 and now - self._last_request < self.prefetch_idle_s
         )
 
+    def _refresh_interval(self, st: TileState | None) -> float:
+        """How long a prefetched tile may rest: tiles that are usually empty (open ocean, polar areas)
+        are refreshed much less often than busy ones, which saves most of the budget for traffic."""
+        base = self.ttl_s
+        if st is None or st.observations < 2:
+            return base
+        if st.avg_count >= 8:
+            return base
+        if st.avg_count >= 1.5:
+            return base * 3
+        return base * 10
+
     def _pick_prefetch(self, now: float) -> Tile | None:
-        """Oldest prefetch-region tile, only with spare capacity and while somebody has looked recently."""
+        """The most overdue prefetch-region tile; only with spare capacity (and, unless always on,
+        while somebody has looked at the map recently)."""
         if not self._prefetch_active(now):
             return None
         best: tuple[float, Tile] | None = None
@@ -193,10 +208,12 @@ class TileCache:
             if st is not None and now < st.next_attempt:
                 continue
             last = st.last_attempt if st else 0.0
-            if last and now - last < self.ttl_s:
+            due = last + self._refresh_interval(st) if last else 0.0
+            if due > now:
                 continue
-            if best is None or last < best[0]:
-                best = (last, tile)
+            # most overdue first; busy tiles win ties because their intervals are shorter
+            if best is None or due < best[0]:
+                best = (due, tile)
         return best[1] if best else None
 
     def _ensure_fetch(self, tile: Tile) -> asyncio.Task[None]:
@@ -247,7 +264,7 @@ class TileCache:
         st.failures = 0
         st.next_attempt = 0.0
         # additive increase back towards the configured budget
-        self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.005)
+        self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.002)
         self.status.ok = True
         self.status.last_error = ""
         self.status.last_success_at = time.time()
@@ -263,6 +280,8 @@ class TileCache:
         )
         if aircraft:
             st.ever_had_traffic = True
+        st.avg_count = float(len(aircraft)) if st.avg_count < 0 else 0.7 * st.avg_count + 0.3 * len(aircraft)
+        st.observations += 1
         for listener in self.listeners:
             try:
                 listener(tile, aircraft, now_wall)
