@@ -11,12 +11,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from starlette.applications import Starlette
+from starlette.datastructures import MutableHeaders
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import BaseRoute, Mount, Route
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import __version__
 from .codec import encode_header, encode_tiles
@@ -34,6 +36,34 @@ log = logging.getLogger("flightmap")
 WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
+
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "SAMEORIGIN",
+}
+
+
+class SecurityHeaders:
+    """Baseline response headers, also for the static app when the server serves it itself."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for key, value in SECURITY_HEADERS.items():
+                    headers.setdefault(key, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def _int_param(request: Request, name: str) -> int:
@@ -149,7 +179,9 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     ]
     if settings.static_dir and os.path.isdir(settings.static_dir):
         routes.append(Mount("/", StaticFiles(directory=settings.static_dir, html=True)))
-    middleware = [Middleware(GZipMiddleware, minimum_size=500)] if settings.gzip else []
+    middleware = [Middleware(SecurityHeaders)]
+    if settings.gzip:
+        middleware.append(Middleware(GZipMiddleware, minimum_size=500))
     inner = Starlette(routes=routes, middleware=middleware)
     if settings.base_path:
         outer = Starlette(routes=[Mount(settings.base_path, app=inner)], lifespan=lifespan)

@@ -76,6 +76,12 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
             r = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}", {"If-None-Match": sent})
             self.assertEqual(r.status, 304, sent)
 
+    async def test_security_headers(self) -> None:
+        for path in ("/api/v1/health", f"/api/v1/aircraft?{RECT}", "/api/v1/aircraft?x0=1"):
+            r = await asgi_get(self.app, path)
+            self.assertEqual(r.headers["x-content-type-options"], "nosniff", path)
+            self.assertEqual(r.headers["x-frame-options"], "SAMEORIGIN", path)
+
     async def test_bad_parameters(self) -> None:
         self.assertEqual((await asgi_get(self.app, "/api/v1/aircraft?x0=1")).status, 400)
         self.assertEqual((await asgi_get(self.app, "/api/v1/aircraft?x0=a&y0=1&x1=2&y1=3")).status, 400)
