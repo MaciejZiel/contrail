@@ -1,12 +1,8 @@
 .git
 .venv
+**/node_modules
 **/__pycache__
-**/*.py[cod]
-.env
-**/.env
-**/.env.local
-frontend/node_modules
-frontend/dist
-frontend/tests
-frontend/e2e
-*.sqlite3
+web/dist
+web/test-results
+server/data
+server/.e2e-data

@@ -1,0 +1,1422 @@
+{
+ "A109": {
+  "author": "Armada Argentina",
+  "class": "helicopter",
+  "file": "A109.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Leonardo_AW109.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Leonardo AW109.jpg"
+ },
+ "A124": {
+  "author": "Dtom",
+  "class": "military",
+  "file": "A124.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:An_124_forward.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:An 124 forward.jpg"
+ },
+ "A139": {
+  "author": "ZLEA",
+  "class": "helicopter",
+  "file": "A139.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:AgustaWestland_AW139_(N382MD,_cn_41287)_(6-26-2024).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:AgustaWestland AW139 (N382MD, cn 41287) (6-26-2024).jpg"
+ },
+ "A20N": {
+  "author": "Robbie Klinkenberg",
+  "class": "airliner",
+  "file": "A20N.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Atlantic_Airways_Airbus_A320neo_OY-RCL_at_EKCH_in_2024.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Atlantic Airways Airbus A320neo OY-RCL at EKCH in 2024.jpg"
+ },
+ "A21N": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "A21N.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:China_Airlines_Airbus_A321neo_B-18102_departing_Taoyuan_February_2026.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:China Airlines Airbus A321neo B-18102 departing Taoyuan February 2026.jpg"
+ },
+ "A306": {
+  "author": "Arpingstone",
+  "class": "airliner",
+  "file": "A306.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Lufthansa.a300b4-600.d-aiak.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Lufthansa.a300b4-600.d-aiak.arp.jpg"
+ },
+ "A318": {
+  "author": "Huhu Uet",
+  "class": "airliner",
+  "file": "A318.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Airbus_A318-111_(F-GUGJ)_01.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:Airbus A318-111 (F-GUGJ) 01.jpg"
+ },
+ "A319": {
+  "author": "Adrian Pingstone",
+  "class": "airliner",
+  "file": "A319.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Ba_a319-100_g-euog_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Ba a319-100 g-euog arp.jpg"
+ },
+ "A320": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "A320.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Lufthansa_Airbus_A320-211_D-AIQT_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Lufthansa Airbus A320-211 D-AIQT 01.jpg"
+ },
+ "A321": {
+  "author": "Adrian Pingstone",
+  "class": "airliner",
+  "file": "A321.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Middle_East_Airlines_A321-200_(F-ORMF)_landing_at_London_Heathrow_Airport.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Middle East Airlines A321-200 (F-ORMF) landing at London Heathrow Airport.jpg"
+ },
+ "A332": {
+  "author": "Adrian Pingstone",
+  "class": "airliner",
+  "file": "A332.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bmi.a330-200.g-wwbb.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Bmi.a330-200.g-wwbb.arp.jpg"
+ },
+ "A332M": {
+  "author": "Tony Hisgett from Birmingham, UK",
+  "class": "military",
+  "file": "A332M.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Airbus_A330_Voyager_MRTT_4_(53787105844).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Airbus A330 Voyager MRTT 4 (53787105844).jpg"
+ },
+ "A333": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "A333.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Oman_Air_Airbus_A330-343_A4O-DI_MUC_2015_02.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Oman Air Airbus A330-343 A4O-DI MUC 2015 02.jpg"
+ },
+ "A338": {
+  "author": "simon butler from halesowen, uk",
+  "class": "airliner",
+  "file": "A338.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:KUWAIT_AIRWAYS_AIRBUS_A330-800_9K-APG_(52891864111).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:KUWAIT AIRWAYS AIRBUS A330-800 9K-APG (52891864111).jpg"
+ },
+ "A339": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "A339.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Delta_Airbus_A330-900_N402DX_departing_Boston_June_2025_2.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Delta Airbus A330-900 N402DX departing Boston June 2025 2.jpg"
+ },
+ "A343": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "A343.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:South_African_Airways_Airbus_A340-313_ZS-SXE_MUC_2015_02.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:South African Airways Airbus A340-313 ZS-SXE MUC 2015 02.jpg"
+ },
+ "A346": {
+  "author": "Adrian Pingstone (Arpingstone)",
+  "class": "airliner",
+  "file": "A346.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Thai_airways_a340-600_hs-tna_takeoff_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Thai airways a340-600 hs-tna takeoff arp.jpg"
+ },
+ "A359": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "A359.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Airbus_A350-941_F-WWCF_MSN002_ILA_Berlin_2016_17.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Airbus A350-941 F-WWCF MSN002 ILA Berlin 2016 17.jpg"
+ },
+ "A35K": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "A35K.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Starlux_Airbus_A350-1000_B-58551_departing_Taoyuan_February_2026_4.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Starlux Airbus A350-1000 B-58551 departing Taoyuan February 2026 4.jpg"
+ },
+ "A388": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "A388.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Emirates_Airbus_A380-861_A6-EER_MUC_2015_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Emirates Airbus A380-861 A6-EER MUC 2015 01.jpg"
+ },
+ "A400": {
+  "author": "Ibex73",
+  "class": "military",
+  "file": "A400.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Airbus_A400M_Atlas_F-RBAE_at_Paris_Air_Show2025_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Airbus A400M Atlas F-RBAE at Paris Air Show2025 01.jpg"
+ },
+ "AA5": {
+  "author": "Ian Kirk from Broadstone, Dorset, UK",
+  "class": "ga",
+  "file": "AA5.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Grumman_American_AA-5_Compton_Abbas_30th_June_2013_(9215815185).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Grumman American AA-5 Compton Abbas 30th June 2013 (9215815185).jpg"
+ },
+ "AN12": {
+  "author": "Marek Ślusarczyk (Tupungato) Photo gallery",
+  "class": "military",
+  "file": "AN12.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:001_An-12,_Malmo_Airport,_Sweden.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:001 An-12, Malmo Airport, Sweden.jpg"
+ },
+ "AN24": {
+  "author": "Elekes Andor",
+  "class": "regional",
+  "file": "AN24.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Antonov_An-24_Aircraft.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Antonov An-24 Aircraft.jpg"
+ },
+ "AS50": {
+  "author": "USGS",
+  "class": "helicopter",
+  "file": "AS50.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Airbus_Helicopters_H125_%C3%89cureuil.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Airbus Helicopters H125 Écureuil.jpg"
+ },
+ "AS65": {
+  "author": "SSGT ANTHONY W. LUSI, USAF",
+  "class": "helicopter",
+  "file": "AS65.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:AS-365N_Dauphin_2_of_The_Iceland_Coast_Guard.JPEG",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:AS-365N Dauphin 2 of The Iceland Coast Guard.JPEG"
+ },
+ "AT45": {
+  "author": "Bernard Gagnon",
+  "class": "regional",
+  "file": "AT45.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:ATR_42-500_of_Hunnu_Air.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:ATR 42-500 of Hunnu Air.jpg"
+ },
+ "AT72": {
+  "author": "Md Shaifuzzaman Ayon",
+  "class": "regional",
+  "file": "AT72.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:S2-STB_-_Air_Astra_-_ATR_72-600_(72-212A)_-_VGHS.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:S2-STB - Air Astra - ATR 72-600 (72-212A) - VGHS.jpg"
+ },
+ "AT76": {
+  "author": "Md Shaifuzzaman Ayon",
+  "class": "regional",
+  "file": "AT76.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:S2-AKK_-_US-Bangla_Airlines_-_ATR_72-600_(72-212A)_-_1589_-_VGHS.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:S2-AKK - US-Bangla Airlines - ATR 72-600 (72-212A) - 1589 - VGHS.jpg"
+ },
+ "B06": {
+  "author": "Wilfredor",
+  "class": "helicopter",
+  "file": "B06.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bell_206L-4_LongRanger_IV_over_Botafogo_Bay,_Rio_de_Janeiro.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Bell 206L-4 LongRanger IV over Botafogo Bay, Rio de Janeiro.jpg"
+ },
+ "B38M": {
+  "author": "DavidivardiIL",
+  "class": "airliner",
+  "file": "B38M.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:DAV_2777-Ryanair_Boeing_737_MAX_8-200_SP-RZM.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:DAV 2777-Ryanair Boeing 737 MAX 8-200 SP-RZM.jpg"
+ },
+ "B39M": {
+  "author": "Colin Brown from St Ann, MO, USA",
+  "class": "airliner",
+  "file": "B39M.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N37504_-_Boeing_737_MAX-9_-_United_Airlines_(45394825831).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:N37504 - Boeing 737 MAX-9 - United Airlines (45394825831).jpg"
+ },
+ "B407": {
+  "author": "ImagePerson",
+  "class": "helicopter",
+  "file": "B407.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Pair_of_Bell_407_Helicopters_in_Paradise_Helicopter_Livery,_Kona_Hawaii_16_02_2017.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Pair of Bell 407 Helicopters in Paradise Helicopter Livery, Kona Hawaii 16 02 2017.jpg"
+ },
+ "B412": {
+  "author": "Argentina.gob.ar (Government of Argentina)",
+  "class": "helicopter",
+  "file": "B412.jpg",
+  "license": "CC BY 2.5 ar",
+  "license_url": "https://creativecommons.org/licenses/by/2.5/ar/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bell_412_FAA_en_Aeroparque.jpg",
+  "spdx": "CC-BY-2.5",
+  "title": "File:Bell 412 FAA en Aeroparque.jpg"
+ },
+ "B463": {
+  "author": "Julian Herzog (Website)",
+  "class": "regional",
+  "file": "B463.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Swiss_British_Aerospace_Avro_146-RJ100_HB-IXS_MUC_2015_01_crop.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Swiss British Aerospace Avro 146-RJ100 HB-IXS MUC 2015 01 crop.jpg"
+ },
+ "B52": {
+  "author": "Senior Airman Keifer Bowes",
+  "class": "military",
+  "file": "B52.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:A_Boeing_B-52H_Stratofortress_in_flight_over_the_Persian_Gulf_(190521-F-XN348-9173).jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:A Boeing B-52H Stratofortress in flight over the Persian Gulf (190521-F-XN348-9173).jpg"
+ },
+ "B712": {
+  "author": "Checkerberry",
+  "class": "airliner",
+  "file": "B712.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Delta_Air_Lines_Boeing_717-231_N927AT_Landing_on_Runway_22_at_Blue_Grass_Airport_in_2025.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Delta Air Lines Boeing 717-231 N927AT Landing on Runway 22 at Blue Grass Airport in 2025.jpg"
+ },
+ "B733": {
+  "author": "kitmasterbloke",
+  "class": "airliner",
+  "file": "B733.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:G-OBWX_Boeing_737-300_British_World_Airways_STN_180901.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:G-OBWX Boeing 737-300 British World Airways STN 180901.jpg"
+ },
+ "B734": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "B734.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Ukraine_International_Airlines_Boeing_737-4Z9_UR-GAO_MUC_2015_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Ukraine International Airlines Boeing 737-4Z9 UR-GAO MUC 2015 01.jpg"
+ },
+ "B735": {
+  "author": "Quintin Soloviev",
+  "class": "airliner",
+  "file": "B735.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Air_North_737-500_Whitehorse.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Air North 737-500 Whitehorse.jpg"
+ },
+ "B738": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "B738.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Norwegian_Air_Shuttle_Boeing_737-86N_LN-NOG_MUC_2015_02.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Norwegian Air Shuttle Boeing 737-86N LN-NOG MUC 2015 02.jpg"
+ },
+ "B739": {
+  "author": "Kerry Taylor",
+  "class": "airliner",
+  "file": "B739.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N62895_Boeing_737-900_ER_United_Airlines_Los_Angeles_23Feb19.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:N62895 Boeing 737-900 ER United Airlines Los Angeles 23Feb19.jpg"
+ },
+ "B744": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "B744.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Thai_Airways_International_Boeing_747-4D7_HS-TGP_MUC_2015_03.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Thai Airways International Boeing 747-4D7 HS-TGP MUC 2015 03.jpg"
+ },
+ "B748": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "B748.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Boeing_747-8i_D-ABYK_on_final_approach_to_Boston.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Boeing 747-8i D-ABYK on final approach to Boston.jpg"
+ },
+ "B752": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "B752.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Scimitar_blended_winglet_on_Boeing_757-200.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Scimitar blended winglet on Boeing 757-200.jpg"
+ },
+ "B753": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "B753.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:United_Boeing_757-300_N77867_on_final_approach_to_Boston_Feb_2022.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:United Boeing 757-300 N77867 on final approach to Boston Feb 2022.jpg"
+ },
+ "B763": {
+  "author": "Thecommodorefan",
+  "class": "airliner",
+  "file": "B763.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Air_Transport_International_Boeing_767-300_(N255CM).jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Air Transport International Boeing 767-300 (N255CM).jpg"
+ },
+ "B764": {
+  "author": "oliverspotter",
+  "class": "airliner",
+  "file": "B764.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Boeing_767-400_Delta_Airlines_at_GRU_22-5-16_-_5-22-16_(32272556382).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Boeing 767-400 Delta Airlines at GRU 22-5-16 - 5-22-16 (32272556382).jpg"
+ },
+ "B772": {
+  "author": "Charles",
+  "class": "airliner",
+  "file": "B772.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:United_777-200,_N768UA,4.15.2011.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:United 777-200, N768UA,4.15.2011.jpg"
+ },
+ "B773": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "B773.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Korean_Air_Boeing_777-300_HL7532_at_Taoyuan_February_2026.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Korean Air Boeing 777-300 HL7532 at Taoyuan February 2026.jpg"
+ },
+ "B77L": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "B77L.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Qatar_Airways_Boeing_777-200LR_A7-BBI_at_Paine_Field_September_2011.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Qatar Airways Boeing 777-200LR A7-BBI at Paine Field September 2011.jpg"
+ },
+ "B788": {
+  "author": "Julian Herzog (Website)",
+  "class": "airliner",
+  "file": "B788.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Qatar_Airways_Boeing_787-8_Dreamliner_A7-BCO_MUC_2015_02.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Qatar Airways Boeing 787-8 Dreamliner A7-BCO MUC 2015 02.jpg"
+ },
+ "B789": {
+  "author": "Malokkii",
+  "class": "airliner",
+  "file": "B789.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Etihad_Boeing_787-9_Dreamliner_A6-BLH.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Etihad Boeing 787-9 Dreamliner A6-BLH.jpg"
+ },
+ "B78X": {
+  "author": "Ian Gratton",
+  "class": "airliner",
+  "file": "B78X.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:HZ-AR24_Boeing_787-10_Saudia,_Manchester.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:HZ-AR24 Boeing 787-10 Saudia, Manchester.jpg"
+ },
+ "BCS1": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "BCS1.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Delta_Airbus_A220-100_N115DU_on_approach_to_Boston_October_2024.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Delta Airbus A220-100 N115DU on approach to Boston October 2024.jpg"
+ },
+ "BCS3": {
+  "author": "4300streetcar",
+  "class": "airliner",
+  "file": "BCS3.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:JetBlue_Airways_Airbus_A220-300_N3132J_departing_Boston_November_2025.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:JetBlue Airways Airbus A220-300 N3132J departing Boston November 2025.jpg"
+ },
+ "BE20": {
+  "author": "Armada Argentina",
+  "class": "ga",
+  "file": "BE20.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Beechcraft_B-200_F_Super_King_Air_Armada_Argentina.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Beechcraft B-200 F Super King Air Armada Argentina.jpg"
+ },
+ "BE58": {
+  "author": "Penerangan Puspenerbal",
+  "class": "ga",
+  "file": "BE58.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Newly_Arrived_Beechcraft_Baron_G58_of_Indonesian_Navy.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Newly Arrived Beechcraft Baron G58 of Indonesian Navy.jpg"
+ },
+ "C130": {
+  "author": "Balon Greyjoy",
+  "class": "military",
+  "file": "C130.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:20180512_C-130J_Super_Hercules_Dyess_AFB_Air_Show_2018_19.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:20180512 C-130J Super Hercules Dyess AFB Air Show 2018 19.jpg"
+ },
+ "C150": {
+  "author": "Tschermaak",
+  "class": "ga",
+  "file": "C150.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Letouny_C150_a_C172_na_leti%C5%A1ti_P%C5%99%C3%ADbram.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Letouny C150 a C172 na letišti Příbram.jpg"
+ },
+ "C152": {
+  "author": "Joao Carlos Medau from Campinas, Brazil",
+  "class": "ga",
+  "file": "C152.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Cessna_152_PR-EJN_(8475961209).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Cessna 152 PR-EJN (8475961209).jpg"
+ },
+ "C17": {
+  "author": "U.S. Air Force",
+  "class": "military",
+  "file": "C17.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:C-17_test_sortie.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:C-17 test sortie.jpg"
+ },
+ "C172": {
+  "author": "TRTPUWU",
+  "class": "ga",
+  "file": "C172.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:CC-STA_(Cessna_172_of_the_Temuco_Air_club).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:CC-STA (Cessna 172 of the Temuco Air club).jpg"
+ },
+ "C182": {
+  "author": "Felix König",
+  "class": "ga",
+  "file": "C182.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Cessna_182N_Skylane.JPG",
+  "spdx": "CC-BY-3.0",
+  "title": "File:Cessna 182N Skylane.JPG"
+ },
+ "C206": {
+  "author": "Arpingstone",
+  "class": "ga",
+  "file": "C206.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Cessna.206h.stationair2.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Cessna.206h.stationair2.arp.jpg"
+ },
+ "C208": {
+  "author": "Robbie Klinkenberg",
+  "class": "ga",
+  "file": "C208.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Fallschirmsportzentrum_Saar_Cessna_208_Caravan_D-FNDA_at_Portim%C3%A3o_Airport_12-06-2023_(1).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Fallschirmsportzentrum Saar Cessna 208 Caravan D-FNDA at Portimão Airport 12-06-2023 (1).jpg"
+ },
+ "C295": {
+  "author": "Armed Forces of the Philippines (AFP)",
+  "class": "military",
+  "file": "C295.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:2022-04-06_AFP_C295.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:2022-04-06 AFP C295.jpg"
+ },
+ "C30J": {
+  "author": "Balon Greyjoy",
+  "class": "military",
+  "file": "C30J.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:20180512_C-130J_Super_Hercules_Dyess_AFB_Air_Show_2018_22.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:20180512 C-130J Super Hercules Dyess AFB Air Show 2018 22.jpg"
+ },
+ "C510": {
+  "author": "Kambui",
+  "class": "bizjet",
+  "file": "C510.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Untitled_(TAG_Aviation)_Cessna_510_Citation_Mustang_G-FBLK_(25467740823).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Untitled (TAG Aviation) Cessna 510 Citation Mustang G-FBLK (25467740823).jpg"
+ },
+ "C525": {
+  "author": "Dylan Agbagni (No copyrights) from Bayonne, France",
+  "class": "bizjet",
+  "file": "C525.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:I-RVRP_-_Cessna_525_CitationJet_CJ1_(25465244288).jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:I-RVRP - Cessna 525 CitationJet CJ1 (25465244288).jpg"
+ },
+ "C56X": {
+  "author": "Julian Herzog (Website)",
+  "class": "bizjet",
+  "file": "C56X.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Cessna_560XL_Citation_XLS_CS-DXK.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Cessna 560XL Citation XLS CS-DXK.jpg"
+ },
+ "C750": {
+  "author": "BWard 1997",
+  "class": "bizjet",
+  "file": "C750.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N92RX_Cessna_Citation_X_London_Stansted_Airport.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:N92RX Cessna Citation X London Stansted Airport.jpg"
+ },
+ "CL30": {
+  "author": "Arpingstone",
+  "class": "bizjet",
+  "file": "CL30.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bombardier.challenger.300.lx-pma.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Bombardier.challenger.300.lx-pma.arp.jpg"
+ },
+ "CRJ9": {
+  "author": "4300streetcar",
+  "class": "regional",
+  "file": "CRJ9.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Air_Canada_Express_Bombardier_CRJ900_C-FKJZ_departing_Boston_March_2025.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Air Canada Express Bombardier CRJ900 C-FKJZ departing Boston March 2025.jpg"
+ },
+ "D328": {
+  "author": "Marek Ślusarczyk (Tupungato) Photo gallery",
+  "class": "regional",
+  "file": "D328.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:01_United_States_Air_Force,_Dornier_Do-328-110,_Larnaca,_Cyprus.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:01 United States Air Force, Dornier Do-328-110, Larnaca, Cyprus.jpg"
+ },
+ "DA40": {
+  "author": "Pancake-Airlines",
+  "class": "ga",
+  "file": "DA40.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Diamond_DA40_sunrise.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Diamond DA40 sunrise.jpg"
+ },
+ "DA42": {
+  "author": "Kuba Bożanowski from Warsaw, Poland",
+  "class": "ga",
+  "file": "DA42.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Diamond_DA42_Twin_Star_SP-NBA_--_fly-by_(3318845648).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Diamond DA42 Twin Star SP-NBA -- fly-by (3318845648).jpg"
+ },
+ "DH8B": {
+  "author": "Joao Carlos Medau from Campinas, Brazil",
+  "class": "regional",
+  "file": "DH8B.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:De_Havilland_Canada_DHC-8-200_(LAN_Colombia)_(8417764661).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:De Havilland Canada DHC-8-200 (LAN Colombia) (8417764661).jpg"
+ },
+ "DH8C": {
+  "author": "Kambui",
+  "class": "regional",
+  "file": "DH8C.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Austrian_Arrows_(Tyrolean_Airways)_De_Havilland_Canada_DHC-8-314Q_Dash_8_OE-LTH_(25668681763).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Austrian Arrows (Tyrolean Airways) De Havilland Canada DHC-8-314Q Dash 8 OE-LTH (25668681763).jpg"
+ },
+ "DH8D": {
+  "author": "Trougnouf",
+  "class": "regional",
+  "file": "DH8D.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Austrian_Airlines_Bombardier_Dash_8_Q400_(flight_683)_boarding_at_Vienna_Airport,_Austria_(DSC_0003).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Austrian Airlines Bombardier Dash 8 Q400 (flight 683) boarding at Vienna Airport, Austria (DSC 0003).jpg"
+ },
+ "DHC6": {
+  "author": "Vyacheslav Argenberg",
+  "class": "ga",
+  "file": "DHC6.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Lukla_Airport,_De_Havilland_Canada_DHC-6_Twin_Otter,_Yeti_Airlines,_Nepal.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Lukla Airport, De Havilland Canada DHC-6 Twin Otter, Yeti Airlines, Nepal.jpg"
+ },
+ "E135": {
+  "author": "Adrian Pingstone (Arpingstone)",
+  "class": "regional",
+  "file": "E135.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:City_airline_embraer_erj135_se-raa_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:City airline embraer erj135 se-raa arp.jpg"
+ },
+ "E145": {
+  "author": "Adrian Pingstone",
+  "class": "regional",
+  "file": "E145.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Flybe_erj145_g-erja_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Flybe erj145 g-erja arp.jpg"
+ },
+ "E170": {
+  "author": "4300streetcar",
+  "class": "regional",
+  "file": "E170.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:DeltaConnection_Embraer_170_N880RW_on_final_approach_to_Boston_December_2025.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:DeltaConnection Embraer 170 N880RW on final approach to Boston December 2025.jpg"
+ },
+ "E190": {
+  "author": "PierreSelim",
+  "class": "regional",
+  "file": "E190.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:JetBlue_-_Embraer_190_-_N266JB_-_2012-07-16.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:JetBlue - Embraer 190 - N266JB - 2012-07-16.jpg"
+ },
+ "E195": {
+  "author": "Ian Gratton",
+  "class": "regional",
+  "file": "E195.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:OE-LWM_Embraer_195_Austrian_Airlines,_Manchester.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:OE-LWM Embraer 195 Austrian Airlines, Manchester.jpg"
+ },
+ "E290": {
+  "author": "Steve Lynes from Sandshurst, United Kingdom",
+  "class": "regional",
+  "file": "E290.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:EGLF_-_Embraer_E190-E2_-_PR-ZGQ_(42923565984).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:EGLF - Embraer E190-E2 - PR-ZGQ (42923565984).jpg"
+ },
+ "E295": {
+  "author": "EneasMx",
+  "class": "regional",
+  "file": "E295.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Embraer_E195-E2_front.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Embraer E195-E2 front.jpg"
+ },
+ "E3TF": {
+  "author": "Frans Berkelaar",
+  "class": "military",
+  "file": "E3TF.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Boeing_E-3_Sentry_-_AWAC_-_Volkel_-_NL.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Boeing E-3 Sentry - AWAC - Volkel - NL.jpg"
+ },
+ "E50P": {
+  "author": "Glenn Beltz from Goleta, CA, USA",
+  "class": "bizjet",
+  "file": "E50P.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Embraer_Phenom_100_(14827323928).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Embraer Phenom 100 (14827323928).jpg"
+ },
+ "E55P": {
+  "author": "Ronnie Macdonald from Chelmsford and Largs, United Kingdom",
+  "class": "bizjet",
+  "file": "E55P.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Embraer_Phenom_300_%26_Boeing_747_(29213882252).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Embraer Phenom 300 & Boeing 747 (29213882252).jpg"
+ },
+ "E75L": {
+  "author": "Wilfredor",
+  "class": "regional",
+  "file": "E75L.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N756YX_EMBRAER_175_United_express_in_Quebec_International_Airport.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:N756YX EMBRAER 175 United express in Quebec International Airport.jpg"
+ },
+ "E75S": {
+  "author": "4300streetcar",
+  "class": "regional",
+  "file": "E75S.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Delta_Connection_Embraer_175_N236JQ_departing_Boston_June_2025.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Delta Connection Embraer 175 N236JQ departing Boston June 2025.jpg"
+ },
+ "EC30": {
+  "author": "ZLEA",
+  "class": "helicopter",
+  "file": "EC30.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Eurocopter_EC130_T2_(N908AC,_cn_1591)_(12-9-2022).jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Eurocopter EC130 T2 (N908AC, cn 1591) (12-9-2022).jpg"
+ },
+ "EC35": {
+  "author": "Julian Herzog (Website)",
+  "class": "helicopter",
+  "file": "EC35.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:DRF_Eurocopter_EC135_Christoph_44_D-HDRK_G%C3%B6ttingen_2017_03.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:DRF Eurocopter EC135 Christoph 44 D-HDRK Göttingen 2017 03.jpg"
+ },
+ "EC45": {
+  "author": "Ministerio de Defensa del Perú",
+  "class": "helicopter",
+  "file": "EC45.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Peruvian_National_Police_Eurocopter_EC145.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Peruvian National Police Eurocopter EC145.jpg"
+ },
+ "EC55": {
+  "author": "kitmasterbloke",
+  "class": "helicopter",
+  "file": "EC55.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:G-TBUC_Eurocopter_EC155_Molehill_Green_220617.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:G-TBUC Eurocopter EC155 Molehill Green 220617.jpg"
+ },
+ "EUFI": {
+  "author": "Julian Herzog (Website)",
+  "class": "military",
+  "file": "EUFI.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:30%2B68_German_Air_Force_Eurofighter_Typhoon_EF2000_ILA_Berlin_2016_06.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:30+68 German Air Force Eurofighter Typhoon EF2000 ILA Berlin 2016 06.jpg"
+ },
+ "F16": {
+  "author": "Julian Herzog (Website)",
+  "class": "military",
+  "file": "F16.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:RDAF_General_Dynamics_F-16AM_Fighting_Falcon_E-006_Royal_International_Air_Tattoo_2024_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:RDAF General Dynamics F-16AM Fighting Falcon E-006 Royal International Air Tattoo 2024 01.jpg"
+ },
+ "F18H": {
+  "author": "U.S. Navy photo by Photographer's Mate 3rd Class Jayme Pastoric.",
+  "class": "military",
+  "file": "F18H.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:011218-N-9769P-047_F-A-18_With_Weapons_Ready_for_Mission.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:011218-N-9769P-047 F-A-18 With Weapons Ready for Mission.jpg"
+ },
+ "F2TH": {
+  "author": "Adrian Pingstone",
+  "class": "bizjet",
+  "file": "F2TH.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Dassault.falcon.2000.vp-bdl.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Dassault.falcon.2000.vp-bdl.arp.jpg"
+ },
+ "F70": {
+  "author": "Arpingstone",
+  "class": "regional",
+  "file": "F70.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Klm.fokker70.ph-wxd.bristol.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Klm.fokker70.ph-wxd.bristol.arp.jpg"
+ },
+ "F900": {
+  "author": "Adrian Pingstone",
+  "class": "bizjet",
+  "file": "F900.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Dassault.falcon900.cs-dfh.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Dassault.falcon900.cs-dfh.arp.jpg"
+ },
+ "G280": {
+  "author": "Julian Herzog (Website)",
+  "class": "bizjet",
+  "file": "G280.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Gulfstream_G280_N280GD_PAS_2013_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Gulfstream G280 N280GD PAS 2013 01.jpg"
+ },
+ "GL5T": {
+  "author": "Ronnie Macdonald from Chelmsford and Largs, United Kingdom",
+  "class": "bizjet",
+  "file": "GL5T.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bombardier_Global_5000_5D3_3400_(35431439294).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Bombardier Global 5000 5D3 3400 (35431439294).jpg"
+ },
+ "GL7T": {
+  "author": "S5A-0043",
+  "class": "bizjet",
+  "file": "GL7T.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:(SGP-Singapore)_Demonstrator_Bombardier_Global_7500_N100BD_@_Singapore_Airshow_2026-02-07.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:(SGP-Singapore) Demonstrator Bombardier Global 7500 N100BD @ Singapore Airshow 2026-02-07.jpg"
+ },
+ "GLEX": {
+  "author": "Steve Knight from Halstead, United Kingdom",
+  "class": "bizjet",
+  "file": "GLEX.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N59GX_BOMBARDIER_INC_BD-700-1A10_Global_Express_STN_060523_(52875548900).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:N59GX BOMBARDIER INC BD-700-1A10 Global Express STN 060523 (52875548900).jpg"
+ },
+ "GLF4": {
+  "author": "Ronnie Macdonald from Chelmsford, United Kingdom",
+  "class": "bizjet",
+  "file": "GLF4.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Gulfstream_Aerospace_G-IV_Gulfstream_IV-SP_N854SD_(25068961455).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Gulfstream Aerospace G-IV Gulfstream IV-SP N854SD (25068961455).jpg"
+ },
+ "GLF5": {
+  "author": "Kambui",
+  "class": "bizjet",
+  "file": "GLF5.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Saudi_Medevac_Gulfstream_Aerospace_G-V_Gulfstream_V_HZ-MS5_(22664261212).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Saudi Medevac Gulfstream Aerospace G-V Gulfstream V HZ-MS5 (22664261212).jpg"
+ },
+ "GLF6": {
+  "author": "Steve Lynes from Sandshurst, United Kingdom",
+  "class": "bizjet",
+  "file": "GLF6.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:EGLF_-_Gulfstream_G650_-_VP-BCT_(28667476567).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:EGLF - Gulfstream G650 - VP-BCT (28667476567).jpg"
+ },
+ "H25B": {
+  "author": "Marek Ślusarczyk (Tupungato) Photo portfolio",
+  "class": "bizjet",
+  "file": "H25B.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:39_Hawker_800_800XP_business_jet_-_twinjet_corporate_aircraft.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:39 Hawker 800 800XP business jet - twinjet corporate aircraft.jpg"
+ },
+ "H47": {
+  "author": "Elena Baladelli (according to Exif data)",
+  "class": "helicopter",
+  "file": "H47.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:An_Army_CH-47_Chinook_helicopter_during_a_training_exercise_(210120-A-II094-096M).jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:An Army CH-47 Chinook helicopter during a training exercise (210120-A-II094-096M).jpg"
+ },
+ "H60": {
+  "author": "FotoSleuth",
+  "class": "helicopter",
+  "file": "H60.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Sikorsky_UH-60_Black_Hawk_(42026402152).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Sikorsky UH-60 Black Hawk (42026402152).jpg"
+ },
+ "HDJT": {
+  "author": "Michael Pereckas from Milwaukee, WI, USA",
+  "class": "bizjet",
+  "file": "HDJT.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:HondaJet_001.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:HondaJet 001.jpg"
+ },
+ "IL76": {
+  "author": "Photographer: Mosbatho",
+  "class": "military",
+  "file": "IL76.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Ilyushin_Il-76_(CCCP-76511)_rear_undercarriage.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Ilyushin Il-76 (CCCP-76511) rear undercarriage.jpg"
+ },
+ "IL96": {
+  "author": "Cheese007",
+  "class": "airliner",
+  "file": "IL96.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Ilyushin_IL-96_taking_off_from_Ted_Stevens_International_Airport_(ANC)_02.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Ilyushin IL-96 taking off from Ted Stevens International Airport (ANC) 02.jpg"
+ },
+ "JS41": {
+  "author": "Steve Lynes from Sandshurst, United Kingdom",
+  "class": "regional",
+  "file": "JS41.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:EGXC_-_BAe_Jetstream_41_(45916280155).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:EGXC - BAe Jetstream 41 (45916280155).jpg"
+ },
+ "K35R": {
+  "author": "Staff Sgt. Randy Mallard, U.S. Air Force",
+  "class": "military",
+  "file": "K35R.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Boeing_KC-135_Stratotanker_DGNP_990412-F-1312M-004.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Boeing KC-135 Stratotanker DGNP 990412-F-1312M-004.jpg"
+ },
+ "LJ35": {
+  "author": "Medical Air Service",
+  "class": "bizjet",
+  "file": "LJ35.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Bombardier-learjet-35.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Bombardier-learjet-35.jpg"
+ },
+ "M20P": {
+  "author": "Arpingstone",
+  "class": "ga",
+  "file": "M20P.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Mooney.m20j.g-muni.arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Mooney.m20j.g-muni.arp.jpg"
+ },
+ "MD82": {
+  "author": "Wilfredor",
+  "class": "airliner",
+  "file": "MD82.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:YV505T_Aeropostal_McDonnell_Douglas_MD-82_(DC-9-82),_in_Santiago_Mari%C3%B1o_International_Airport,_Margarita_Island,_Venezuela.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:YV505T Aeropostal McDonnell Douglas MD-82 (DC-9-82), in Santiago Mariño International Airport, Margarita Island, Venezuela.jpg"
+ },
+ "MD83": {
+  "author": "Wilfredor",
+  "class": "airliner",
+  "file": "MD83.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:YV481T_SBA_Airlines_McDonnell_Douglas_MD-83.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:YV481T SBA Airlines McDonnell Douglas MD-83.jpg"
+ },
+ "MI8": {
+  "author": "Jan Hrdonka",
+  "class": "helicopter",
+  "file": "MI8.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Mi-8-JH01.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Mi-8-JH01.jpg"
+ },
+ "NH90": {
+  "author": "Julian Herzog (Website)",
+  "class": "helicopter",
+  "file": "NH90.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:NHIndustries_NH90_TTH_Italian_Army_MM81540_EI-223_PAS_2013_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:NHIndustries NH90 TTH Italian Army MM81540 EI-223 PAS 2013 01.jpg"
+ },
+ "P8": {
+  "author": "Balon Greyjoy",
+  "class": "military",
+  "file": "P8.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:20190206_P-8_Poseidon_Kadena_AB-12.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:20190206 P-8 Poseidon Kadena AB-12.jpg"
+ },
+ "PA28": {
+  "author": "Adrian Pingstone (Arpingstone)",
+  "class": "ga",
+  "file": "PA28.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Piper_pa-28-140_cherokee_g-atoo_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Piper pa-28-140 cherokee g-atoo arp.jpg"
+ },
+ "PA46": {
+  "author": "Steve Lynes from Sandshurst, United Kingdom",
+  "class": "ga",
+  "file": "PA46.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:EGLK_-_Piper_PA-46-350P_Malibu_Mirage_-_N394SE_(42266265240).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:EGLK - Piper PA-46-350P Malibu Mirage - N394SE (42266265240).jpg"
+ },
+ "PC12": {
+  "author": "Robbie Klinkenberg",
+  "class": "ga",
+  "file": "PC12.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Pilatus_PC-12_OH-WAU_at_Portim%C3%A3o_Airport_12-06-2023_(2).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Pilatus PC-12 OH-WAU at Portimão Airport 12-06-2023 (2).jpg"
+ },
+ "PC21": {
+  "author": "Adrian Pingstone (Arpingstone)",
+  "class": "military",
+  "file": "PC21.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Pilatus_pc-21_hb-hzc_lands_arp.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:Pilatus pc-21 hb-hzc lands arp.jpg"
+ },
+ "R22": {
+  "author": "Hengist Decius",
+  "class": "helicopter",
+  "file": "R22.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Robinson_R22_Beta_2.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Robinson R22 Beta 2.jpg"
+ },
+ "R44": {
+  "author": "Philippine Army (PA) Aviation “Hiraya” Regiment",
+  "class": "helicopter",
+  "file": "R44.jpg",
+  "license": "Public domain",
+  "license_url": "",
+  "source_url": "https://commons.wikimedia.org/wiki/File:2022-06-17_PA_R44_002.jpg",
+  "spdx": "LicenseRef-Public-Domain",
+  "title": "File:2022-06-17 PA R44 002.jpg"
+ },
+ "RJ85": {
+  "author": "AKS.9955",
+  "class": "regional",
+  "file": "RJ85.jpg",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Avro_RJ85.jpg",
+  "spdx": "CC0-1.0",
+  "title": "File:Avro RJ85.jpg"
+ },
+ "S76": {
+  "author": "Don Ramey Logan",
+  "class": "helicopter",
+  "file": "S76.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Sikorsky_S-76_helicopter_N_760GP_by_Don_Ramey_Logan.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Sikorsky S-76 helicopter N 760GP by Don Ramey Logan.jpg"
+ },
+ "S92": {
+  "author": "Ahmed Hader",
+  "class": "helicopter",
+  "file": "S92.jpg",
+  "license": "CC BY 3.0",
+  "license_url": "https://creativecommons.org/licenses/by/3.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Sikorsky_S-92_inflight_over_Riyadh_at_night.jpg",
+  "spdx": "CC-BY-3.0",
+  "title": "File:Sikorsky S-92 inflight over Riyadh at night.jpg"
+ },
+ "SF34": {
+  "author": "Paavo Pihelgas",
+  "class": "regional",
+  "file": "SF34.jpg",
+  "license": "CC BY 2.5",
+  "license_url": "https://creativecommons.org/licenses/by/2.5",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Estonian_Air_Saab_340A_ES-ASN.jpg",
+  "spdx": "CC-BY-2.5",
+  "title": "File:Estonian Air Saab 340A ES-ASN.jpg"
+ },
+ "SR20": {
+  "author": "José Reynaldo da Fonseca",
+  "class": "ga",
+  "file": "SR20.jpg",
+  "license": "CC BY 2.5",
+  "license_url": "https://creativecommons.org/licenses/by/2.5",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Cirrus_SR20_REFON.jpg",
+  "spdx": "CC-BY-2.5",
+  "title": "File:Cirrus SR20 REFON.jpg"
+ },
+ "SU95": {
+  "author": "Quintin Soloviev",
+  "class": "airliner",
+  "file": "SU95.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Red_Wings_Airlines_Sukhoi_Superjet_100-95LR_at_Istanbul.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Red Wings Airlines Sukhoi Superjet 100-95LR at Istanbul.jpg"
+ },
+ "T154": {
+  "author": "kitmasterbloke",
+  "class": "airliner",
+  "file": "T154.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Tupolev_Tu-154M_OK-SCA_Ruzyne.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Tupolev Tu-154M OK-SCA Ruzyne.jpg"
+ },
+ "TB20": {
+  "author": "Ronnie Macdonald from Chelmsford and Largs, United Kingdom",
+  "class": "ga",
+  "file": "TB20.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Socata_TB-20_Trinidad_(19751603780).jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:Socata TB-20 Trinidad (19751603780).jpg"
+ },
+ "TBM9": {
+  "author": "DUNCAN KIRK from Coeur d'Alene, United States",
+  "class": "ga",
+  "file": "TBM9.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:N90KJ_TBM-900,_Temple_12-07-25_(55080826718).jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:N90KJ TBM-900, Temple 12-07-25 (55080826718).jpg"
+ },
+ "TORN": {
+  "author": "Julian Herzog (Website)",
+  "class": "military",
+  "file": "TORN.jpg",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:Royal_Air_Force_Panavia_Tornado_GR4_ZA607_EB-X_Corris_Corner_2018_01.jpg",
+  "spdx": "CC-BY-4.0",
+  "title": "File:Royal Air Force Panavia Tornado GR4 ZA607 EB-X Corris Corner 2018 01.jpg"
+ },
+ "V22": {
+  "author": "Peter Gronemann",
+  "class": "military",
+  "file": "V22.jpg",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "source_url": "https://commons.wikimedia.org/wiki/File:V22-Osprey.jpg",
+  "spdx": "CC-BY-2.0",
+  "title": "File:V22-Osprey.jpg"
+ }
+}

@@ -1,226 +1,150 @@
-# Live Flights Map
+# Contrail
 
-**A self-hosted live air-traffic map: real aircraft positions from public ADS-B feeds, flight and airport details, and replay of recent traffic from a local archive.**
-
-[![CI](https://github.com/MaciejZiel/live_flights_map/actions/workflows/ci.yml/badge.svg)](https://github.com/MaciejZiel/live_flights_map/actions/workflows/ci.yml)
+[![CI](https://github.com/MaciejZiel/contrail/actions/workflows/ci.yml/badge.svg)](https://github.com/MaciejZiel/contrail/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask)
+![Python 3.12 to 3.14](https://img.shields.io/badge/python-3.12%E2%80%933.14-3776AB?logo=python&logoColor=white)
 ![Svelte 5](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
+![MapLibre GL](https://img.shields.io/badge/MapLibre-GL-396CB2)
 
-![Live map and archive replay running in demo mode with synthetic traffic](docs/demo-mode.gif)
+**A fast, smooth live air-traffic map you can run on your own server: aircraft glide between updates, a click opens the flight (photo, route, altitude and speed history, track), and you can look up airports with weather.**
 
-*Demo mode: live map, then the replay timeline playing back the archive. The aircraft are synthetic.*
+![Europe with live traffic, drawn on a dark basemap with altitude-coloured aircraft](docs/screenshots/map-europe.png)
 
-No API keys are needed: `docker compose up` starts the app against OpenSky's anonymous API with ADSB.lol as a fallback. OpenSky OAuth2 credentials are optional and only raise the polling rate.
+*Screenshots use the built-in demo mode: the aircraft are synthetic. With the real feed the map looks the same.*
 
 ## What it does
 
-- **Live map** of aircraft from OpenSky, with ADSB.lol as a fallback, rendered with Leaflet and a WebGL overlay when thousands of aircraft are in view.
-- **Flight and airport inspection**: callsign, registration, best-effort route, photos, position trail, airport dashboards with METAR weather and CSV export.
-- **Search** by callsign, ICAO24, registration, airline, route, airport or place, plus filters for altitude, speed, aircraft type and activity.
-- **History**: a background collector writes snapshots to SQLite, which powers aircraft trails, airport movement history and a replay timeline.
-- **Local workspace**: saved views, watchlists, notes and browser/webhook alerts stored per local profile.
+- **Smooth live map.** Every aircraft is extrapolated each frame from its track and ground speed and eased towards each new fix, so nothing jumps and nothing fades with age. How old the data is shows in a small status chip, never by hiding aircraft. About 60 fps with 15,000 aircraft on an integrated GPU.
+- **Flight panel.** Photo, callsign, airline, type, registration, route (from and to), live altitude, speed, vertical rate, squawk, altitude / speed / vertical-rate history, the whole track coloured by altitude, the rest of the route as a dashed line, distance flown and remaining, and an arrival estimate (clearly labelled as an estimate).
+- **Search** by callsign, registration, ICAO24, airport or airline, with a keyboard-friendly dropdown.
+- **Airport card** with decoded METAR and TAF and the aircraft that are on the ground or low around the field (inferred from position and vertical rate, not a timetable).
+- **Filters** for altitude, airline and ground traffic; everything, including the view, the selection and the filters, lives in the URL so any state can be shared.
+- **Phone-first layout**: a bottom sheet with three snap points on small screens, a side panel on desktop.
+- **Demo mode** with synthetic traffic, used by CI and for offline screenshots.
 
-The full list is in [FEATURES.md](FEATURES.md).
+| | |
+|---|---|
+| ![Flight panel with photo, route, live values and charts](docs/screenshots/aircraft-panel.png) | ![Airport card with weather and nearby traffic](docs/screenshots/airport-card.png) |
+| ![Search results](docs/screenshots/search.png) | ![Whole world, thinned to a few hundred aircraft](docs/screenshots/world-thinned.png) |
+| ![Phone: map](docs/screenshots/mobile-map.png) ![Phone: flight sheet](docs/screenshots/mobile-sheet.png) | ![Phone: expanded sheet](docs/screenshots/mobile-sheet-full.png) |
 
-![Live Flights Map showing current traffic over central Europe](docs/live-flights-map.webp)
+## Where the data comes from, and what that limits
 
-![Flight inspector open for a selected aircraft](docs/flight-inspector.webp)
+Read this before you rely on the map. The numbers below were measured while building it.
+
+| Need | Source | Terms / notes |
+|---|---|---|
+| Aircraft positions | [ADSB.lol](https://adsb.lol) public API (`/v2/point`), community ADS-B receivers | Data is ODbL 1.0: it is credited in the UI. The `/api/v1` output re-publishes it, so it is offered under the same licence (`X-Data-License` header on every API response); the app has no bulk export. The API has no published rate limit ("dynamic, based on load"). |
+| Route of a flight | VRS standing data (CC0), served by ADSB.lol | Scheduled route for the callsign; shown only if the aircraft plausibly is on it. |
+| Airline and aircraft type names | VRS standing data (CC0) | Bundled. |
+| Airports | OurAirports (public domain) | Bundled. |
+| Weather | NOAA Aviation Weather Center METAR/TAF | US government data, rate limit respected. |
+| Photos | Planespotters photo API, called by the visitor's browser | Their terms forbid proxying or storing; credit and link are always shown. |
+| Fallback photos | 142 type photos from Wikimedia Commons, public domain / CC0 / CC BY only | Stored in `web/public/type-photos` with author and licence per image; labelled "representative photo, not this aircraft". |
+| Basemap | OpenFreeMap vector tiles (OpenStreetMap data) | Free public instance, credited. |
+
+**Upstream budgets.** Tiles, single-aircraft lookups, routes and weather each have their own request budget and their own thread, so search or weather traffic can never slow the map down: lookups 0.05 requests per second, routes 2 per second, weather 1.5 per second (NOAA allows 100 per minute). When a budget is empty the field says "busy" instead of calling upstream.
+
+**Plain limits of the aircraft feed**
+
+- The public ADSB.lol API answers a query for at most a 250 nautical mile circle, so the server works with 5 degree tiles and fetches **one request per tile**. From the machine this was developed on, **27 to 43 percent of requests were answered with HTTP 429** and the sustainable rate was roughly 0.2 requests per second.
+- Consequence: a **cold start of a large region is slow**. In a real 15 minute run only 67 of the 79 Europe tiles had loaded, and tile data was 4 to 5 minutes old on median. Zoomed in on a city or country the picture is fresh within seconds; zoomed out over a continent it is a mosaic of areas of different age, dead-reckoned in between. The status chip says how old the oldest area is. It does not pretend otherwise.
+- **World coverage is a plan, not a promise.** After the tiles somebody is looking at (always first, refreshed about every 10 s anywhere in the world), spare budget is shared between priority classes by weight: Europe 60 percent (target 4 minutes per tile), US East and West, the Gulf, East Asia and India 30 percent (15 minutes), the rest of the world 10 percent (one hour). At roughly 0.2 requests per second these targets cannot all be met: Europe alone has 79 tiles, and a full sweep of everything takes hours. The scheduler guarantees ordering and fairness (tested), not the targets. `/api/v1/status` reports the real median and oldest age per class.
+- **Old data is dimmed, then hidden.** Aircraft whose area was last refreshed more than 10 minutes ago are drawn faded, and beyond 15 minutes they disappear (server and client agree on the cap, and the server frees the memory). The flight panel shows both the age of the aircraft's last position and of its area.
+- The server is a polite client: one shared fetcher, a global budget (`UPSTREAM_BUDGET_RPS`, default 0.2), automatic back-off on 429, tiles that are usually empty (ocean, polar) are refreshed far less often, and the background plan is what it keeps warm.
+- **OpenSky Network is not used.** Its terms require a written licence for any operational use of its REST API in a live service. **airplanes.live is not used** either: its terms allow personal, non-commercial use only and forbid re-publishing the data. adsbdb.com is not used because its route data may not be copied into other databases.
+- The flight track is **our own record** of what the server has seen since it first looked at the aircraft. There is no permitted source for a complete trace from take-off, so a flight first seen mid-air gets a dashed, labelled "estimated path" from its origin airport.
+- Arrival times are estimates (remaining great-circle distance divided by current ground speed). Airport arrivals and departures are inferred from aircraft behaviour, not from schedules.
+- A personal, non-commercial deployment is assumed throughout.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>Svelte + Leaflet + WebGL"] --> Nginx["Nginx<br/>static app + /api proxy"]
-    Nginx --> API["Flask API"]
-    Collector["Snapshot collector<br/>(worker)"] --> Providers
-    API --> Providers["OpenSky / ADSB.lol<br/>+ route, photo, airport,<br/>METAR providers"]
-    Collector --> DB[("SQLite<br/>archive, workspace,<br/>caches")]
-    API --> DB
-    Maintenance["Archive maintenance<br/>(worker)"] --> DB
-    Alerts["Alert worker<br/>(optional)"] --> DB
+    Browser["Browser<br/>Svelte + MapLibre + WebGL aircraft layer"] --> Nginx["nginx<br/>static files, gzip, 2 s micro-cache"]
+    Nginx --> API["Starlette + uvicorn<br/>tile cache, trails, search"]
+    API --> ADSB["ADSB.lol<br/>one shared fetcher"]
+    API --> Static["VRS standing data, AWC weather"]
+    API --> DB[("SQLite<br/>trail checkpoints")]
+    Browser -. "photos, called by the browser" .-> PS["Planespotters"]
 ```
 
-Each box is a separate Docker Compose service built from the same backend image. The API and workers share one Docker volume, so the API can answer most map requests from the collector's latest snapshot instead of calling a provider per browser request. `/health` reports provider, collector, archive and cache state.
+- The server keeps a **tile cache** (5 degree tiles) that is filled on demand, shared by every viewer, and refreshed under a global request budget. Responses are a **compact binary format** (32 bytes per aircraft; 15,000 aircraft are about 300 KB gzipped, against 3.4 MB of JSON in the previous version), with a strong ETag so unchanged areas cost a 304.
+- At low zoom the server returns one representative aircraft per screen-sized grid cell, so weak devices never draw tens of thousands of icons. Full density from zoom 7.
+- Trails are compact arrays: the last 15 minutes at full resolution, older points thinned (Douglas-Peucker on position and altitude). 5,000 aircraft with 6 hours of flight each use about 38 MB. A checkpoint to SQLite survives restarts.
+- Each enrichment (route, photo, weather, aircraft identity) fails on its own and shows an honest message for that field only.
+- Pure Python dependencies only (Starlette, uvicorn, anyio, h11, click, idna), no native wheels, so it runs on Python 3.12 to 3.14 including on aarch64 Termux.
 
-## Tech stack
+## Run it
 
-- **Backend:** Python 3.12, Flask 3, `requests`, SQLite (WAL mode), server-sent events
-- **Frontend:** Svelte 5, Vite 6, Leaflet with marker clustering, a custom WebGL layer for dense traffic
-- **Infrastructure:** Docker Compose (API, frontend, collector, archive maintenance, optional alert worker), Nginx
-- **Testing:** `unittest` (backend), `node:test` (frontend utilities), Playwright (browser flows), GitHub Actions
-
-## Quick start
-
-Docker Engine and the Docker Compose plugin are required.
+Docker is for local development and CI only.
 
 ```bash
-git clone https://github.com/MaciejZiel/live_flights_map.git
-cd live_flights_map
-docker compose up --build -d
+docker compose up --build        # demo traffic on http://localhost:18080
+DEMO_MODE=0 docker compose up    # the real ADSB.lol feed (read the limits above)
 ```
 
-Open <http://localhost:5174>. The first global snapshot appears after the collector's first run, usually within a minute. Run `docker compose down` to stop.
-
-## Demo mode
-
-Demo mode runs the whole app in one container with **synthetic traffic**, so it can be deployed publicly without API keys and without redistributing third-party flight data.
+Without Docker:
 
 ```bash
-docker compose -f compose.demo.yaml up --build -d
-# open http://localhost:8080
+cd server && python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
+DEMO_MODE=1 python -m flightmap                  # API on 127.0.0.1:8000
+cd ../web && npm ci && npm run dev               # app on http://localhost:5173 (proxies /api)
 ```
 
-What `DEMO_MODE=true` changes:
+### Configuration (environment variables)
 
-- **Data:** the only flight provider is a built-in generator (`backend/services/demo_traffic.py`). A seeded fleet of 900 aircraft flies between real airport locations on great-circle routes with climb, cruise and descent. Positions depend only on time, so every instance shows the same sky. Callsigns start with `DEMO`, registrations with `SYN-`, the origin country is `Synthetic`, and the UI shows a *Demo* banner.
-- **Replay:** on start the archive is backfilled with 90 minutes of snapshots, and a background thread adds one every 30 s, so the replay timeline works immediately without separate workers.
-- **Read-only:** every non-GET API request returns `403`, the SSE stream is disabled, and flight details are answered locally. Route, photo and metadata providers are never called, and the photo proxy allows no hosts. The only outbound requests are for the public-domain OurAirports catalog and METAR weather.
-- **Rate limiting:** a per-client sliding window (`DEMO_RATE_LIMIT_PER_MINUTE`, default 240) and a global backstop (`DEMO_GLOBAL_RATE_LIMIT_PER_MINUTE`, default 3000). Both return `429` with `Retry-After`. Set `DEMO_TRUST_PROXY_HEADERS=true` behind a PaaS proxy so the client IP is read from `X-Forwarded-For`.
-- **Serving:** `Dockerfile.demo` builds the frontend and serves it from Flask under gunicorn (one worker, eight threads), so Nginx is not needed.
+| Variable | Default | Meaning |
+|---|---|---|
+| `HOST`, `PORT` | `127.0.0.1`, `8000` | where the API listens |
+| `BASE_PATH` | empty | URL prefix if the reverse proxy does not strip it |
+| `DEMO_MODE` | `0` | synthetic traffic and weather, no network |
+| `UPSTREAM_BUDGET_RPS` | `0.2` | upper bound for requests per second to ADSB.lol (adapts downwards on 429) |
+| `PREFETCH_REGIONS` | Europe, US East, US West, Middle East, East Asia, India, world | background coverage plan `name:south,north,west,east:priority:interval_s;...` (`all` for the world, `off` disables) |
+| `PREFETCH_ALWAYS` | `1` | prefetch even with no viewers (`0`: only for 15 minutes after the last viewer) |
+| `MAX_TILE_AGE_S` | `900` | tiles older than this are not served; the map dims data older than two thirds of it |
+| `DATA_DIR` | `./data` | SQLite trail checkpoints |
+| `GZIP` | `1` | compress responses (turn off behind nginx) |
+| `USER_AGENT_CONTACT` | repo URL | included in the User-Agent sent to upstream services; set your own |
+| `STATIC_DIR` | empty | serve a built web app from the API process (dev, Docker) |
 
-Other settings: `DEMO_FLIGHT_COUNT`, `DEMO_SEED`, `DEMO_SNAPSHOT_INTERVAL_SECONDS`, `DEMO_BACKFILL_MINUTES`.
+The API is documented in [server/README.md](server/README.md).
 
-**Why the traffic is synthetic rather than recorded.** The collector's output can't be freely redistributed. OpenSky offers its API "for research and non-commercial purposes" under its own [terms and data license](https://opensky-network.org/about/terms-of-use), which do not grant a public redistribution right. ADSB.lol data is [ODbL 1.0](https://www.adsb.lol/docs/open-data/api/) (share-alike, with attribution). So the demo bundles no recorded traffic: every position is generated from the seed when the app runs. Only airport coordinates and codes are real, used as route endpoints.
+## Self-hosting on Termux
 
-### Deploy the demo to Render
+Contrail runs as plain processes on a small always-on server; Termux on an aarch64 Android device is one target (nothing here needs a native wheel). The public name is `contrail.maciejzielinski.dev`, reached through a tunnel with no open ports.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/MaciejZiel/live_flights_map)
+1. Install `python`, `nodejs` (24 LTS) and `nginx` from the Termux packages and clone this repository to `~/contrail`.
+2. Run `deploy/termux/install.sh` by hand, on the first deploy and on every update. It needs the network: it creates the virtualenv, installs the six pure-Python requirements and builds the web app. Nothing is installed at boot.
+3. Copy `deploy/termux/env.example` to `~/.config/contrail/env` and set `USER_AGENT_CONTACT`.
+4. Supervise the API like the other services on the host: link `deploy/termux/run-contrail.sh` to `~/services/run-contrail.sh` (it restarts `start.sh` after 5 seconds) and start it from `~/.termux/boot/start-services`. `start.sh` only does `exec python -m flightmap` on `127.0.0.1:8100`.
+5. nginx: include `deploy/termux/nginx-http.conf` at **http level** (it defines `proxy_cache_path`, the rate-limit zones and the client-address map, which are not allowed inside a server block) and `deploy/termux/nginx-server.conf` for the server block. Adjust the absolute paths in the includes if you cloned elsewhere, then run `nginx -t`. Point the tunnel at `127.0.0.1:8080`.
+   - `/api/` is limited to 10 requests per second and the endpoints that can cost an upstream request (search, weather, aircraft details and routes) to 1 per second, per `CF-Connecting-IP`.
+   - Responses carry a content security policy and the usual security headers (`nginx-headers.conf`, which must match `CONTENT_SECURITY_POLICY` in `server/flightmap/app.py`; a test checks it). `index.html` is never cached, hashed assets and the version-named map worker are cached for a year.
+   - `/api/` gets gzip and a 2 second micro-cache, so any number of viewers cost one backend call per two seconds.
 
-The button reads [`render.yaml`](render.yaml): one free Docker web service in Frankfurt, built from `Dockerfile.demo` with demo mode enabled. Nothing needs to be configured, as the demo uses no secrets.
-
-1. Sign in to [Render](https://render.com) and connect your GitHub account (Render asks for access to this repository).
-2. Click **Deploy to Render** above, or go to **New > Blueprint** and pick this repository. Render detects `render.yaml`.
-3. Keep the service name `live-flights-map-demo` (or change it), check that the plan is **Free**, and click **Apply**.
-4. Wait for the first build (about 3 to 5 minutes). The app is then at `https://<service-name>.onrender.com`, and `/health` should report `"demo_mode": true`.
-5. Optional: change `DEMO_FLIGHT_COUNT` or the rate limits under **Environment**. Pushing to `master` redeploys automatically (`autoDeploy`).
-
-Free Render services sleep after 15 minutes without traffic and take up to a minute to wake. The free plan has no persistent disk, so the archive is rebuilt (backfilled) on each start, which is all the demo needs. To keep history across restarts, switch to a paid plan and uncomment the `disk` block in `render.yaml`.
+The measurements in this README were taken on a development laptop, not on that hardware.
 
 ## Tests
 
-```bash
-# Backend: 104 unittest tests
-python -m unittest discover -s backend/tests -v
+- `server/`: `python -m unittest discover -s tests -t .`, `ruff check`, `ruff format --check`, `npx pyright` (strict). Tests include the real provider against a fixture upstream that serves synthetic data shaped exactly like ADSB.lol responses.
+- `web/`: `npm run typecheck`, `npm test` (vitest), `npm run test:e2e` (Playwright against the real server and the built app, desktop and a Pixel 7 profile).
+- `web/scripts/perf.mjs` measures frame times (`GPU=1`, `THROTTLE=6`); `server/scripts/measure_trails.py` measures trail memory.
+- CI (`.github/workflows/ci.yml`) runs all of it.
 
-# Frontend: 63 unit tests, production build, 4 Playwright browser flows
-cd frontend
-npm ci
-npm test
-npm run build
-npx playwright install chromium
-npm run test:e2e
+## Repository layout
+
+```
+server/flightmap/   API, tile cache, providers, trails, search (Python)
+server/tests/       unit and integration tests, fixture upstream
+server/scripts/     data builders (airports, airlines, type photos) and probes
+web/src/            core (decoder, dead reckoning, poller), map (WebGL layer), panel, search, filters, ui
+web/e2e/            Playwright tests
+web/public/type-photos/   type gallery with manifest and attributions
+deploy/termux/      start script, env example, nginx snippet, boot script
+docs/design.md      the design this was built from, with amendments
 ```
 
-The backend tests can also run inside the image: `docker compose run --rm --no-deps api python -m unittest discover -s backend/tests -v`. GitHub Actions runs all of the above on every push and pull request. The Playwright flows mock the API responses, so CI does not depend on live feeds.
+## Licence and attribution
 
-## Key technical decisions
-
-- **One collector instead of per-user provider calls.** OpenSky limits anonymous clients heavily, so a separate worker fetches one global snapshot on a schedule (every 20 minutes anonymously, 3 minutes with OAuth2) and stores it in SQLite. The API serves map requests from that snapshot and only adds a small, rate-capped ADSB.lol area request (max 25 square degrees, one per 30 s shared across clients) when the user zooms in. The cost is freshness: anonymous data can be several minutes old, so the UI marks positions as delayed instead of presenting them as live.
-- **Provider chain with explicit cooldowns.** Providers sit behind a small `FlightProvider` protocol. Rate-limit errors carry the upstream `Retry-After` value, the provider is put on cooldown, and the next provider or the last cached snapshot is used. Every response says which source it came from and how old it is.
-- **SQLite instead of a database server.** The archive, workspace profiles and caches are SQLite files on a shared volume, with WAL mode so the API can read while the collector writes. This keeps the app a single `docker compose up` with no extra service, at the cost of horizontal scaling. Retention (24 h / 720 snapshots by default) is enforced by a maintenance worker.
-- **Rendering mode chosen by density.** Thousands of Leaflet DOM markers make the map slow, so the frontend switches between detailed markers, a lighter marker mode and a WebGL overlay depending on aircraft count and zoom (`frontend/src/lib/utils/mapPerformance.js`), and only processes aircraft in the visible map area.
-
-## Limitations / next steps
-
-- Data quality is whatever the public feeds provide. Coverage has gaps, and routes and photos are best-effort lookups that are often missing.
-- The API runs on Flask's built-in server, and each server-sent events connection keeps a thread busy. A production setup would need a WSGI server (for example gunicorn) or an async framework for the stream.
-- Workspace profiles are not user accounts. There is no authentication, so the full app is bound to loopback and should not be exposed to the internet. Use [demo mode](#demo-mode) for a public deployment.
-- SQLite limits this to a single host. Moving the archive to PostgreSQL/PostGIS would allow multiple API instances and spatial queries.
-
-## Docker details
-
-The API is reached through the frontend proxy and is not published as a separate host port. SQLite data and caches persist in a named Docker volume. Set `FRONTEND_PORT` in `.env` to override the port.
-
-To use authenticated OpenSky access, create an API client in your OpenSky account and set its client ID and secret in `.env`. OAuth2 tokens are cached and refreshed automatically. Legacy username/password credentials remain supported for existing accounts; new clients should use OAuth2.
-
-```bash
-cp .env.example .env
-# Set OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET in .env.
-docker compose up --build -d
-```
-
-Without OAuth2 credentials, the snapshot collector requests one global OpenSky snapshot every 20 minutes. With OAuth2 credentials, it defaults to every 3 minutes (1,920 credits/day at 4 credits per global request); set `SNAPSHOT_COLLECTOR_INTERVAL_SECONDS` to override. The API and collector share the same cache and provider cooldowns. Positions older than two minutes (four minutes with OAuth2 polling) are marked as delayed. Global requests use OpenSky's single global endpoint instead of expanding into regional ADSB requests. At zoom level 6 or higher, the browser can supplement the world snapshot with one cached 3° ADSB.lol area when panning into a different cell; the server enforces a 30-second shared provider interval and a 25 square-degree request cap. Zooming within the same cell does not trigger another aircraft request. Provider cooldowns honor upstream `Retry-After` values. The persisted alert sweeper remains opt-in:
-
-```bash
-docker compose --profile workers up --build -d alert-worker
-```
-
-The browser polls `/api/flights` with `If-None-Match` every 30 seconds by default. To push updates over server-sent events instead, build the frontend with `VITE_USE_SSE=true docker compose up --build -d`. The stream sends a heartbeat comment every `FLIGHT_STREAM_HEARTBEAT_SECONDS` (15 s) so proxies do not drop it as idle, and Nginx serves it from a dedicated location without buffering or compression.
-
-Useful commands:
-
-```bash
-docker compose ps
-docker compose logs -f api frontend
-docker compose logs -f collector alert-worker
-docker compose down
-```
-
-The frontend is bound to loopback by default. Workspace profiles are local saved desks, not authenticated user accounts or an access-control boundary. Do not expose this local demo directly to the public internet.
-
-## Run for development
-
-### Backend
-
-Python 3.12 or newer is recommended.
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python -m backend.entrypoints.api
-```
-
-The backend listens on <http://127.0.0.1:5000> by default.
-
-### Frontend
-
-```bash
-cd frontend
-npm ci
-npx playwright install chromium  # only needed for browser tests
-npm run dev
-```
-
-Open <http://127.0.0.1:5173>. The Vite development proxy forwards `/api` and `/health` to the backend. Use `VITE_API_BASE_URL` only when intentionally connecting to a different API origin.
-
-## Main API routes
-
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/flights` | Current traffic for a bounding box |
-| `GET` | `/api/flights/stream` | Server-sent live updates |
-| `GET` | `/api/flights/{icao24}/details` | Aircraft, route and photo details |
-| `GET` | `/api/flights/{icao24}/trail` | Archived positions for an aircraft |
-| `GET` | `/api/history/replay` | Archived snapshots for a map area |
-| `GET` | `/api/search` | Search recent traffic and known entities |
-| `GET` | `/api/airports` | Airports visible in a map area, with catalog status |
-| `GET` | `/api/airports/{code}` | Airport traffic dashboard |
-| `GET` | `/api/airports/{code}/weather` | Current METAR where available |
-| `GET/POST/PUT` | `/api/workspace/*` | Local workspace profiles and saved state |
-| `GET` | `/api/traffic/leaderboard` | Regional traffic summary |
-| `GET` | `/health` | Runtime diagnostics |
-
-Bounding-box coordinates use `lamin`, `lamax`, `lomin` and `lomax`. The airport list is capped server-side to keep broad map views responsive.
-
-## Configuration and data
-
-Copy `.env.example` to `.env` to configure provider credentials and retention. Compose also supports standard environment overrides, including `FRONTEND_PORT`, `FLIGHT_DATA_PROVIDERS`, `FLIGHT_ARCHIVE_RETENTION_HOURS` and `FLIGHT_ARCHIVE_MAX_SNAPSHOTS`.
-
-| Source | Use |
-| --- | --- |
-| [OpenSky Network](https://opensky-network.org/) | Aircraft state vectors |
-| [ADSB.lol](https://adsb.lol/) | Position fallback and aircraft metadata |
-| [OurAirports](https://ourairports.com/data/) | Airport catalog |
-| [Aviation Weather Center](https://aviationweather.gov/data/api/) | METAR weather |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Map data and attribution |
-| Wikimedia Commons, Openverse and Planespotting | Aircraft imagery, when a match is available |
-
-Live traffic is not complete coverage and route enrichment is best-effort. A missing route, photo or airport movement means the provider did not return enough matching data; it does not mean the flight or event did not happen. The app shows provider warnings and stale-cache state rather than presenting cached positions as live.
-
-## License
-
-MIT License, see [LICENSE](LICENSE).
+Code: MIT, see [LICENSE](LICENSE). Third-party components and data, including one line per type photo, are listed in [3rdparty_licenses.md](3rdparty_licenses.md); photo credits are in [web/public/type-photos/ATTRIBUTIONS.md](web/public/type-photos/ATTRIBUTIONS.md). Aircraft data: [ADSB.lol](https://adsb.lol) (ODbL 1.0). Map data: OpenStreetMap contributors via OpenFreeMap and OpenMapTiles. Weather: NOAA Aviation Weather Center. Photos: Planespotters.net photographers and Wikimedia Commons authors as credited next to each image.
