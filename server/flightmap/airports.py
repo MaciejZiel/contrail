@@ -103,3 +103,29 @@ def distance_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def load_catalog() -> AirportCatalog:
     raw = resources.files("flightmap").joinpath("data/airports.json").read_text("utf-8")
     return AirportCatalog(json.loads(raw))
+
+
+_KIND_LABEL = {"L": "Large airport", "M": "Medium airport", "S": "Small airport"}
+
+
+@lru_cache(maxsize=1)
+def _details() -> dict[str, dict[str, Any]]:
+    raw = resources.files("flightmap").joinpath("data/airport_details.json").read_text("utf-8")
+    return json.loads(raw)
+
+
+def airport_details(rec: AirportRec) -> dict[str, Any]:
+    """OurAirports metadata for the airport card: type, region, runways, frequencies and links."""
+    d = _details().get(rec.icao, {})
+    return {
+        "type": _KIND_LABEL.get(rec.kind, "Airport"),
+        "scheduled_service": rec.scheduled,
+        "region": d.get("reg", ""),
+        "runways": [
+            {"ends": [r[0], r[1]], "length_ft": r[2], "surface": r[3], "lighted": bool(r[4])}
+            for r in d.get("r", [])
+        ],
+        "frequencies": [{"type": f[0], "mhz": f[1]} for f in d.get("f", [])],
+        "wikipedia": d.get("w", ""),
+        "website": d.get("h", ""),
+    }

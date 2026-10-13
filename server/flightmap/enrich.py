@@ -44,6 +44,13 @@ class EnrichmentCache:
         hit = self._store.get(key)
         return (hit is not None and hit[0] > time.monotonic()) or key in self._inflight
 
+    def peek(self, key: str) -> Any:
+        """The cached value for ``key``, or None when it is missing, failed or expired. Never loads."""
+        hit = self._store.get(key)
+        if hit is None or hit[0] <= time.monotonic() or isinstance(hit[1], UpstreamError):
+            return None
+        return hit[1]
+
     async def get(self, key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
         """Value for ``key`` (may be None for "known to not exist"); raises UpstreamError when unavailable."""
         now = time.monotonic()

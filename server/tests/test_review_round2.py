@@ -220,9 +220,9 @@ class KeepAndZoomTest(unittest.IsolatedAsyncioTestCase):
         levels: list[int] = []
         original = api._blocks
 
-        def spy(entries: Any, level: int) -> Any:
+        def spy(entries: Any, level: int, flt: Any) -> Any:
             levels.append(level)
-            return original(entries, level)
+            return original(entries, level, flt)
 
         api._blocks = spy
         await asgi_get(self.app, "/api/v1/aircraft?x0=0&y0=0&x1=71&y1=35")  # no z at all

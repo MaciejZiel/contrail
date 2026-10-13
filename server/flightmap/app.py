@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import os
 import re
 import time
@@ -25,11 +26,12 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import __version__
-from .airports import load_catalog
+from .airports import airport_details, load_catalog
 from .codec import encode_aircraft, encode_header, encode_tiles
 from .config import Settings
 from .demo import DemoProvider, DemoWeather
 from .enrich import EnrichmentCache
+from .filtering import AircraftFilter, hexes_matching, type_counts
 from .index import AircraftIndex
 from .models import Aircraft
 from .providers import TileProvider
@@ -123,6 +125,14 @@ class SecurityHeaders:
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
+
+
+def _clamp_float(raw: str | None, default: float, lo: float, hi: float) -> float:
+    try:
+        v = float(raw) if raw is not None else default
+    except ValueError:
+        return default
+    return min(hi, max(lo, v)) if math.isfinite(v) else default
 
 
 def _int_param(request: Request, name: str) -> int:
@@ -236,6 +246,14 @@ class Api:
         wide = len(tiles_in_rect(x0, y0, x1, y1)) > WIDE_REQUEST_TILES
         if wide and level == 0:
             level = FINEST_LEVEL  # a wide rectangle is never served unthinned
+        parsed = AircraftFilter.from_params(request.query_params)
+        # Only a thinned response needs the filter (thinning would otherwise keep aircraft the client
+        # then hides); full-density responses are shared and filtered by the client.
+        flt = (
+            AircraftFilter(callsign_prefix=parsed.callsign_prefix, airline=parsed.airline, types=parsed.types)
+            if level > 0
+            else AircraftFilter()
+        )
         keep_raw = request.query_params.get("keep", "").lower()
         keep = int(keep_raw, 16) if level > 0 and _HEX_RE.match(keep_raw) else None
         # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
@@ -244,7 +262,10 @@ class Api:
         await self.cache.request(tiles, focus=focus)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
-            (f"L{level}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
+            (
+                f"L{level}:{flt.tile_key}:"
+                + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)
+            ).encode()
         ).hexdigest()[:20]
         # Weak: the tile data is identical for equal tags, but every body carries the current server time.
         etag = f'W/"{digest}"'
@@ -260,7 +281,7 @@ class Api:
             return Response(status_code=304, headers=headers)
         snap = self._snapshots.get(digest)
         if snap is None:
-            blocks, present = self._blocks(entries, level)
+            blocks, present = self._blocks(entries, level, flt)
             snap = _Snapshot(blocks, present, encode_tiles(blocks))
             self._snapshots[digest] = snap
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
@@ -289,7 +310,9 @@ class Api:
         return None
 
     @staticmethod
-    def _blocks(entries: list[TileEntry], level: int) -> tuple[list[_Block], frozenset[int]]:
+    def _blocks(
+        entries: list[TileEntry], level: int, flt: AircraftFilter
+    ) -> tuple[list[_Block], frozenset[int]]:
         """Tile blocks for the response; at low zoom one representative aircraft per grid cell."""
         if level == 0:
             return (
@@ -306,7 +329,7 @@ class Api:
                 ],
                 frozenset(),
             )
-        owned = [(i, a) for i, e in enumerate(entries) for a in e.aircraft]
+        owned = [(i, a) for i, e in enumerate(entries) for a in e.aircraft if flt.matches(a)]
         kept: dict[int, list[Aircraft]] = {}
         for i, a in thin(owned, level):
             kept.setdefault(i, []).append(a)
@@ -408,6 +431,65 @@ class Api:
         }
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
 
+    async def recent_trails(self, request: Request) -> Response:
+        """Recent tracks of the aircraft in a box, newest first, for drawing a trail behind each one."""
+        q = request.query_params
+        try:
+            w, s_, e, n = (float(q[k]) for k in ("w", "s", "e", "n"))
+        except (KeyError, ValueError):
+            return JSONResponse({"error": "w, s, e and n are required numbers"}, status_code=400)
+        if not all(math.isfinite(v) for v in (w, s_, e, n)) or not (-90 <= s_ <= n <= 90):
+            return JSONResponse({"error": "invalid box"}, status_code=400)
+        window = _clamp_float(q.get("window"), 1800.0, 60.0, 3600.0)
+        limit = int(_clamp_float(q.get("limit"), 400.0, 1.0, 600.0))
+        flt = AircraftFilter.from_params(q)
+        w, e = ((w + 180) % 360) - 180, ((e + 180) % 360) - 180
+        cx = (w + ((e - w) % 360) / 2 + 180) % 360 - 180
+        cy = (s_ + n) / 2
+
+        def accept(hex_: int, lat: float, lon: float) -> bool:
+            if not (s_ <= lat <= n):
+                return False
+            if not (w <= lon <= e if w <= e else lon >= w or lon <= e):
+                return False
+            if not flt.active:
+                return True
+            found = self.index.get(hex_)
+            return found is not None and flt.matches(found[0])
+
+        rows = self.trails.recent(
+            accept, window_s=window, max_age_s=self.settings.max_tile_age_s, now=time.time()
+        )
+        rows.sort(key=lambda r: (r[2][-1][0] - cx) ** 2 + (r[2][-1][1] - cy) ** 2)
+        shown = rows[:limit]
+        body = {
+            "ok": True,
+            "total": len(rows),
+            "window_s": window,
+            "trails": [
+                {
+                    "h": f"{h:06x}",
+                    "p": [[round(lo, 4), round(la, 4), None if al is None else round(al / 100)] for lo, la, al in pts],
+                }
+                for h, _t, pts in shown
+            ],
+        }  # fmt: skip
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
+
+    async def types(self, _request: Request) -> Response:
+        return JSONResponse(
+            {"ok": True, "types": type_counts(self.index)}, headers={"Cache-Control": "public, max-age=10"}
+        )
+
+    async def type_hexes(self, request: Request) -> Response:
+        flt = AircraftFilter.from_params({"ty": request.query_params.get("ty", "")})
+        if not flt.types:
+            return JSONResponse({"error": "ty must list type codes such as A320 or A32*"}, status_code=400)
+        return JSONResponse(
+            {"ok": True, "types": list(flt.types), "hexes": hexes_matching(self.index, flt)},
+            headers={"Cache-Control": "public, max-age=5"},
+        )
+
     # -- search, airports, weather ------------------------------------------------------
 
     async def search(self, request: Request) -> Response:
@@ -455,15 +537,27 @@ class Api:
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
+    def _cached_route(self, callsign: str) -> tuple[str, str] | None:
+        """Origin and destination of an already cached route; never starts a lookup."""
+        route = self._routes.peek(callsign)
+        if route is None:
+            return None
+        return route.airports[0].icao, route.airports[-1].icao
+
     async def airport(self, request: Request) -> Response:
         rec = self.airports.get(str(request.path_params["code"]))
         if rec is None:
             return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
+        nearby = nearby_aircraft(self.index, rec, known_route=self._cached_route)
+        counts: dict[str, int] = dict.fromkeys(("arriving", "departing", "ground", "nearby"), 0)
+        for item in nearby:
+            counts[str(item["state"])] += 1
         return JSONResponse(
             {
                 "ok": True,
-                "airport": rec.as_dict(),
-                "nearby": nearby_aircraft(self.index, rec),
+                "airport": {**rec.as_dict(), **airport_details(rec)},
+                "nearby": nearby,
+                "counts": counts,
                 "radius_nm": 10,
             },
             headers={"Cache-Control": "public, max-age=5"},
@@ -587,6 +681,9 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         HttpRoute("/api/v1/aircraft/{hex}", api.aircraft_detail),
         HttpRoute("/api/v1/aircraft/{hex}/route", api.route),
         HttpRoute("/api/v1/aircraft/{hex}/trail", api.trail),
+        HttpRoute("/api/v1/trails", api.recent_trails),
+        HttpRoute("/api/v1/types", api.types),
+        HttpRoute("/api/v1/type-hexes", api.type_hexes),
         HttpRoute("/api/v1/search", api.search),
         HttpRoute("/api/v1/airports/catalog", api.airport_catalog),
         HttpRoute("/api/v1/airports/{code}", api.airport),
