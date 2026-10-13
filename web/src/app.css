@@ -89,3 +89,27 @@ button {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* origin and destination pins on the map */
+.route-pin {
+  padding: 3px 8px;
+  border-radius: 8px;
+  font: 700 12px/1 var(--mono);
+  color: #04201c;
+  background: var(--accent);
+  border: 2px solid #0b1020;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.route-pin.destination {
+  background: #fbbf24;
+  color: #2a1c02;
+}
+.route-est-label {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font: italic 11px/1.2 var(--font);
+  color: #cdd6e8;
+  background: rgba(11, 16, 32, 0.8);
+  pointer-events: none;
+}

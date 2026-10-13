@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { fetchAircraft, fetchRoute, fetchTrail, type AircraftInfo, type Loaded, type RouteInfo, type Trail } from "../core/api";
   import { serverNow } from "../core/clock";
-  import { fmtAge, fmtAlt, fmtAltFull, fmtSpeed, fmtTrack, fmtVrate, progressAlong, squawkMeaning } from "../core/format";
+  import { estimateArrival, type Eta } from "../core/geodesy";
+  import { haversineKm, fmtAge, fmtAlt, fmtAltFull, fmtSpeed, fmtTrack, fmtVrate, progressAlong, squawkMeaning } from "../core/format";
   import type { AircraftStore } from "../core/store";
   import Photo from "./Photo.svelte";
   import RouteBar from "./RouteBar.svelte";
@@ -14,12 +15,14 @@
     onClose,
     onTrail,
     onLocate,
+    onRoute,
   }: {
     store: AircraftStore;
     hex: string;
     onClose: () => void;
     onTrail: (t: Trail | null) => void;
     onLocate: (lat: number, lon: number) => void;
+    onRoute: (r: RouteInfo | null) => void;
   } = $props();
 
   let info = $state<Loaded<AircraftInfo>>({ state: "loading" });
@@ -37,6 +40,9 @@
     ageS: 0,
     progress: null as number | null,
     tracked: false,
+    flownKm: null as number | null,
+    remainingKm: null as number | null,
+    eta: null as Eta | null,
   });
   let copied = $state(false);
 
@@ -58,11 +64,20 @@
       track: plane.track,
       squawk: plane.squawk || null,
       ageS: Math.max(0, now - plane.t0),
-      progress:
-        route.state === "ok"
-          ? progressAlong(route.value.origin, route.value.destination, yToLatLocal(pos.y), pos.x * 360 - 180)
-          : null,
+      progress: null,
+      flownKm: null,
+      remainingKm: null,
+      eta: null,
     };
+    if (route.state === "ok") {
+      const lat = yToLatLocal(pos.y);
+      const lon = pos.x * 360 - 180;
+      const { origin, destination } = route.value;
+      live.progress = progressAlong(origin, destination, lat, lon);
+      live.flownKm = haversineKm(origin.lat, origin.lon, lat, lon);
+      live.remainingKm = haversineKm(lat, lon, destination.lat, destination.lon);
+      live.eta = plane.onGround ? null : estimateArrival(live.remainingKm, plane.speedKt, new Date());
+    }
   }
 
   function yToLatLocal(y: number): number {
@@ -83,6 +98,7 @@
     route = { state: "loading" };
     trail = { state: "loading" };
     onTrail(null);
+    onRoute(null);
     const guard = <T,>(p: Promise<Loaded<T>>, set: (v: Loaded<T>) => void) =>
       p.then(set, (e: unknown) => {
         if (!ctl.signal.aborted) set({ state: "error", reason: e instanceof Error ? e.message : "failed" });
@@ -91,7 +107,10 @@
       info = v;
       if (v.state === "ok" && !store.get(parseInt(h, 16))) onLocate(v.value.lat, v.value.lon);
     });
-    void guard(fetchRoute(h, ctl.signal), (v) => (route = v));
+    void guard(fetchRoute(h, ctl.signal), (v) => {
+      route = v;
+      onRoute(v.state === "ok" ? v.value : null);
+    });
     const loadTrail = () =>
       guard(fetchTrail(h, ctl.signal), (v) => {
         trail = v;
@@ -101,13 +120,19 @@
     const t = setInterval(() => void loadTrail(), 15000);
     // a route lookup that failed is retried once a minute
     const r = setInterval(() => {
-      if (route.state === "error") void guard(fetchRoute(h, ctl.signal), (v) => (route = v));
+      if (route.state === "error") {
+        void guard(fetchRoute(h, ctl.signal), (v) => {
+          route = v;
+          onRoute(v.state === "ok" ? v.value : null);
+        });
+      }
     }, 60000);
     return () => {
       ctl.abort();
       clearInterval(t);
       clearInterval(r);
       onTrail(null);
+      onRoute(null);
     };
   });
 
@@ -143,8 +168,8 @@
     <p class="alert" role="alert">Squawk {live.squawk}: {emergency}</p>
   {/if}
 
-  <Photo {hex} />
-  <RouteBar {route} {progress} />
+  <Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} />
+  <RouteBar {route} {progress} flownKm={live.flownKm} remainingKm={live.remainingKm} eta={live.eta} />
 
   <dl class="stats">
     <div><dt>Altitude</dt><dd>{fmtAlt(live.altFt, live.onGround)}</dd></div>

@@ -1,6 +1,7 @@
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Trail } from "../core/api";
+import type { LonLat } from "../core/geodesy";
 import { altitudeRgb } from "./palette";
 
 type SegmentFeature = Feature<LineString, { c: string }>;
@@ -70,6 +71,23 @@ export class TrailLayer {
         filter: ["==", ["get", "kind"], "join"],
         paint: { "line-color": ["get", "c"], "line-width": 3 },
       });
+      map.addSource("route", { type: "geojson", data: EMPTY });
+      map.addLayer({
+        id: "route-remaining",
+        type: "line",
+        source: "route",
+        filter: ["==", ["get", "kind"], "remaining"],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#e6ebf5", "line-width": 2, "line-dasharray": [2, 3], "line-opacity": 0.65 },
+      });
+      map.addLayer({
+        id: "route-estimated",
+        type: "line",
+        source: "route",
+        filter: ["==", ["get", "kind"], "estimated"],
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#9fb0d4", "line-width": 2, "line-dasharray": [1, 3], "line-opacity": 0.7 },
+      });
       this.ready = true;
     };
     if (map.isStyleLoaded()) add();
@@ -108,7 +126,17 @@ export class TrailLayer {
     this.src("trail-live")?.setData({ type: "FeatureCollection", features });
   }
 
+  /** Dashed lines: remaining route to the destination and the estimated part before the first sighting. */
+  setRouteLines(remaining: LonLat[][], estimated: LonLat[][]): void {
+    const features: Feature[] = [
+      ...remaining.filter((c) => c.length > 1).map((coords) => ({ type: "Feature" as const, properties: { kind: "remaining" }, geometry: { type: "LineString" as const, coordinates: coords } })),
+      ...estimated.filter((c) => c.length > 1).map((coords) => ({ type: "Feature" as const, properties: { kind: "estimated" }, geometry: { type: "LineString" as const, coordinates: coords } })),
+    ];
+    this.src("route")?.setData({ type: "FeatureCollection", features });
+  }
+
   clear(): void {
+    this.setRouteLines([], []);
     this.setTrail(null);
     this.setLive(null, null, null);
   }

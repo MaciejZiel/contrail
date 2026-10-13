@@ -142,7 +142,7 @@
 
   {#if ui.selected}
     <div class="panel-slot">
-      <AircraftPanel {store} hex={ui.selected} onClose={() => selectAircraft(null)} onTrail={(t: Trail | null) => ctl?.setTrail(t)} onLocate={locateSelected} />
+      <AircraftPanel {store} hex={ui.selected} onClose={() => selectAircraft(null)} onTrail={(t: Trail | null) => ctl?.setTrail(t)} onRoute={(r) => ctl?.setRoute(r)} onLocate={locateSelected} />
     </div>
   {:else if ui.airport}
     <div class="panel-slot">

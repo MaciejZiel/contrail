@@ -6,11 +6,14 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const PHOTO_LINK = "https://www.planespotters.net/photo/000001/test-photo";
 
 /** The Planespotters API is called by the browser itself, so it is stubbed at the network edge. */
-async function stubPlanespotters(page: Page, mode: "ok" | "error" = "ok"): Promise<string[]> {
+async function stubPlanespotters(page: Page, mode: "ok" | "error" | "empty" = "ok"): Promise<string[]> {
   const apiCalls: string[] = [];
   await page.route("https://api.planespotters.net/**", async (route) => {
     apiCalls.push(route.request().url());
     if (mode === "error") return route.fulfill({ status: 500, body: "boom" });
+    if (mode === "empty") {
+      return route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: '{"photos":[]}' });
+    }
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -72,7 +75,7 @@ test("a failing photo service only removes the photo", async ({ page }) => {
   await openMap(page, "c=50,10&z=7");
   await selectMover(page);
   const panel = page.getByTestId("aircraft-panel");
-  await expect(panel.getByText("No photo available")).toBeVisible();
+  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible(); // never an empty panel
   await expect(panel.getByRole("region", { name: "Route" }).locator("strong").first()).toBeVisible();
   await expect(panel.getByText("Ground speed").first()).toBeVisible();
 });
@@ -106,4 +109,50 @@ test("a deep link without a view centres on the aircraft", async ({ page }) => {
     .toBeGreaterThanOrEqual(7.9);
   const center = await page.evaluate(() => (window as any).__flights.map.getCenter());
   expect(Math.abs(center.lat - info.aircraft.lat)).toBeLessThan(6);
+});
+
+async function selectByType(page: Page, wanted: (type: string) => boolean): Promise<string> {
+  const hex = await page.evaluate(async (src) => {
+    const test = new Function("t", `return (${src})(t)`) as (t: string) => boolean;
+    const f = (window as any).__flights;
+    for (const p of f.store.planes.slice(0, 400)) {
+      if (!p.callsign) continue;
+      const info = (await (await fetch(`api/v1/aircraft/${p.id}`)).json()).aircraft;
+      if (info && info.type_code && test(info.type_code)) {
+        f.select(p.hex);
+        return p.id as string;
+      }
+    }
+    return null;
+  }, wanted.toString());
+  expect(hex).not.toBeNull();
+  return hex as string;
+}
+
+test("without an airframe photo the panel shows a representative type photo with credit and licence", async ({ page }) => {
+  await stubPlanespotters(page, "empty");
+  await openMap(page, "c=50,10&z=6");
+  const manifest = await (await page.request.get("/type-photos/manifest.json")).json();
+  await selectByType(page, (t) => ["A320", "B738", "E190", "A333", "B77W", "B788", "A359", "DH8D"].includes(t));
+  const panel = page.getByTestId("aircraft-panel");
+  await expect(panel.getByText("Representative photo, not this aircraft")).toBeVisible();
+  const img = panel.locator("figure img");
+  await expect(img).toHaveAttribute("src", /type-photos\/[A-Z0-9]+\.jpg$/);
+  await expect(panel.locator("figure").getByRole("link", { name: "Wikimedia Commons" })).toHaveAttribute("href", /commons\.wikimedia\.org\/wiki\/File:/);
+  const code = ((await img.getAttribute("src")) ?? "").match(/([A-Z0-9]+)\.jpg$/)![1]!;
+  const entry = manifest[code];
+  expect(entry.spdx).toMatch(/^(CC-BY-\d\.\d|CC0-1\.0|LicenseRef-Public-Domain)$/); // never SA or NC
+  await expect(panel.locator("figcaption")).toContainText(entry.author.slice(0, 12));
+  await expect(panel.locator("figcaption")).toContainText(entry.license);
+});
+
+test("an unknown type falls back to our own illustration", async ({ page }) => {
+  await stubPlanespotters(page, "empty");
+  // a type that is not in the gallery: serve an empty manifest, as if the type had no photo
+  await page.route("**/type-photos/manifest.json", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
+  await openMap(page, "c=50,10&z=6");
+  await selectByType(page, (t) => t === "A21N" || t === "A320");
+  const panel = page.getByTestId("aircraft-panel");
+  await expect(panel.getByText("Illustration · Airliner")).toBeVisible();
+  await expect(panel.getByRole("img", { name: "Illustration: Airliner" })).toBeVisible();
 });
