@@ -2,13 +2,16 @@ import type { Page } from "@playwright/test";
 
 export const FLIGHTS = "window.__flights";
 
-/** Open the app on the offline basemap with test hooks enabled. */
-export async function openMap(page: Page, query = "c=50,10&z=5"): Promise<void> {
+/**
+ * Open the app on the offline basemap with test hooks enabled. The synthetic traffic moves with
+ * the wall clock, so small views ask for fewer aircraft than the default.
+ */
+export async function openMap(page: Page, query = "c=50,10&z=5", minAircraft = 50): Promise<void> {
   await page.goto(`/?e2e=1&bm=offline&${query}`);
-  await page.waitForFunction(() => {
+  await page.waitForFunction((min) => {
     const f = (window as unknown as { __flights?: { store: { size: number } } }).__flights;
-    return !!f && f.store.size > 50;
-  });
+    return !!f && f.store.size > min;
+  }, minAircraft);
 }
 
 /** Pick a moving, airborne aircraft that is currently visible; returns its hex and screen position. */

@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const python = process.env.PYTHON ?? "python";
-const API_PORT = 9140;
-const UPSTREAM_PORT = 9141;
+// Overridable so several checkouts can run the suite side by side on one machine.
+const API_PORT = Number(process.env.E2E_API_PORT ?? 9140);
+const UPSTREAM_PORT = Number(process.env.E2E_UPSTREAM_PORT ?? 9141);
 
 const gpuArgs = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 
