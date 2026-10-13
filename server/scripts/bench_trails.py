@@ -7,6 +7,7 @@ encoding, response) for a box covering most of them, once cold and then served f
 from __future__ import annotations
 
 import asyncio
+import gzip
 import random
 import statistics
 import sys
@@ -55,8 +56,10 @@ def main() -> None:
         for i in range(8):  # a different limit each time, so nothing is reused
             cold += timed_ms(app, f"/api/v1/trails?{box}&limit={400 - i}", 1)
         warm = timed_ms(app, f"/api/v1/trails?{box}", 1) + timed_ms(app, f"/api/v1/trails?{box}", 20)
-        body = len(asyncio.run(asgi_get(app, f"/api/v1/trails?{box}")).body)
-        print(f"{n} trails, response {body / 1024:.0f} KB raw")
+        raw = asyncio.run(asgi_get(app, f"/api/v1/trails?{box}")).body
+        print(
+            f"{n} trails, response {len(raw) / 1024:.0f} KB raw, {len(gzip.compress(raw)) / 1024:.0f} KB gzipped"
+        )
         print(f"cold request: median {statistics.median(cold):.1f} ms, worst {max(cold):.1f} ms")
         print(f"reused result: median {statistics.median(warm[1:]):.2f} ms")
 
