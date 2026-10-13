@@ -32,6 +32,29 @@ test("a callsign prefix hides every other aircraft, shows a chip and survives a 
   await expect.poll(async () => new Set((await visibleCallsigns(page)).map((c) => c.slice(0, 2))).size).toBeGreaterThan(3);
 });
 
+test("several callsign prefixes can be typed with commas and keep every matching aircraft", async ({ page }) => {
+  await openMap(page, "c=50,10&z=5");
+  const prefixes = await page.evaluate(() => {
+    const seen = new Set<string>();
+    for (const p of (window as any).__flights.layer.visiblePlanes()) if (p.callsign.length >= 2) seen.add(p.callsign.slice(0, 2));
+    return [...seen].slice(0, 2);
+  });
+  expect(prefixes).toHaveLength(2);
+  await openFilters(page);
+  const box = page.getByLabel("Callsign starts with");
+  await box.pressSequentially(`${prefixes[0]!.toLowerCase()},${prefixes[1]}`);
+  await expect(box).toHaveValue(`${prefixes[0]!.toLowerCase()},${prefixes[1]}`);
+  await expect(page).toHaveURL(new RegExp(`cs=${prefixes[0]}(%2C|,)${prefixes[1]}`));
+  await expect(page.getByTestId("chip-callsign")).toContainText(`${prefixes[0]}*, ${prefixes[1]}*`);
+  await expect
+    .poll(async () => {
+      const all = await visibleCallsigns(page);
+      const heads = new Set(all.map((c) => c.slice(0, 2)));
+      return all.length > 0 && heads.size === 2 && all.every((c) => prefixes.some((p) => c.startsWith(p)));
+    })
+    .toBe(true);
+});
+
 test("an aircraft type filter keeps only that type, also on a thinned world view", async ({ page }) => {
   await openMap(page, "c=50,10&z=5");
   const type = await aKnownType(page);

@@ -24,20 +24,25 @@ describe("url state", () => {
     const v = {
       ...DEFAULT_VIEW,
       airport: "EPWA",
-      filters: { altMin: 1000, altMax: 12000, airline: "RYR", hideGround: true, callsign: "LO", types: ["A32*", "B738"] },
+      filters: { altMin: 1000, altMax: 12000, airline: "RYR", hideGround: true, callsigns: ["LO", "N12"], types: ["A32*", "B738"] },
       trails: 60 as const,
     };
     const parsed = parseUrlState(`?${serializeUrlState(v)}`);
     expect(parsed.airport).toBe("EPWA");
     expect(parsed.filters).toEqual(v.filters);
     expect(parsed.trails).toBe(60);
-    expect(serializeUrlState(v)).toContain("cs=LO&ty=A32*%2CB738&tr=60".replace("A32*", "A32*"));
+    expect(serializeUrlState(v)).toContain("cs=LO%2CN12&ty=A32*%2CB738&tr=60".replace("A32*", "A32*"));
   });
 
   it("ignores broken filter values", () => {
     const f = parseUrlState("?alt=a-b&air=toolong&gnd=1&cs=%3Cb%3E&ty=toolong,%3Cx%3E&tr=45");
-    expect(f.filters).toEqual({ ...DEFAULT_FILTERS, callsign: "B" });
+    expect(f.filters).toEqual(DEFAULT_FILTERS);
     expect(f.trails).toBe(0);
+  });
+
+  it("reads several callsign prefixes separated by commas or spaces", () => {
+    expect(parseUrlState("?cs=lo,ryr").filters.callsigns).toEqual(["LO", "RYR"]);
+    expect(parseUrlState("?cs=LO+RYR1%20N12").filters.callsigns).toEqual(["LO", "RYR1", "N12"]);
   });
 
   it("prefers a selected aircraft over an airport", () => {
@@ -46,6 +51,6 @@ describe("url state", () => {
   });
 
   it("keeps unrelated parameters", () => {
-    expect(preservedParams("?c=1,2&z=3&cs=LO&ty=A320&tr=30&bm=offline").toString()).toBe("bm=offline");
+    expect(preservedParams("?c=1,2&z=3&cs=LO%2CN12&ty=A320&tr=30&bm=offline").toString()).toBe("bm=offline");
   });
 });

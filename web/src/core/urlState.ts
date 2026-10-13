@@ -1,4 +1,4 @@
-import { ALT_LIMIT, cleanCallsign, DEFAULT_FILTERS, parseTypes, type Filters } from "./filters";
+import { ALT_LIMIT, parseCallsigns, DEFAULT_FILTERS, parseTypes, type Filters } from "./filters";
 import { clamp } from "./geo";
 
 export interface ViewState {
@@ -51,8 +51,8 @@ export function parseUrlState(search: string): ViewState {
   const air = p.get("air")?.toUpperCase();
   if (air && AIRLINE.test(air)) filters.airline = air;
   if (p.get("gnd") === "0") filters.hideGround = true;
-  const cs = cleanCallsign(p.get("cs") ?? "");
-  if (cs) filters.callsign = cs;
+  const cs = parseCallsigns(p.get("cs") ?? "");
+  if (cs.length) filters.callsigns = cs;
   const ty = parseTypes(p.get("ty") ?? "");
   if (ty.length) filters.types = ty;
   view.filters = filters;
@@ -70,7 +70,7 @@ export function serializeUrlState(v: ViewState): string {
   if (v.filters.altMin > 0 || v.filters.altMax < ALT_LIMIT) p.set("alt", `${v.filters.altMin}-${v.filters.altMax}`);
   if (v.filters.airline) p.set("air", v.filters.airline);
   if (v.filters.hideGround) p.set("gnd", "0");
-  if (v.filters.callsign) p.set("cs", v.filters.callsign);
+  if (v.filters.callsigns.length) p.set("cs", v.filters.callsigns.join(","));
   if (v.filters.types.length) p.set("ty", v.filters.types.join(","));
   if (v.trails) p.set("tr", String(v.trails));
   return p.toString();

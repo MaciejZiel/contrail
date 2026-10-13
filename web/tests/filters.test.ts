@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AircraftRecord } from "../src/core/codec";
-import { accepts, activeFilterCount, airlineCounts, cleanCallsign, DEFAULT_FILTERS, parseTypes, serverFilterQuery } from "../src/core/filters";
+import { accepts, activeFilterCount, airlineCounts, parseCallsigns, DEFAULT_FILTERS, parseTypes, serverFilterQuery } from "../src/core/filters";
 import { Plane } from "../src/core/plane";
 import { cloudsText, visibilityText, windText } from "../src/core/metar";
 import type { MetarData } from "../src/core/api";
@@ -35,10 +35,17 @@ describe("filters", () => {
     expect(activeFilterCount({ ...DEFAULT_FILTERS, altMin: 1, airline: "RYR", hideGround: true })).toBe(3);
   });
   it("filters by callsign prefix", () => {
-    const f = { ...DEFAULT_FILTERS, callsign: "RYR1" };
+    const f = { ...DEFAULT_FILTERS, callsigns: ["RYR1"] };
     expect(accepts(plane({}), f)).toBe(true);
     expect(accepts(plane({ callsign: "RYR22" }), f)).toBe(false);
     expect(accepts(plane({ callsign: "" }), f)).toBe(false);
+    expect(activeFilterCount(f)).toBe(1);
+  });
+  it("filters by any of several callsign prefixes", () => {
+    const f = { ...DEFAULT_FILTERS, callsigns: ["LO", "RYR"] };
+    expect(accepts(plane({ callsign: "LOT45" }), f)).toBe(true);
+    expect(accepts(plane({ callsign: "RYR22" }), f)).toBe(true);
+    expect(accepts(plane({ callsign: "WZZ1" }), f)).toBe(false);
     expect(activeFilterCount(f)).toBe(1);
   });
   it("filters by type through the list of addresses the server provides", () => {
@@ -50,14 +57,17 @@ describe("filters", () => {
     expect(accepts(p, DEFAULT_FILTERS, null)).toBe(true);
   });
   it("cleans typed callsigns and type lists", () => {
-    expect(cleanCallsign(" lo-t1 2345678 ")).toBe("LOT12345");
+    expect(parseCallsigns("LO,RYR")).toEqual(["LO", "RYR"]);
+    expect(parseCallsigns(" lo, ryr1  n12;lo ")).toEqual(["LO", "RYR1", "N12"]);
+    expect(parseCallsigns("lo-t, 123456789, ok")).toEqual(["OK"]);
+    expect(parseCallsigns("a,b,c,d,e,f,g,h,i,j")).toHaveLength(8);
     expect(parseTypes("a32*, B738 b738;<x> toolong *")).toEqual(["A32*", "B738"]);
     expect(parseTypes("1,2,3,4,5,6,7,8,9,10")).toHaveLength(8);
   });
   it("sends only what changes the server's answer", () => {
-    const f = { ...DEFAULT_FILTERS, callsign: "LO", types: ["A32*", "B738"], altMax: 12000, hideGround: true, airline: "LOT" };
-    expect(serverFilterQuery(f)).toBe("&cs=LO&air=LOT&ty=A32*%2CB738");
-    expect(serverFilterQuery(f, true)).toBe("&alt=0-12000&gnd=0&cs=LO&air=LOT&ty=A32*%2CB738");
+    const f = { ...DEFAULT_FILTERS, callsigns: ["LO", "RYR"], types: ["A32*", "B738"], altMax: 12000, hideGround: true, airline: "LOT" };
+    expect(serverFilterQuery(f)).toBe("&cs=LO%2CRYR&air=LOT&ty=A32*%2CB738");
+    expect(serverFilterQuery(f, true)).toBe("&alt=0-12000&gnd=0&cs=LO%2CRYR&air=LOT&ty=A32*%2CB738");
     expect(serverFilterQuery(DEFAULT_FILTERS)).toBe("");
   });
   it("counts airlines among visible callsigns", () => {
