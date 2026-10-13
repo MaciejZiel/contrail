@@ -24,6 +24,9 @@ MAX_INFLIGHT = 4
 MIN_RPS = 0.08
 # Share of the budget that zoomed-in ("focus") tiles may use while wide views also want tiles.
 FOCUS_SHARE = 0.75
+# After a 429 the rate grows back by RECOVERY_STEP_RPS per RECOVERY_INTERVAL_S without another one.
+RECOVERY_STEP_RPS = 0.02
+RECOVERY_INTERVAL_S = 30.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
 
@@ -73,7 +76,7 @@ class TileCache:
         self._inflight: dict[Tile, asyncio.Task[None]] = {}
         self._bucket = TokenBucket(self.budget_rps, burst=1.0 if self.budget_rps <= 2 else 4.0)
         self._version = 0
-        self._successes = 0
+        self._last_rate_change = 0.0  # monotonic
         self._paused_until = 0.0
         self._wake = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
@@ -201,7 +204,7 @@ class TileCache:
                 self._paused_until = time.monotonic() + pause
                 # multiplicative decrease: the provider told us we are too fast
                 self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.7)
-                self._successes = 0
+                self._last_rate_change = time.monotonic()
             log.warning("tile %s fetch failed: %s", tile, exc)
             return
         except Exception:
@@ -214,9 +217,7 @@ class TileCache:
             return
         st.failures = 0
         st.next_attempt = 0.0
-        self._successes += 1
-        if self._successes % 25 == 0:  # additive increase back towards the configured budget
-            self._bucket.rate = min(self.budget_rps, self._bucket.rate + 0.02)
+        self._recover_rate(time.monotonic())
         self.status.ok = True
         self.status.last_error = ""
         self.status.last_success_at = time.time()
@@ -237,6 +238,16 @@ class TileCache:
                 listener(tile, aircraft, now_wall)
             except Exception:
                 log.exception("tile listener failed")
+
+    def _recover_rate(self, now: float) -> None:
+        """Additive increase back towards the configured budget, paced by time.
+
+        Pacing by time rather than by successful requests keeps the recovery from a low rate
+        as quick as from a high one (counting requests took most of an hour at the floor).
+        """
+        if self._bucket.rate < self.budget_rps and now - self._last_rate_change >= RECOVERY_INTERVAL_S:
+            self._bucket.rate = min(self.budget_rps, self._bucket.rate + RECOVERY_STEP_RPS)
+            self._last_rate_change = now
 
     async def _loop(self) -> None:
         while True:

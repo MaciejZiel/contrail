@@ -151,3 +151,15 @@ class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
             self.assertLess(cache.snapshot_status()["current_rps"], 1.0)  # type: ignore[operator]
         finally:
             await cache.stop()
+
+    async def test_rate_recovers_with_time_not_request_count(self) -> None:
+        cache = make(FakeProvider(), budget_rps=0.35)
+        cache._bucket.rate = 0.08  # type: ignore[attr-defined]  # as after several 429s
+        cache._last_rate_change = 0.0  # type: ignore[attr-defined]
+        now = 1000.0
+        for _ in range(20):  # 20 * 30 s = 10 minutes, whatever the number of requests
+            now += 30.0
+            cache._recover_rate(now)  # type: ignore[attr-defined]
+        self.assertAlmostEqual(cache.snapshot_status()["current_rps"], 0.35)  # type: ignore[arg-type]
+        cache._recover_rate(now + 1)  # type: ignore[attr-defined]
+        self.assertLessEqual(cache._bucket.rate, 0.35)  # type: ignore[attr-defined]
