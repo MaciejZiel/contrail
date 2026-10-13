@@ -39,7 +39,7 @@ Read this before you rely on the map. The numbers below were measured while buil
 | Airline and aircraft type names | VRS standing data (CC0) | Bundled. |
 | Airports | OurAirports (public domain) | Bundled. |
 | Weather | NOAA Aviation Weather Center METAR/TAF | US government data, rate limit respected. |
-| Photos | Planespotters photo API, called by the visitor's browser | Their terms forbid proxying or storing; credit and link are always shown. |
+| Photos | Planespotters photo API, called by the visitor's browser | Their terms forbid proxying or storing; credit and link are always shown. Planespotters refuses some automated clients (a browser that identifies as HeadlessChrome gets no CORS headers); real browsers are not affected (verified on the live site). A blocked client makes one failed request, then the stored type photo or illustration is used without further console errors. |
 | Fallback photos | 142 type photos from Wikimedia Commons, public domain / CC0 / CC BY only | Stored in `web/public/type-photos` with author and licence per image; labelled "representative photo, not this aircraft". |
 | Basemap | OpenFreeMap vector tiles (OpenStreetMap data) | Free public instance, credited. |
 
