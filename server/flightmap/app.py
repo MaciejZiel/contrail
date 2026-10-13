@@ -10,6 +10,7 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import Protocol
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -21,16 +22,19 @@ from starlette.routing import Route as HttpRoute
 from starlette.staticfiles import StaticFiles
 
 from . import __version__
+from .airports import load_catalog
 from .codec import encode_response
 from .config import Settings
-from .demo import DemoProvider
+from .demo import DemoProvider, DemoWeather
 from .enrich import EnrichmentCache
 from .index import AircraftIndex
 from .models import Aircraft
 from .providers import TileProvider
 from .providers.adsblol import AdsbLolProvider
 from .providers.routes import Route, RouteProvider, is_plausible, progress
-from .reference import airline_for_callsign, type_name
+from .providers.weather import Metar, WeatherProvider
+from .reference import airline_for_callsign, airline_name, type_name
+from .search import aircraft_item, nearby_aircraft, search_all
 from .tilecache import TileCache
 from .tiles import Tile, tiles_in_rect
 from .trafficmask import load_traffic_tiles
@@ -88,6 +92,12 @@ def aircraft_json(a: Aircraft, fetched_at: float) -> dict[str, object]:
     }
 
 
+class WeatherSource(Protocol):
+    async def metar(self, icao: str) -> Metar | None: ...
+
+    async def taf(self, icao: str) -> str | None: ...
+
+
 class Api:
     def __init__(
         self,
@@ -96,6 +106,7 @@ class Api:
         index: AircraftIndex,
         trails: TrailStore,
         route_lookup: Callable[[str], Awaitable[Route | None]],
+        weather: WeatherSource,
     ) -> None:
         self.settings = settings
         self.cache = cache
@@ -104,6 +115,11 @@ class Api:
         self.traffic = load_traffic_tiles()
         self._snapshots: OrderedDict[str, bytes] = OrderedDict()
         self._route_lookup = route_lookup
+        self._weather = weather
+        self.airports = load_catalog()
+        self._metars = EnrichmentCache(ttl_s=600.0, neg_ttl_s=60.0)
+        self._tafs = EnrichmentCache(ttl_s=1800.0, neg_ttl_s=120.0)
+        self._searches = EnrichmentCache(ttl_s=30.0, neg_ttl_s=60.0)
         self._routes = EnrichmentCache(ttl_s=6 * 3600, neg_ttl_s=120.0)
         self._hexes = EnrichmentCache(ttl_s=20.0, neg_ttl_s=30.0)
 
@@ -237,6 +253,94 @@ class Api:
         }
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=5"})
 
+    # -- search, airports, weather ------------------------------------------------------
+
+    async def search(self, request: Request) -> Response:
+        q = request.query_params.get("q", "").strip()[:40]
+        if len(q) < 2:
+            return JSONResponse({"aircraft": [], "airports": [], "airlines": []})
+        result = search_all(self.index, self.airports, q)
+        if not result["aircraft"]:
+            exact = await self._exact_lookup(q)
+            if exact is not None:
+                result["aircraft"] = [exact]
+        return JSONResponse(result, headers={"Cache-Control": "public, max-age=3"})
+
+    async def _exact_lookup(self, q: str) -> dict[str, object] | None:
+        """A complete callsign, registration or ICAO24 that is not in a loaded tile: ask the provider."""
+        up = q.upper().replace(" ", "")
+        kinds: list[tuple[str, str]] = []
+        if _HEX_RE.match(up.lower()):
+            kinds.append(("hex", up.lower()))
+        if re.fullmatch(r"[A-Z]{1,2}-[A-Z0-9]{2,5}|N[0-9]{1,5}[A-Z]{0,2}", up):
+            kinds.append(("reg", up))
+        if re.fullmatch(r"[A-Z0-9]{3,8}", up) and any(c.isdigit() for c in up):
+            kinds.append(("callsign", up))
+        for kind, value in kinds[:2]:
+            try:
+                ac = await self._searches.get(
+                    f"{kind}:{value}",
+                    lambda k=kind, v=value: self.cache.with_budget(
+                        lambda: self.cache.provider.fetch_exact(k, v), 1.5
+                    ),
+                )
+            except UpstreamError:
+                continue
+            if ac is not None:
+                return aircraft_item(ac)
+        return None
+
+    async def airport_catalog(self, _request: Request) -> Response:
+        return Response(
+            self.airports.map_catalog(),
+            media_type="application/json",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    async def airport(self, request: Request) -> Response:
+        rec = self.airports.get(str(request.path_params["code"]))
+        if rec is None:
+            return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
+        return JSONResponse(
+            {
+                "ok": True,
+                "airport": rec.as_dict(),
+                "nearby": nearby_aircraft(self.index, rec),
+                "radius_nm": 10,
+            },
+            headers={"Cache-Control": "public, max-age=5"},
+        )
+
+    async def weather(self, request: Request) -> Response:
+        rec = self.airports.get(str(request.path_params["code"]))
+        if rec is None:
+            return JSONResponse({"ok": False, "reason": "unknown_airport"}, status_code=404)
+        station = rec.icao.upper()
+
+        async def part(cache: EnrichmentCache, loader: Callable[[], Awaitable[object]]) -> dict[str, object]:
+            try:
+                value = await cache.get(station, loader)
+            except UpstreamError:
+                return {"ok": False, "reason": "unavailable"}
+            if value is None:
+                return {"ok": False, "reason": "no_report"}
+            return {"ok": True, "data": value.as_dict() if isinstance(value, Metar) else value}
+
+        metar = await part(self._metars, lambda: self._weather.metar(station))
+        taf = await part(self._tafs, lambda: self._weather.taf(station))
+        return JSONResponse(
+            {"ok": True, "metar": metar, "taf": taf}, headers={"Cache-Control": "public, max-age=60"}
+        )
+
+    async def airline_names(self, request: Request) -> Response:
+        codes = [
+            c
+            for c in request.query_params.get("codes", "").upper().split(",")
+            if re.fullmatch(r"[A-Z]{3}", c)
+        ]
+        names = {c: n for c in codes[:60] if (n := airline_name(c))}
+        return JSONResponse(names, headers={"Cache-Control": "public, max-age=86400"})
+
     async def status(self, _request: Request) -> Response:
         data = self.cache.snapshot_status()
         data["version"] = __version__
@@ -282,7 +386,12 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     else:
         route_client = client or UpstreamClient(settings.user_agent)
         route_lookup = RouteProvider(route_client, settings.routes_url).lookup
-    api = Api(settings, cache, index, trails, route_lookup)
+    weather: WeatherSource = (
+        DemoWeather()
+        if settings.demo_mode and provider is None
+        else WeatherProvider(client or UpstreamClient(settings.user_agent), settings.weather_url)
+    )
+    api = Api(settings, cache, index, trails, route_lookup, weather)
 
     @asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
@@ -301,6 +410,11 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         HttpRoute("/api/v1/aircraft/{hex}", api.aircraft_detail),
         HttpRoute("/api/v1/aircraft/{hex}/route", api.route),
         HttpRoute("/api/v1/aircraft/{hex}/trail", api.trail),
+        HttpRoute("/api/v1/search", api.search),
+        HttpRoute("/api/v1/airports/catalog", api.airport_catalog),
+        HttpRoute("/api/v1/airports/{code}", api.airport),
+        HttpRoute("/api/v1/airports/{code}/weather", api.weather),
+        HttpRoute("/api/v1/airlines", api.airline_names),
         HttpRoute("/api/v1/status", api.status),
         HttpRoute("/api/v1/health", api.health),
     ]

@@ -27,6 +27,9 @@ class FakeProvider:
     async def fetch_hex(self, hex_str: str) -> Aircraft | None:
         return None
 
+    async def fetch_exact(self, kind: str, value: str) -> Aircraft | None:
+        return None
+
 
 def make(provider: FakeProvider, budget_rps: float = 50.0, ttl_s: float = 0.2) -> TileCache:
     return TileCache(provider=provider, budget_rps=budget_rps, ttl_s=ttl_s, hot_window_s=5.0)

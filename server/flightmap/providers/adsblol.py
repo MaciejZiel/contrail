@@ -109,3 +109,11 @@ class AdsbLolProvider:
         payload = await self._client.get_json(f"{self._base}/v2/hex/{hex_str.lower()}")
         found = parse_point_response(payload)
         return found[0] if found else None
+
+    async def fetch_exact(self, kind: str, value: str) -> Aircraft | None:
+        paths = {"hex": "hex", "callsign": "callsign", "reg": "reg"}
+        if kind not in paths or not re.fullmatch(r"[A-Za-z0-9-]{2,12}", value):
+            return None
+        payload = await self._client.get_json(f"{self._base}/v2/{paths[kind]}/{value.lower()}")
+        found = parse_point_response(payload)
+        return found[0] if found else None

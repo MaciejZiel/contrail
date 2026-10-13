@@ -30,6 +30,7 @@ class AppBase(unittest.IsolatedAsyncioTestCase):
         self.settings = Settings(
             adsblol_url=f"http://127.0.0.1:{port}",
             routes_url=f"http://127.0.0.1:{port}",
+            weather_url=f"http://127.0.0.1:{port}",
             data_dir=self.tmp.name,
             upstream_budget_rps=50.0,
             tile_ttl_s=30.0,
@@ -168,3 +169,62 @@ async def _dead_route(_callsign: str) -> None:
     from flightmap.upstream import UpstreamError
 
     raise UpstreamError("route source down")
+
+
+class SearchAndAirportTest(AppBase):
+    async def _warm(self) -> None:
+        await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
+
+    async def test_search_finds_aircraft_airports_and_airlines(self) -> None:
+        await self._warm()
+        some = next(iter(self.app.state.api.index.values()))[0]
+        prefix = some.callsign[:3]
+        r = json.loads((await asgi_get(self.app, f"/api/v1/search?q={prefix}")).body)
+        self.assertTrue(r["aircraft"])
+        self.assertTrue(all(prefix in a["callsign"] for a in r["aircraft"]))
+        r = json.loads((await asgi_get(self.app, "/api/v1/search?q=warsaw")).body)
+        self.assertEqual(r["airports"][0]["icao"], "EPWA")
+        self.assertEqual(json.loads((await asgi_get(self.app, "/api/v1/search?q=a")).body)["aircraft"], [])
+
+    async def test_search_falls_back_to_an_exact_upstream_lookup(self) -> None:
+        # nothing has been requested yet, so the index is empty: a full ICAO24 is looked up upstream
+        hex_str = self.upstream_traffic_hex()
+        r = json.loads((await asgi_get(self.app, f"/api/v1/search?q={hex_str}")).body)
+        self.assertEqual([a["hex"] for a in r["aircraft"]], [hex_str])
+
+    def upstream_traffic_hex(self) -> str:
+        return next(iter(DemoTraffic(3000).records()))["hex"]
+
+    async def test_airport_detail_weather_and_catalog(self) -> None:
+        await self._warm()
+        a = json.loads((await asgi_get(self.app, "/api/v1/airports/EPWA")).body)
+        self.assertEqual(a["airport"]["name"], "Warsaw Chopin Airport")
+        self.assertIsInstance(a["nearby"], list)
+        w = json.loads((await asgi_get(self.app, "/api/v1/airports/epwa/weather")).body)
+        self.assertTrue(w["metar"]["ok"])
+        self.assertIn("EPWA", w["metar"]["data"]["raw"])
+        self.assertTrue(w["taf"]["ok"])
+        self.assertEqual((await asgi_get(self.app, "/api/v1/airports/ZZZZ")).status, 404)
+        cat = await asgi_get(self.app, "/api/v1/airports/catalog")
+        self.assertGreater(len(json.loads(cat.body)), 2500)
+        self.assertIn("max-age=86400", cat.headers["cache-control"])
+
+    async def test_a_failing_weather_source_degrades_only_the_weather(self) -> None:
+        class Broken:
+            async def metar(self, icao: str) -> None:
+                from flightmap.upstream import UpstreamError
+
+                raise UpstreamError("down")
+
+            async def taf(self, icao: str) -> str:
+                return "TAF EPWA 000000Z"
+
+        self.app.state.api._weather = Broken()
+        w = json.loads((await asgi_get(self.app, "/api/v1/airports/EPWA/weather")).body)
+        self.assertEqual(w["metar"], {"ok": False, "reason": "unavailable"})
+        self.assertTrue(w["taf"]["ok"])
+        self.assertEqual((await asgi_get(self.app, "/api/v1/airports/EPWA")).status, 200)
+
+    async def test_airline_names(self) -> None:
+        r = json.loads((await asgi_get(self.app, "/api/v1/airlines?codes=LOT,RYR,xx")).body)
+        self.assertEqual(r, {"LOT": "LOT Polish Airlines", "RYR": "Ryanair"})

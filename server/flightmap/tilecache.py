@@ -128,9 +128,9 @@ class TileCache:
             "aircraft": sum(len(s.entry.aircraft) for s in self._states.values() if s.entry),
         }
 
-    async def with_budget[T](self, call: Callable[[], Awaitable[T]]) -> T:
+    async def with_budget[T](self, call: Callable[[], Awaitable[T]], wait_s: float = 6.0) -> T:
         """Run one extra upstream call (e.g. a single-aircraft lookup) against the shared budget."""
-        if not await self._take_budget():
+        if not await self._take_budget(wait_s):
             raise UpstreamError("upstream budget exhausted")
         self.status.requests += 1
         return await call()
@@ -160,8 +160,8 @@ class TileCache:
             task.add_done_callback(lambda _t, tile=tile: self._inflight.pop(tile, None))
         return task
 
-    async def _take_budget(self) -> bool:
-        deadline = time.monotonic() + 6.0
+    async def _take_budget(self, wait_s: float = 6.0) -> bool:
+        deadline = time.monotonic() + wait_s
         while time.monotonic() < deadline:
             if time.monotonic() < self._paused_until:
                 await asyncio.sleep(min(1.0, self._paused_until - time.monotonic()))

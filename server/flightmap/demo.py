@@ -18,6 +18,7 @@ from .codec import SOURCE_DEMO
 from .models import Aircraft
 from .providers.adsblol import parse_point_response
 from .providers.routes import Route, parse_route
+from .providers.weather import Metar, parse_metar
 from .tiles import Tile, tile_of
 
 # (ICAO, lat, lon): a spread of major airports on every inhabited continent.
@@ -270,6 +271,55 @@ class DemoProvider:
         found = parse_point_response({"ac": [rec]}) if rec else []
         return found[0] if found else None
 
+    async def fetch_exact(self, kind: str, value: str) -> Aircraft | None:
+        key = {"hex": "hex", "callsign": "flight", "reg": "r"}.get(kind)
+        if key is None:
+            return None
+        want = value.strip().lower()
+        recs = await asyncio.to_thread(self._traffic.records)
+        rec = next((r for r in recs if str(r.get(key, "")).strip().lower() == want), None)
+        found = parse_point_response({"ac": [rec]}) if rec else []
+        return found[0] if found else None
+
     async def lookup_route(self, callsign: str) -> Route | None:
         payload = self._traffic.route_payload(callsign)
         return parse_route(payload, callsign) if payload else None
+
+
+def synthetic_metar(icao: str, now: float | None = None) -> dict[str, Any]:
+    """A deterministic METAR item shaped like the Aviation Weather Center JSON."""
+    t = time.time() if now is None else now
+    hour = int(t // 3600)
+    rng = random.Random(f"{icao}-{hour}")
+    wdir = rng.randrange(10, 360, 10)
+    wspd = rng.randint(2, 18)
+    temp = rng.randint(-2, 24)
+    base = rng.choice([1500, 2500, 4000, 6000])
+    cover = rng.choice(["FEW", "SCT", "BKN"])
+    vis = rng.choice(["10+", "6+", "3", "1"])
+    cat = {"10+": "VFR", "6+": "VFR", "3": "MVFR", "1": "IFR"}[vis]
+    obs = hour * 3600
+    stamp = time.strftime("%d%H%MZ", time.gmtime(obs))
+    qnh = rng.randint(1004, 1030)
+    raw = f"METAR {icao} {stamp} {wdir:03d}{wspd:02d}KT 9999 {cover}{base // 100:03d} {temp:02d}/{temp - 3:02d} Q{qnh}"
+    return {
+        "icaoId": icao, "obsTime": obs, "temp": temp, "dewp": temp - 3, "wdir": wdir, "wspd": wspd,
+        "visib": vis, "altim": qnh, "rawOb": raw, "clouds": [{"cover": cover, "base": base}], "fltCat": cat,
+    }  # fmt: skip
+
+
+def synthetic_taf(icao: str, now: float | None = None) -> str:
+    t = time.time() if now is None else now
+    return f"TAF {icao} {time.strftime('%d%H%MZ', time.gmtime(t))} 24024KT 9999 SCT030 BECMG 1618/1620 BKN012"
+
+
+class DemoWeather:
+    """Weather source for demo mode: synthetic but shaped like the real thing."""
+
+    name = "demo"
+
+    async def metar(self, icao: str) -> Metar | None:
+        return parse_metar(synthetic_metar(icao.upper()))
+
+    async def taf(self, icao: str) -> str | None:
+        return synthetic_taf(icao.upper())

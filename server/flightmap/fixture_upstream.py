@@ -12,10 +12,12 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from .demo import DemoTraffic
+from .demo import DemoTraffic, synthetic_metar, synthetic_taf
 
 _ROUTE = re.compile(r"^/routes/([A-Z0-9]{2})/([A-Z0-9]+)\.json$")
 _HEX = re.compile(r"^/v2/hex/([0-9a-fA-F]{6})$")
+_EXACT = re.compile(r"^/v2/(callsign|reg|hex)/([A-Za-z0-9-]+)$")
+_WEATHER = re.compile(r"^/api/data/(metar|taf)\?ids=([A-Za-z0-9]+)&format=json$")
 _POINT = re.compile(r"^/v2/point/(-?\d+(?:\.\d+)?)/(-?\d+(?:\.\d+)?)/(\d+)$")
 
 
@@ -31,6 +33,25 @@ def make_handler(traffic: DemoTraffic) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:
             if self.path == "/healthz":
                 self._send(200, b'{"ok":true}')
+                return
+            w = _WEATHER.match(self.path)
+            if w:
+                ids = w[2].upper()
+                body = (
+                    [synthetic_metar(ids)]
+                    if w[1] == "metar"
+                    else [{"icaoId": ids, "rawTAF": synthetic_taf(ids)}]
+                )
+                self._send(200, json.dumps(body).encode())
+                return
+            e = _EXACT.match(self.path)
+            if e:
+                key = {"callsign": "flight", "reg": "r", "hex": "hex"}[e[1]]
+                want = e[2].lower()
+                rec = next(
+                    (x for x in traffic.records() if str(x.get(key, "")).strip().lower() == want), None
+                )
+                self._send(200, json.dumps({"ac": [rec] if rec else [], "total": 1 if rec else 0}).encode())
                 return
             r = _ROUTE.match(self.path)
             if r:

@@ -30,6 +30,7 @@ class Settings:
     gzip: bool = True
     adsblol_url: str = "https://api.adsb.lol"
     routes_url: str = "https://vrs-standing-data.adsb.lol"
+    weather_url: str = "https://aviationweather.gov"
     trail_retention_s: float = 2700.0
     trail_min_interval_s: float = 10.0
     upstream_budget_rps: float = 0.35
@@ -53,6 +54,7 @@ class Settings:
             gzip=_bool(e.get("GZIP"), True),
             adsblol_url=e.get("ADSBLOL_URL", "https://api.adsb.lol").rstrip("/"),
             routes_url=e.get("ROUTES_URL", "https://vrs-standing-data.adsb.lol").rstrip("/"),
+            weather_url=e.get("WEATHER_URL", "https://aviationweather.gov").rstrip("/"),
             trail_retention_s=float(e.get("TRAIL_RETENTION_S", "2700")),
             trail_min_interval_s=float(e.get("TRAIL_MIN_INTERVAL_S", "10")),
             upstream_budget_rps=float(
