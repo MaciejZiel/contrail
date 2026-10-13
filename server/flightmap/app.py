@@ -72,7 +72,8 @@ class Api:
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
         # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
         del tiles[self.settings.max_tiles_per_request :]
-        await self.cache.request(tiles)
+        focus = len(tiles_in_rect(x0, y0, x1, y1)) <= WIDE_REQUEST_TILES
+        await self.cache.request(tiles, focus=focus)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
             ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries).encode()

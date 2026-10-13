@@ -119,6 +119,27 @@ class TileCacheTest(unittest.IsolatedAsyncioTestCase):
             await cache.stop()
 
 
+class FocusPriorityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_world_viewer_does_not_starve_a_zoomed_in_viewer(self) -> None:
+        p = FakeProvider()
+        cache = make(p, budget_rps=5.0, ttl_s=0.2)
+        cache.start()
+        try:
+            await cache.request([(x, 20) for x in range(40)], cold_deadline_s=0.05, focus=False)
+            await cache.request([(50, 30)], cold_deadline_s=1.0)
+            before = p.calls.count((50, 30))
+            for _ in range(6):  # both viewers keep polling
+                await asyncio.sleep(0.5)
+                await cache.request([(x, 20) for x in range(40)], cold_deadline_s=0.0, focus=False)
+                await cache.request([(50, 30)], cold_deadline_s=0.0)
+            # 41 tiles at 5 req/s would refresh each tile only every ~8 s without priority
+            self.assertGreaterEqual(p.calls.count((50, 30)) - before, 5)
+            wide_calls = sum(1 for t in p.calls if t[1] == 20)
+            self.assertGreater(wide_calls, 3)  # wide views still get part of the budget
+        finally:
+            await cache.stop()
+
+
 class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
     async def test_rate_limit_lowers_the_request_rate(self) -> None:
         p = FakeProvider()
