@@ -1,109 +1,15 @@
-name: live-flights-map
-
-x-backend-environment: &backend-environment
-  FLASK_DEBUG: "false"
-  HOST: 0.0.0.0
-  PORT: "5000"
-  FLIGHT_ARCHIVE_PATH: /data/history.sqlite3
-  WORKSPACE_DB_PATH: /data/workspace.sqlite3
-  AIRCRAFT_PHOTO_CACHE_PATH: /data/aircraft-photos.sqlite3
-  OPENSKY_CACHE_PATH: /data/provider-cache.json
-  LIVE_LATEST_CACHE_MAX_AGE_SECONDS: ${LIVE_LATEST_CACHE_MAX_AGE_SECONDS:-1260}
-  LIVE_LATEST_CACHE_STALE_AFTER_SECONDS: ${LIVE_LATEST_CACHE_STALE_AFTER_SECONDS:-120}
-  SNAPSHOT_COLLECTOR_INTERVAL_SECONDS: ${SNAPSHOT_COLLECTOR_INTERVAL_SECONDS:-}
-  SNAPSHOT_COLLECTOR_SECTORS: ${SNAPSHOT_COLLECTOR_SECTORS:-global_world}
-  AIRPORT_CATALOG_CACHE_PATH: /data/airports.csv
-  FLIGHT_ARCHIVE_RETENTION_HOURS: ${FLIGHT_ARCHIVE_RETENTION_HOURS:-24}
-  FLIGHT_ARCHIVE_MAX_SNAPSHOTS: ${FLIGHT_ARCHIVE_MAX_SNAPSHOTS:-720}
-  FLIGHT_DATA_PROVIDERS: ${FLIGHT_DATA_PROVIDERS:-opensky,adsb_lol}
-  OPENSKY_USERNAME: ${OPENSKY_USERNAME:-}
-  OPENSKY_PASSWORD: ${OPENSKY_PASSWORD:-}
-  OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
-  OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
-  OPENSKY_TOKEN_URL: ${OPENSKY_TOKEN_URL:-https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token}
-  ADSB_LOL_BASE_URL: ${ADSB_LOL_BASE_URL:-https://api.adsb.lol}
-  ADSB_LOL_REGION_MIN_INTERVAL_SECONDS: ${ADSB_LOL_REGION_MIN_INTERVAL_SECONDS:-30}
-  CORS_ALLOWED_ORIGIN: "http://localhost:${FRONTEND_PORT:-5174}"
-
+# Local development only. `docker compose up` serves the app with synthetic traffic on http://localhost:8080.
+# Set DEMO_MODE=0 to use the real ADSB.lol feed (see the README for its limits).
+name: flights
 services:
-  api:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    environment: *backend-environment
-    volumes:
-      - flight-data:/data
-    expose:
-      - "5000"
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:5000/health', timeout=3)"
-      interval: 20s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_USE_SSE: ${VITE_USE_SSE:-false}
-    depends_on:
-      api:
-        condition: service_healthy
+  flights:
+    build: .
     ports:
-      - "127.0.0.1:${FRONTEND_PORT:-5174}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
-      interval: 20s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-
-  collector:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: ["python", "-m", "backend.entrypoints.collector"]
-    environment: *backend-environment
+      - "8080:8000"
+    environment:
+      DEMO_MODE: "${DEMO_MODE:-1}"
+      USER_AGENT_CONTACT: "${USER_AGENT_CONTACT:-https://github.com/MaciejZiel/live_flights_map}"
     volumes:
-      - flight-data:/data
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
-  alert-worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    profiles: [workers]
-    command: ["python", "-m", "backend.entrypoints.alerts", "--interval", "120"]
-    environment: *backend-environment
-    volumes:
-      - flight-data:/data
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
-  archive-maintenance:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: ["python", "-m", "backend.entrypoints.archive", "--interval", "300"]
-    environment: *backend-environment
-    volumes:
-      - flight-data:/data
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: unless-stopped
-
+      - flights-data:/data
 volumes:
-  flight-data:
+  flights-data:

@@ -12,7 +12,7 @@ ruff check . && npx pyright               # after: npm ci
 
 Configuration is read from environment variables only: `HOST`, `PORT`, `BASE_PATH`,
 `DEMO_MODE`, `GZIP` (set to `0` behind nginx), `STATIC_DIR`, `ADSBLOL_URL`,
-`UPSTREAM_BUDGET_RPS` (upper bound, default 0.35; lowered automatically on HTTP 429),
+`UPSTREAM_BUDGET_RPS` (upper bound, default 0.2; lowered automatically on HTTP 429),
 `TILE_TTL_S`, `USER_AGENT_CONTACT`.
 
 ## API

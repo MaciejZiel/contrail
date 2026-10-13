@@ -117,6 +117,7 @@ export class MapController {
         return rectForBounds({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() });
       },
       getZoom: () => m.getZoom(),
+      getKeep: () => (o.getSelected() === null ? null : o.getSelected()!.toString(16).padStart(6, "0")),
       onSnapshot: (snapshot) => {
         o.store.apply(snapshot, serverNow());
         o.onData();
@@ -131,6 +132,12 @@ export class MapController {
       this.moveTimer = setTimeout(() => this.poller.refreshNow(), 300);
     });
     m.on("load", () => {
+      // the credits stay one tap away but do not cover a small map on first paint
+      if (window.innerWidth < 900) {
+        const attr = o.container.querySelector(".maplibregl-ctrl-attrib");
+        attr?.classList.remove("maplibregl-compact-show");
+        attr?.removeAttribute("open");
+      }
       this.poller.start();
       void fetchAirportCatalog(this.catalogAbort.signal).then(
         (rows) => this.airports.install(rows),
@@ -160,6 +167,11 @@ export class MapController {
 
   flyTo(lat: number, lon: number, minZoom = 8): void {
     this.map.flyTo({ center: [lon, lat], zoom: Math.max(this.map.getZoom(), minZoom), essential: false });
+  }
+
+  /** Fetch now (e.g. after the selection changed). */
+  refresh(): void {
+    this.poller.refreshNow();
   }
 
   setAirportHighlight(icao: string | null): void {

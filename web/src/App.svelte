@@ -62,6 +62,7 @@
   function afterSelectionChange(): void {
     ctl?.setAirportHighlight(ui.airport);
     ctl?.syncUrl();
+    ctl?.refresh();
   }
 
   function onSearchAircraft(a: SearchAircraft): void {

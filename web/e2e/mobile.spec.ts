@@ -42,7 +42,7 @@ test("an aircraft opens a bottom sheet with snap points that can be expanded and
   await expect(grab).toHaveAttribute("aria-expanded", "true");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
-  await expect.poll(height).toBeLessThan(half - 80); // peek
+  await expect.poll(height).toBeLessThan(205); // peek, after the snap animation has finished
 
   // the route and the live numbers are visible in the peek, the photo is not required to be
   await expect(page.getByTestId("aircraft-panel").getByRole("region", { name: "Route" })).toBeVisible();

@@ -194,13 +194,17 @@ class Api:
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
         zoom_raw = request.query_params.get("z")
         level = level_for_zoom(int(zoom_raw)) if zoom_raw and zoom_raw.lstrip("-").isdigit() else 0
+        keep_raw = request.query_params.get("keep", "").lower()
+        keep = (
+            int(keep_raw, 16) if _HEX_RE.match(keep_raw) else None
+        )  # the selected aircraft is never thinned out
         # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
         del tiles[self.settings.max_tiles_per_request :]
         focus = len(tiles_in_rect(x0, y0, x1, y1)) <= WIDE_REQUEST_TILES
         await self.cache.request(tiles, focus=focus)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(
-            (f"L{level}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
+            (f"L{level}:{keep}:" + ",".join(f"{e.tile[0]}_{e.tile[1]}:{e.version}" for e in entries)).encode()
         ).hexdigest()[:20]
         # Weak: the tile data is identical for equal tags, but every body carries the current server time.
         etag = f'W/"{digest}"'
@@ -216,7 +220,7 @@ class Api:
             return Response(status_code=304, headers=headers)
         cached = self._snapshots.get(digest)
         if cached is None:
-            cached = encode_tiles(self._blocks(entries, level))
+            cached = encode_tiles(self._blocks(entries, level, keep))
             self._snapshots[digest] = cached
             while len(self._snapshots) > SNAPSHOT_CACHE_SIZE:
                 self._snapshots.popitem(last=False)
@@ -226,7 +230,9 @@ class Api:
         return Response(body, media_type="application/octet-stream", headers=headers)
 
     @staticmethod
-    def _blocks(entries: list[TileEntry], level: int) -> list[tuple[int, int, int, int, int, bytes]]:
+    def _blocks(
+        entries: list[TileEntry], level: int, keep: int | None = None
+    ) -> list[tuple[int, int, int, int, int, bytes]]:
         """Tile blocks for the response; at low zoom one representative aircraft per grid cell."""
         if level == 0:
             return [
@@ -235,7 +241,7 @@ class Api:
             ]
         owned = [(i, a) for i, e in enumerate(entries) for a in e.aircraft]
         kept: dict[int, list[Aircraft]] = {}
-        for i, a in thin(owned, level):
+        for i, a in thin(owned, level, keep):
             kept.setdefault(i, []).append(a)
         out: list[tuple[int, int, int, int, int, bytes]] = []
         for i, e in enumerate(entries):

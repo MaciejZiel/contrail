@@ -1,0 +1,4 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Copy to ~/.termux/boot/flightmap (Termux:Boot) to start the API when the device starts.
+termux-wake-lock
+nohup "$HOME/live_flights_map/deploy/termux/start.sh" >> "$HOME/flightmap.log" 2>&1 &

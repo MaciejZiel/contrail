@@ -33,6 +33,8 @@ export interface PollerOptions {
   getRect: () => TileRect;
   /** Current map zoom; the server thins aircraft at low zoom. */
   getZoom: () => number;
+  /** ICAO24 of the selected aircraft: the server never thins it out. */
+  getKeep?: () => string | null;
   onSnapshot: (s: Snapshot) => void;
   onStatus: (s: FeedStatus) => void;
   fetchImpl?: typeof fetch;
@@ -119,10 +121,11 @@ export class Poller {
     this.abort = ctl;
     const rect = this.opts.getRect();
     const zoom = Math.floor(this.opts.getZoom());
-    const key = `${rectKey(rect)},${zoom}`;
+    const keep = this.opts.getKeep?.() ?? null;
+    const key = `${rectKey(rect)},${zoom},${keep ?? ""}`;
     let next = IDLE_MS;
     try {
-      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}`, {
+      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}${keep ? `&keep=${keep}` : ""}`, {
         signal: ctl.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

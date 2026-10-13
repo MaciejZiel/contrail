@@ -254,3 +254,13 @@ Dropped dependencies: Flask, requests, python-dotenv, gunicorn, Leaflet, leaflet
 5. **Storage**: SQLite plus in-memory ring buffers (recommended, no extra service) versus the shared PostgreSQL. Trails are bounded either way.
 6. **Unverified terms** flagged above (airplanes.live, Planespotters, adsbdb, OpenSky credit wording) are checked in the PR that first uses each source; a source whose terms cannot be verified is not added.
 7. **Residual honesty limits**: world-mode positions can be minutes old, oceans are sparse, routes are best-effort, "nearby now" at airports is inferred, not a schedule.
+
+
+## Outcome and deviations (written after implementation)
+
+- OpenSky was **not implemented** (its terms need a written licence for a live service); airplanes.live and adsbdb were not used (see the amendments at the top). The world view is a mosaic of ADSB.lol tiles, dead-reckoned and age-labelled, with background prefetch for a configured region.
+- The tile grid stayed at 5 x 5 degrees. Measurements showed that ADSB.lol rate limits (27 to 43 percent HTTP 429 at about 0.2 requests per second) make cold-start of a continent slow; variable-width tiles at high latitude (roughly half the requests) were left as future work.
+- Rendering uses an own WebGL2 canvas above MapLibre rather than a MapLibre custom layer; positions are dead-reckoned on the CPU (3 to 5 ms per frame for 15,000 aircraft) instead of in the vertex shader, which avoids float precision problems at high zoom and keeps the code simple. Decoding is on the main thread.
+- Photos use three tiers (airframe photo from the browser, a stored Wikimedia Commons type gallery, own illustrations); the server never touches Planespotters.
+- Trails cover the whole current flight (thinned), not only 45 minutes; replay was dropped as planned.
+- Storage is SQLite plus in-memory arrays; the shared PostgreSQL instance is not needed.

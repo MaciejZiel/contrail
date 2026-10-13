@@ -15,5 +15,3 @@ node scripts/perf.mjs  # frame-time probe with 15,000 synthetic aircraft (GPU=1 
 
 URL parameters: `c=lat,lon`, `z=zoom`, `s=icao24` (selected aircraft), `bm=offline` (bundled
 Natural Earth basemap, no network), `e2e=1` (exposes test hooks on `window.__flights`).
-
-The CI workflow is staged in `ci/web-workflow.yml` (see the note in the server README).

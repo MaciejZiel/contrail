@@ -18,8 +18,9 @@ def level_for_zoom(zoom: int | None) -> int:
     return max(2, zoom)
 
 
-def _priority(a: Aircraft) -> tuple[int, int, int, float]:
+def _priority(a: Aircraft, keep: int | None) -> tuple[int, int, int, int, float]:
     return (
+        1 if a.hex == keep else 0,
         1 if a.emergency else 0,
         0 if a.on_ground else 1,
         a.altitude_ft if a.altitude_ft is not None else -1,
@@ -27,15 +28,15 @@ def _priority(a: Aircraft) -> tuple[int, int, int, float]:
     )
 
 
-def thin[T](items: list[tuple[T, Aircraft]], level: int) -> list[tuple[T, Aircraft]]:
-    """Keep the highest-priority aircraft in each grid cell (emergency, airborne, highest, freshest)."""
+def thin[T](items: list[tuple[T, Aircraft]], level: int, keep: int | None = None) -> list[tuple[T, Aircraft]]:
+    """Keep the highest-priority aircraft in each grid cell (the selected one, emergency, airborne, highest, freshest)."""
     if level == 0:
         return items
     cell = CELL_DEG_BY_ZOOM[level]
-    best: dict[tuple[int, int], tuple[tuple[int, int, int, float], T, Aircraft]] = {}
+    best: dict[tuple[int, int], tuple[tuple[int, int, int, int, float], T, Aircraft]] = {}
     for owner, a in items:
         key = (int(a.lat // cell), int(a.lon // cell))
-        pr = _priority(a)
+        pr = _priority(a, keep)
         cur = best.get(key)
         if cur is None or pr > cur[0]:
             best[key] = (pr, owner, a)

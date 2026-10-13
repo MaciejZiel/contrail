@@ -166,6 +166,13 @@ class ThinningTest(unittest.TestCase):
         self.assertEqual(len(thin(planes(), 0)), 5)
         self.assertGreater(len(thin(planes(), 6)), len(thin(planes(), 2)))
 
+    def test_the_selected_aircraft_survives_thinning(self) -> None:
+        kept = {
+            a.hex for _o, a in thin(planes(), 2, keep=1)
+        }  # plane 1 is low and would normally lose to 2 and 5
+        self.assertIn(1, kept)
+        self.assertNotIn(5, kept)
+
     def test_owner_is_preserved(self) -> None:
         owners = {o for o, _a in thin(planes(), 2)}
         self.assertEqual(owners, {1})
