@@ -24,3 +24,5 @@
 | https://www.npmjs.com/package/@types/node/v/24.19.0 | @types/node (dev only) | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/LICENSE |
 | https://www.naturalearthdata.com/downloads/110m-physical-vectors/ | Natural Earth 1:110m land and boundary lines (web/src/assets, offline basemap) | Public domain | https://www.naturalearthdata.com/about/terms-of-use/ |
 | https://openfreemap.org | OpenFreeMap vector tiles and glyphs (hosted service, not vendored; OpenStreetMap data under ODbL) | ODbL-1.0 (data); free public instance | https://openfreemap.org/tos/ |
+| https://github.com/vradarserver/standing-data | VRS standing data: airlines.csv and model-type CSVs (derived into server/flightmap/data/airlines.json and types.json); route JSON fetched at runtime from vrs-standing-data.adsb.lol | CC0-1.0 | https://github.com/vradarserver/standing-data/blob/main/LICENSE |
+| https://www.planespotters.net/photo/api | Planespotters photo API (called from the visitor's browser only; thumbnails and photographer credit shown with a link back, never stored or proxied) | Terms of use, no licence granted for storage | https://www.planespotters.net/photo/api |
