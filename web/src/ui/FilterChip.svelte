@@ -1,10 +1,10 @@
 <script lang="ts">
-  let { label, onClear }: { label: string; onClear: () => void } = $props();
+  let { label, onClear, clearLabel, id }: { label: string; onClear: () => void; clearLabel: string; id?: string } = $props();
 </script>
 
-<div class="chip">
-  <span>Only {label}</span>
-  <button onclick={onClear} aria-label={`Show all airlines instead of only ${label}`}>×</button>
+<div class="chip" data-testid={id}>
+  <span>{label}</span>
+  <button onclick={onClear} aria-label={clearLabel}>×</button>
 </div>
 
 <style>

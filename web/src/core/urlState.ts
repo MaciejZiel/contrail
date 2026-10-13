@@ -1,4 +1,4 @@
-import { ALT_LIMIT, DEFAULT_FILTERS, type Filters } from "./filters";
+import { ALT_LIMIT, cleanCallsign, DEFAULT_FILTERS, parseTypes, type Filters } from "./filters";
 import { clamp } from "./geo";
 
 export interface ViewState {
@@ -8,7 +8,11 @@ export interface ViewState {
   selected: string | null;
   airport: string | null;
   filters: Filters;
+  /** Minutes of recent track drawn behind every aircraft; 0 is off. */
+  trails: TrailMinutes;
 }
+
+export type TrailMinutes = 0 | 30 | 60;
 
 export const DEFAULT_VIEW: ViewState = {
   lat: 50.0,
@@ -17,6 +21,7 @@ export const DEFAULT_VIEW: ViewState = {
   selected: null,
   airport: null,
   filters: DEFAULT_FILTERS,
+  trails: 0,
 };
 
 const HEX = /^[0-9a-f]{6}$/;
@@ -46,7 +51,13 @@ export function parseUrlState(search: string): ViewState {
   const air = p.get("air")?.toUpperCase();
   if (air && AIRLINE.test(air)) filters.airline = air;
   if (p.get("gnd") === "0") filters.hideGround = true;
+  const cs = cleanCallsign(p.get("cs") ?? "");
+  if (cs) filters.callsign = cs;
+  const ty = parseTypes(p.get("ty") ?? "");
+  if (ty.length) filters.types = ty;
   view.filters = filters;
+  const tr = Number(p.get("tr"));
+  if (tr === 30 || tr === 60) view.trails = tr;
   return view;
 }
 
@@ -59,12 +70,15 @@ export function serializeUrlState(v: ViewState): string {
   if (v.filters.altMin > 0 || v.filters.altMax < ALT_LIMIT) p.set("alt", `${v.filters.altMin}-${v.filters.altMax}`);
   if (v.filters.airline) p.set("air", v.filters.airline);
   if (v.filters.hideGround) p.set("gnd", "0");
+  if (v.filters.callsign) p.set("cs", v.filters.callsign);
+  if (v.filters.types.length) p.set("ty", v.filters.types.join(","));
+  if (v.trails) p.set("tr", String(v.trails));
   return p.toString();
 }
 
 /** Parameters that are not view state (kept when we rewrite the URL). */
 export function preservedParams(search: string): URLSearchParams {
   const p = new URLSearchParams(search);
-  for (const k of ["c", "z", "s", "a", "alt", "air", "gnd"]) p.delete(k);
+  for (const k of ["c", "z", "s", "a", "alt", "air", "gnd", "cs", "ty", "tr"]) p.delete(k);
   return p;
 }

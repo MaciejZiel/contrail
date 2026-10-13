@@ -1,9 +1,57 @@
 <script lang="ts">
-  import { fetchAirlineNames } from "../core/api";
-  import { ALT_LIMIT, activeFilterCount, airlineCounts, DEFAULT_FILTERS, type Filters } from "../core/filters";
+  import { fetchAirlineNames, fetchTypeSuggestions, type TypeSuggestion } from "../core/api";
+  import { ALT_LIMIT, activeFilterCount, airlineCounts, cleanCallsign, DEFAULT_FILTERS, parseTypes, type Filters } from "../core/filters";
+  import { ui } from "../core/state.svelte";
   import type { AircraftStore } from "../core/store";
+  import type { TrailMinutes } from "../core/urlState";
 
-  let { filters = $bindable(), store }: { filters: Filters; store: AircraftStore } = $props();
+  let { filters = $bindable(), store, onTrails }: { filters: Filters; store: AircraftStore; onTrails: (m: TrailMinutes) => void } = $props();
+
+  let typeDraft = $state(filters.types.join(", "));
+  let suggestions = $state<TypeSuggestion[]>([]);
+  let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+  let suggestAbort: AbortController | undefined;
+
+  // the chips and Reset change the filter from outside: keep the text box in step
+  $effect(() => {
+    const joined = filters.types.join(", ");
+    if (parseTypes(typeDraft).join(", ") !== joined) typeDraft = joined;
+  });
+
+  function onTypeInput(e: Event & { currentTarget: HTMLInputElement }): void {
+    const inputType = (e as unknown as InputEvent).inputType;
+    typeDraft = e.currentTarget.value;
+    const word = typeDraft.split(/[\s,;]+/).pop() ?? "";
+    clearTimeout(suggestTimer);
+    suggestAbort?.abort();
+    if (word.replace("*", "").length < 2) {
+      suggestions = [];
+    } else {
+      suggestTimer = setTimeout(async () => {
+        const ctl = new AbortController();
+        suggestAbort = ctl;
+        suggestions = await fetchTypeSuggestions(word.replace("*", ""), ctl.signal).catch(() => []);
+      }, 180);
+    }
+    // a pick from the list replaces the text in one step: apply it at once
+    if (inputType === "insertReplacementText" || inputType === undefined) commitTypes();
+  }
+
+  function commitTypes(): void {
+    const types = parseTypes(typeDraft);
+    if (types.join(",") !== filters.types.join(",")) filters = { ...filters, types };
+  }
+
+  const trailsHint = $derived.by(() => {
+    const st = ui.trailsStatus;
+    if (ui.trails === 0) return "Draws where each aircraft has been in the last 30 or 60 minutes, from this server's own record. It makes no extra requests to the ADS-B source.";
+    if (st.state === "zoom") return "Zoom in to see tracks: there are too many aircraft for readable tracks at this zoom.";
+    if (st.state === "error") return "Tracks are temporarily unavailable.";
+    if (st.state === "loading") return "Loading tracks.";
+    const n = st.shown;
+    const more = st.total > st.shown ? ` of ${st.total.toLocaleString("en")}, nearest the centre` : "";
+    return `${n.toLocaleString("en")} ${n === 1 ? "track" : "tracks"} in view${more}. Tracks start when the server first saw the aircraft.`;
+  });
 
   let open = $state(false);
   let names = $state<Record<string, string>>({});
@@ -49,6 +97,48 @@
         <input id="alt-max" type="range" min="0" max={ALT_LIMIT} step="500" value={filters.altMax} oninput={(e) => setMax(+e.currentTarget.value)} />
       </fieldset>
 
+      <label class="field">
+        <span>Callsign starts with</span>
+        <input
+          type="text"
+          class="text"
+          maxlength="8"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          placeholder="LO, RYR1, N12"
+          value={filters.callsign}
+          oninput={(e) => {
+            const v = cleanCallsign(e.currentTarget.value);
+            e.currentTarget.value = v;
+            filters = { ...filters, callsign: v };
+          }}
+        />
+      </label>
+
+      <label class="field">
+        <span>Aircraft type</span>
+        <input
+          type="text"
+          class="text"
+          list="type-suggestions"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          placeholder="B738, A32*, boeing 787"
+          value={typeDraft}
+          oninput={onTypeInput}
+          onchange={commitTypes}
+          onkeydown={(e) => e.key === "Enter" && commitTypes()}
+        />
+        <datalist id="type-suggestions">
+          {#each suggestions as t (t.code)}
+            <option value={t.code} label={`${t.name}${t.count ? ` (${t.count})` : ""}`}></option>
+          {/each}
+        </datalist>
+      </label>
+      <p class="hint">ICAO codes, several allowed, <code>*</code> matches a family (A32* is every A320 variant). Type a name to find the code.</p>
+
       <label class="check">
         <input type="checkbox" checked={filters.hideGround} onchange={(e) => (filters = { ...filters, hideGround: e.currentTarget.checked })} />
         Hide aircraft on the ground
@@ -67,6 +157,19 @@
         </select>
       </label>
       <p class="hint">Airlines listed are the most common among loaded aircraft. Search an airline by name to filter any other.</p>
+
+      <fieldset class="trails">
+        <legend>Recent tracks</legend>
+        <div class="radios">
+          {#each [[0, "Off"], [30, "30 min"], [60, "60 min"]] as [m, label] (m)}
+            <label class="radio">
+              <input type="radio" name="recent-tracks" value={m} checked={ui.trails === m} onchange={() => onTrails(m as TrailMinutes)} />
+              <span>{label}</span>
+            </label>
+          {/each}
+        </div>
+        <p class="hint" data-testid="trails-hint">{trailsHint}</p>
+      </fieldset>
     </div>
   {/if}
 </div>
@@ -120,6 +223,9 @@
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
     z-index: 10;
+    max-height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .head {
     display: flex;
@@ -187,6 +293,57 @@
     color: var(--text);
     padding: 0 10px;
     font: inherit;
+  }
+  .text {
+    height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 0 10px;
+    font: inherit;
+    min-width: 0;
+  }
+  .field {
+    margin-bottom: 4px;
+  }
+  .trails {
+    margin: 12px 0 0;
+  }
+  .radios {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .radio {
+    flex: 1;
+    position: relative;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-2);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .radio input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  .radio:has(input:checked) {
+    border-color: var(--accent);
+    background: rgba(94, 234, 212, 0.14);
+  }
+  .radio:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  code {
+    font-family: var(--mono);
   }
   .hint {
     margin: 8px 0 0;

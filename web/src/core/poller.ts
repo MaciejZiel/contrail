@@ -37,6 +37,8 @@ export interface PollerOptions {
   getZoom: () => number;
   /** ICAO24 of the selected aircraft: the server never thins it out. */
   getKeep?: () => string | null;
+  /** Extra query parameters (starting with "&") that the server applies before thinning. */
+  getFilterQuery?: () => string;
   onSnapshot: (s: Snapshot) => void;
   onStatus: (s: FeedStatus) => void;
   fetchImpl?: typeof fetch;
@@ -125,10 +127,11 @@ export class Poller {
     const rect = this.opts.getRect();
     const zoom = Math.floor(this.opts.getZoom());
     const keep = this.opts.getKeep?.() ?? null;
-    const key = `${rectKey(rect)},${zoom},${keep ?? ""}`;
+    const extra = this.opts.getFilterQuery?.() ?? "";
+    const key = `${rectKey(rect)},${zoom},${keep ?? ""},${extra}`;
     let next = IDLE_MS;
     try {
-      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}${keep ? `&keep=${keep}` : ""}`, {
+      const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}&z=${zoom}${keep ? `&keep=${keep}` : ""}${extra}`, {
         signal: AbortSignal.any([ctl.signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
