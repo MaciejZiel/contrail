@@ -143,7 +143,7 @@
     <p class="alert" role="alert">Squawk {live.squawk}: {emergency}</p>
   {/if}
 
-  <Photo {hex} />
+  <Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} />
   <RouteBar {route} {progress} />
 
   <dl class="stats">

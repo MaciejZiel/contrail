@@ -59,14 +59,24 @@ function writeStored(key: string, value: { at: number; photo: Photo | null }): v
 
 /** Resolves to the best photo for an ICAO24 hex, or null when there is none. Throws on network errors. */
 export async function fetchPhoto(hex: string, signal: AbortSignal): Promise<Photo | null> {
-  const key = `psp:${hex.toLowerCase()}`;
+  return lookup(`psp:${hex.toLowerCase()}`, `${API}${hex.toUpperCase()}`, signal);
+}
+
+/** Same for a registration such as SP-LSD (used when the hex has no photo, e.g. after a re-registration). */
+export async function fetchPhotoByReg(reg: string, signal: AbortSignal): Promise<Photo | null> {
+  const clean = reg.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{2,10}$/.test(clean)) return null;
+  return lookup(`psp:reg:${clean}`, `https://api.planespotters.net/pub/photos/reg/${clean}`, signal);
+}
+
+async function lookup(key: string, url: string, signal: AbortSignal): Promise<Photo | null> {
   const now = Date.now();
   const cached = memory.get(key) ?? readStored(key);
   if (cached && now - cached.at < TTL_MS) {
     memory.set(key, cached);
     return cached.photo;
   }
-  const res = await fetch(`${API}${hex.toUpperCase()}`, { signal });
+  const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`photo API HTTP ${res.status}`);
   const photo = parsePhotoResponse(await res.json());
   const entry = { at: now, photo };
