@@ -40,6 +40,7 @@ export default defineConfig({
         ROUTES_URL: `http://127.0.0.1:${UPSTREAM_PORT}`,
         TILE_TTL_S: "3",
         TRAIL_MIN_INTERVAL_S: "2",
+        PREFETCH_REGION: "",
         DATA_DIR: ".e2e-data",
         STATIC_DIR: "../web/dist",
       },
