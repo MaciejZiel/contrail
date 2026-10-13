@@ -70,8 +70,8 @@ class Api:
         tiles = self.select_tiles(x0, y0, x1, y1)
         cx, cy = (x0 + ((x1 - x0) % 72) / 2) % 72, (y0 + y1) / 2
         tiles.sort(key=lambda t: min(abs(t[0] - cx), 72 - abs(t[0] - cx)) ** 2 + (t[1] - cy) ** 2)
-        if len(tiles) > self.settings.max_tiles_per_request:
-            return JSONResponse({"error": "too many tiles requested"}, status_code=400)
+        # A world view can cover more traffic tiles than one request may hold: keep the nearest ones.
+        del tiles[self.settings.max_tiles_per_request :]
         await self.cache.request(tiles)
         entries = self.cache.entries(tiles)
         digest = hashlib.sha1(

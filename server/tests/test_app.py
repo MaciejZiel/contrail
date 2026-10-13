@@ -89,10 +89,18 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         small = api.select_tiles(0, 0, 3, 2)
         self.assertEqual(len(small), 12)
 
-    async def test_too_many_tiles_rejected(self) -> None:
+    async def test_too_many_tiles_keeps_the_ones_nearest_the_centre(self) -> None:
         self.app.state.api.settings = Settings(max_tiles_per_request=4)
         r = await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
-        self.assertEqual(r.status, 400)
+        self.assertEqual(r.status, 200)
+        _now, tiles = codec.decode_response(r.body)
+        self.assertLessEqual(len(tiles), 4)
+        self.assertIn((40, 28), {(t.tx, t.ty) for t in tiles})
+
+    async def test_whole_world_request_is_answered(self) -> None:
+        r = await asgi_get(self.app, "/api/v1/aircraft?x0=0&y0=0&x1=71&y1=35")
+        self.assertEqual(r.status, 200)
+        self.assertLessEqual(int(r.headers["x-tiles"]) + int(r.headers["x-pending"]), 800)
 
     async def test_status_and_health(self) -> None:
         await asgi_get(self.app, f"/api/v1/aircraft?{RECT}")
