@@ -7,8 +7,8 @@ describe("Planespotters response", () => {
     photos: [
       {
         id: "000001",
-        thumbnail: { src: "https://cdn.planespotters.net/t.jpg", size: { width: 200, height: 133 } },
-        thumbnail_large: { src: "https://cdn.planespotters.net/l.jpg", size: { width: 420, height: 280 } },
+        thumbnail: { src: "https://t.plnspttrs.net/t.jpg", size: { width: 200, height: 133 } },
+        thumbnail_large: { src: "https://t.plnspttrs.net/l.jpg", size: { width: 420, height: 280 } },
         link: "https://www.planespotters.net/photo/000001/x",
         photographer: "Thomas Noack",
       },
@@ -17,12 +17,21 @@ describe("Planespotters response", () => {
 
   it("keeps URLs unchanged and the photographer credit", () => {
     expect(parsePhotoResponse(body)).toEqual({
-      thumbnail: "https://cdn.planespotters.net/l.jpg",
+      thumbnail: "https://t.plnspttrs.net/l.jpg",
       width: 420,
       height: 280,
       link: "https://www.planespotters.net/photo/000001/x",
       photographer: "Thomas Noack",
     });
+  });
+
+  it("ignores photos whose URLs are not https links on Planespotters hosts", () => {
+    const bad = (over: object) => parsePhotoResponse({ photos: [{ ...(body.photos[0] as object), ...over }] });
+    expect(bad({ link: "javascript:alert(1)" })).toBeNull();
+    expect(bad({ link: "http://www.planespotters.net/photo/1/x" })).toBeNull();
+    expect(bad({ link: "https://evil.example/planespotters.net" })).toBeNull();
+    expect(bad({ thumbnail_large: { src: "https://evil.example/x.jpg" } })).toBeNull();
+    expect(bad({ thumbnail_large: { src: "https://t.plnspttrs.net/1/x_280.jpg" }, link: "https://www.planespotters.net/photo/1/x?utm_source=api" })).not.toBeNull();
   });
 
   it("returns null for empty, error or incomplete responses", () => {

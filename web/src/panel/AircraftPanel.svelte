@@ -46,6 +46,8 @@
     eta: null as Eta | null,
   });
   let copied = $state(false);
+  let infoGaveUp = $state(false);
+  const RETRY_DELAYS_S = [2, 4, 8, 16, 30, 60];
 
   function tick(): void {
     now = serverNow();
@@ -105,14 +107,34 @@
       p.then(set, (e: unknown) => {
         if (!ctl.signal.aborted) set({ state: "error", reason: e instanceof Error ? e.message : "failed" });
       });
-    void guard(fetchAircraft(h, ctl.signal), (v) => {
-      info = v;
-      if (v.state === "ok" && !store.get(parseInt(h, 16))) onLocate(v.value.lat, v.value.lon);
-    });
-    void guard(fetchRoute(h, ctl.signal), (v) => {
-      route = v;
-      onRoute(v.state === "ok" ? v.value : null);
-    });
+    infoGaveUp = false;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    // A failed lookup (a busy server, a tile refresh in between) is retried with backoff, so the panel
+    // does not stay half empty until the visitor selects something else.
+    const loadInfo = (attempt: number): void => {
+      void guard(fetchAircraft(h, ctl.signal), (v) => {
+        info = v;
+        if (v.state === "ok" && !store.get(parseInt(h, 16))) onLocate(v.value.lat, v.value.lon);
+        if (v.state === "error") {
+          if (attempt < RETRY_DELAYS_S.length) {
+            timers.push(setTimeout(() => loadInfo(attempt + 1), (RETRY_DELAYS_S[attempt] as number) * 1000));
+          } else {
+            infoGaveUp = true;
+          }
+        }
+      });
+    };
+    loadInfo(0);
+    const loadRoute = (attempt: number): void => {
+      void guard(fetchRoute(h, ctl.signal), (v) => {
+        route = v;
+        onRoute(v.state === "ok" ? v.value : null);
+        if (v.state === "error" && attempt < RETRY_DELAYS_S.length) {
+          timers.push(setTimeout(() => loadRoute(attempt + 1), (RETRY_DELAYS_S[attempt] as number) * 1000));
+        }
+      });
+    };
+    loadRoute(0);
     const loadTrail = () =>
       guard(fetchTrail(h, ctl.signal), (v) => {
         trail = v;
@@ -120,19 +142,10 @@
       });
     void loadTrail();
     const t = setInterval(() => void loadTrail(), 15000);
-    // a route lookup that failed is retried once a minute
-    const r = setInterval(() => {
-      if (route.state === "error") {
-        void guard(fetchRoute(h, ctl.signal), (v) => {
-          route = v;
-          onRoute(v.state === "ok" ? v.value : null);
-        });
-      }
-    }, 60000);
     return () => {
       ctl.abort();
       clearInterval(t);
-      clearInterval(r);
+      timers.forEach(clearTimeout);
       onTrail(null);
       onRoute(null);
     };
@@ -173,7 +186,7 @@
     <p class="alert" role="alert">Squawk {fmtSquawk(live.squawk)}: {emergency}</p>
   {/if}
 
-  <div class="photo-slot"><Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state !== "loading"} /></div>
+  <div class="photo-slot"><Photo {hex} registration={data?.registration ?? ""} typeCode={data?.type_code ?? ""} typeName={data?.type_name ?? null} category={data?.category ?? "unknown"} ready={info.state === "ok" || info.state === "none" || infoGaveUp} /></div>
   <RouteBar {route} {progress} flownKm={live.flownKm} remainingKm={live.remainingKm} eta={live.eta} />
 
   <dl class="stats">
@@ -205,6 +218,7 @@
     <div><dt>ICAO24</dt><dd class="mono">{hex.toUpperCase()}</dd></div>
     {#if data?.military}<div><dt>Operator</dt><dd>Military</dd></div>{/if}
     {#if info.state === "none"}<div class="muted full">This aircraft is not tracked right now.</div>{/if}
+    {#if info.state === "error"}<div class="muted full" role="status">Details are temporarily unavailable{infoGaveUp ? "" : ", retrying"}.</div>{/if}
   </dl>
 
   <footer>

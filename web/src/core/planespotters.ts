@@ -25,20 +25,46 @@ interface ApiPhoto {
   photographer?: string;
 }
 
+/** Only https URLs on Planespotters hosts are used for links and images, whatever the API returns. */
+function trusted(url: string | undefined): url is string {
+  try {
+    const u = new URL(url ?? "");
+    return u.protocol === "https:" && /(^|\.)(planespotters\.net|plnspttrs\.net)$/.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function parsePhotoResponse(body: unknown): Photo | null {
   const doc = (body ?? {}) as { photos?: ApiPhoto[]; error?: string };
   const first = doc.photos?.[0];
   if (!first) return null;
   const thumb = first.thumbnail_large ?? first.thumbnail;
-  if (!thumb?.src || !first.link || !first.photographer) return null;
+  if (!trusted(thumb?.src) || !trusted(first.link) || !first.photographer) return null;
   return {
-    thumbnail: thumb.src,
+    thumbnail: thumb.src as string,
     width: thumb.size?.width ?? 420,
     height: thumb.size?.height ?? 280,
-    link: first.link,
+    link: first.link as string,
     photographer: first.photographer,
   };
 }
+
+/** Remove cached lookups older than the 24 hour limit, so storage cannot fill up. */
+function purgeExpired(): void {
+  try {
+    const now = Date.now();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith("psp:")) continue;
+      const at = (JSON.parse(localStorage.getItem(key) ?? "{}") as { at?: number }).at;
+      if (typeof at !== "number" || now - at >= TTL_MS) localStorage.removeItem(key);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+}
+purgeExpired();
 
 function readStored(key: string): { at: number; photo: Photo | null } | null {
   try {

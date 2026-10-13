@@ -48,9 +48,15 @@
       let exact: Photo | null = null;
       try {
         exact = await fetchPhoto(h, ctl.signal);
-        if (!exact && isReady && reg) exact = await fetchPhotoByReg(reg, ctl.signal);
       } catch {
         if (ctl.signal.aborted) return;
+      }
+      if (!exact && isReady && reg) {
+        try {
+          exact = await fetchPhotoByReg(reg, ctl.signal); // also when the hex lookup failed
+        } catch {
+          if (ctl.signal.aborted) return;
+        }
       }
       if (ctl.signal.aborted) return;
       if (exact) {
@@ -67,6 +73,15 @@
     return () => ctl.abort();
   });
 
+  /** The airframe photo could not be loaded: continue with the next tier instead of jumping to the drawing. */
+  async function exactFailed(): Promise<void> {
+    imgFailed = true;
+    const fromType = await typePhoto(typeCode);
+    shown = fromType
+      ? { tier: "type", photo: fromType.photo, url: fromType.url }
+      : { tier: "art", kind: artKind(null, category) };
+  }
+
   function typeFallback(): void {
     // the stored type photo failed to load: use the illustration
     shown = { tier: "art", kind: artKind(shown.tier === "type" ? shown.photo.class : null, category) };
@@ -76,7 +91,7 @@
 <figure class="photo" data-tier={shown.tier}>
   {#if shown.tier === "exact" && !imgFailed}
     <a href={shown.photo.link} target="_blank" rel="noopener" aria-label="Open this photo on Planespotters.net">
-      <img src={shown.photo.thumbnail} width={shown.photo.width} height={shown.photo.height} alt={`Photo of ${registration || hex.toUpperCase()}`} onerror={() => (imgFailed = true)} />
+      <img src={shown.photo.thumbnail} width={shown.photo.width} height={shown.photo.height} alt={`Photo of ${registration || hex.toUpperCase()}`} onerror={() => void exactFailed()} />
     </a>
     <figcaption>
       Photo © {shown.photo.photographer} ·

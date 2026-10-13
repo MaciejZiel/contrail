@@ -22,8 +22,8 @@ async function stubPlanespotters(page: Page, mode: "ok" | "error" | "empty" = "o
         photos: [
           {
             id: "000001",
-            thumbnail: { src: "https://cdn.planespotters.net/t.png", size: { width: 200, height: 133 } },
-            thumbnail_large: { src: "https://cdn.planespotters.net/l.png", size: { width: 420, height: 280 } },
+            thumbnail: { src: "https://t.plnspttrs.net/t.png", size: { width: 200, height: 133 } },
+            thumbnail_large: { src: "https://t.plnspttrs.net/l.png", size: { width: 420, height: 280 } },
             link: PHOTO_LINK,
             photographer: "Thomas Noack",
           },
@@ -31,7 +31,7 @@ async function stubPlanespotters(page: Page, mode: "ok" | "error" | "empty" = "o
       }),
     });
   });
-  await page.route("https://cdn.planespotters.net/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
+  await page.route("https://t.plnspttrs.net/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
   return apiCalls;
 }
 
@@ -44,6 +44,10 @@ async function selectMover(page: Page): Promise<string> {
 }
 
 test("the panel shows identity, route, live numbers, photo credit and history", async ({ page }) => {
+  const violations: string[] = [];
+  page.on("console", (m) => {
+    if (/content security policy/i.test(m.text())) violations.push(m.text());
+  });
   const apiCalls = await stubPlanespotters(page);
   await openMap(page, "c=50,10&z=7");
   const hex = await selectMover(page);
@@ -63,11 +67,12 @@ test("the panel shows identity, route, live numbers, photo credit and history", 
   for (const rel of await anchors.evaluateAll((els) => els.map((e) => e.getAttribute("rel") ?? ""))) {
     expect(rel).not.toContain("nofollow");
   }
-  await expect(panel.locator("img")).toHaveAttribute("src", "https://cdn.planespotters.net/l.png");
+  await expect(panel.locator("img")).toHaveAttribute("src", "https://t.plnspttrs.net/l.png");
   expect(apiCalls[0]).toMatch(new RegExp(`/pub/photos/hex/${hex.toUpperCase()}$`));
 
   // history: the server records positions for viewed tiles; charts appear once there are two points
   await expect(panel.locator("svg[role=img]").first()).toBeVisible({ timeout: 25_000 });
+  expect(violations).toEqual([]); // the CSP the server sends allows everything the app really loads
 });
 
 test("a failing photo service only removes the photo", async ({ page }) => {
@@ -176,4 +181,25 @@ test("selecting an aircraft that the panel would cover pans it into view", async
   await expect
     .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 0)
     .toBeGreaterThan(panelRight);
+});
+
+test("a failing identity lookup is retried and the panel recovers", async ({ page }) => {
+  await stubPlanespotters(page, "empty");
+  await openMap(page, "c=50,10&z=7");
+  let failures = 0;
+  // fault injection: the first two identity requests answer 503 "busy", then the real server answers
+  await page.route(/\/api\/v1\/aircraft\/[0-9a-f]{6}$/, (route) => {
+    if (failures < 2) {
+      failures++;
+      return route.fulfill({ status: 503, contentType: "application/json", body: '{"ok":false,"reason":"busy"}' });
+    }
+    return route.continue();
+  });
+  await selectMover(page);
+  const panel = page.getByTestId("aircraft-panel");
+  await expect(panel.getByText(/Details are temporarily unavailable, retrying/)).toBeVisible();
+  await expect(panel.getByText("Registration")).toBeVisible();
+  await expect(panel.locator(".details dd").first()).not.toHaveText("–", { timeout: 20_000 });
+  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  expect(failures).toBe(2);
 });

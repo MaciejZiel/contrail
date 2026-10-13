@@ -84,8 +84,8 @@ export async function fetchRoute(hex: string, signal: AbortSignal): Promise<Load
   if (status === 404) return { state: "none", reason: env.reason ?? "not_tracked" };
   if (status !== 200) return { state: "error", reason: `HTTP ${status}` };
   if (!env.ok || !env.route) {
-    return env.reason === "unavailable"
-      ? { state: "error", reason: "unavailable" }
+    return env.reason === "unavailable" || env.reason === "busy"
+      ? { state: "error", reason: env.reason }
       : { state: "none", reason: env.reason ?? "unknown_route" };
   }
   return { state: "ok", value: env.route };
@@ -190,7 +190,7 @@ export async function fetchAirport(code: string, signal: AbortSignal): Promise<L
 function part<T>(raw: unknown): Loaded<T> {
   const p = (raw ?? {}) as { ok?: boolean; data?: T; reason?: string };
   if (p.ok && p.data !== undefined) return { state: "ok", value: p.data };
-  return p.reason === "unavailable" ? { state: "error", reason: "unavailable" } : { state: "none", reason: p.reason ?? "no_report" };
+  return p.reason === "unavailable" || p.reason === "busy" ? { state: "error", reason: p.reason } : { state: "none", reason: p.reason ?? "no_report" };
 }
 
 export async function fetchWeather(code: string, signal: AbortSignal): Promise<Weather> {
