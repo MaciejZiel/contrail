@@ -115,9 +115,5 @@ def suggest_types(index: AircraftIndex, query: str, limit: int = 12) -> list[dic
     Types that are in the air now come first; the rest of the reference list follows.
     """
     counts = Counter(a.type_code.upper() for a, _t in index.values() if a.type_code)
-    found = [
-        {"code": code, "name": name, "count": counts.get(code, 0)}
-        for code, name in search_types(query, limit=60)
-    ]
-    found.sort(key=lambda it: -it["count"])
-    return found[:limit]
+    ranked = sorted(search_types(query, limit=60), key=lambda it: -counts.get(it[0], 0))
+    return [{"code": code, "name": name, "count": counts.get(code, 0)} for code, name in ranked[:limit]]
