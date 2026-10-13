@@ -100,3 +100,116 @@ export async function fetchTrail(hex: string, signal: AbortSignal): Promise<Load
     value: { t: env.t, lat: env.lat ?? [], lon: env.lon ?? [], alt: env.alt ?? [], gs: env.gs ?? [], vr: env.vr ?? [] },
   };
 }
+
+export interface SearchAircraft {
+  kind: "aircraft";
+  hex: string;
+  callsign: string;
+  registration: string;
+  type_code: string;
+  airline: string | null;
+  lat: number;
+  lon: number;
+  altitude_ft: number | null;
+  on_ground: boolean;
+}
+
+export interface SearchAirport {
+  kind: "airport";
+  icao: string;
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+export interface SearchAirline {
+  kind: "airline";
+  code: string;
+  name: string;
+  aircraft: number;
+}
+
+export interface SearchResults {
+  aircraft: SearchAircraft[];
+  airports: SearchAirport[];
+  airlines: SearchAirline[];
+}
+
+export async function searchAll(q: string, signal: AbortSignal): Promise<SearchResults> {
+  const { status, body } = await getJson(`api/v1/search?q=${encodeURIComponent(q)}`, signal);
+  if (status !== 200) throw new Error(`search failed (HTTP ${status})`);
+  const r = (body ?? {}) as Partial<SearchResults>;
+  return { aircraft: r.aircraft ?? [], airports: r.airports ?? [], airlines: r.airlines ?? [] };
+}
+
+export interface AirportDetail {
+  airport: SearchAirport & { elevation_ft: number | null; kind: string };
+  nearby: NearbyAircraft[];
+  radius_nm: number;
+}
+
+export interface NearbyAircraft extends SearchAircraft {
+  state: "ground" | "arriving" | "departing" | "nearby";
+  distance_nm: number;
+  vertical_rate_fpm: number | null;
+}
+
+export interface MetarData {
+  observed_at: number;
+  raw: string;
+  temp_c: number | null;
+  dewpoint_c: number | null;
+  wind_dir: number | null;
+  wind_variable: boolean;
+  wind_kt: number | null;
+  gust_kt: number | null;
+  visibility_m: number | null;
+  visibility_plus: boolean;
+  qnh_hpa: number | null;
+  clouds: Array<{ cover: string; base_ft: number | null }>;
+  weather: string;
+  flight_category: string;
+}
+
+export interface Weather {
+  metar: Loaded<MetarData>;
+  taf: Loaded<string>;
+}
+
+export async function fetchAirport(code: string, signal: AbortSignal): Promise<Loaded<AirportDetail>> {
+  const { status, body } = await getJson(`api/v1/airports/${encodeURIComponent(code)}`, signal);
+  if (status === 404) return { state: "none", reason: "unknown_airport" };
+  const env = (body ?? {}) as Envelope & Partial<AirportDetail>;
+  if (status !== 200 || !env.ok || !env.airport) return { state: "error", reason: `HTTP ${status}` };
+  return { state: "ok", value: { airport: env.airport, nearby: env.nearby ?? [], radius_nm: env.radius_nm ?? 10 } };
+}
+
+function part<T>(raw: unknown): Loaded<T> {
+  const p = (raw ?? {}) as { ok?: boolean; data?: T; reason?: string };
+  if (p.ok && p.data !== undefined) return { state: "ok", value: p.data };
+  return p.reason === "unavailable" ? { state: "error", reason: "unavailable" } : { state: "none", reason: p.reason ?? "no_report" };
+}
+
+export async function fetchWeather(code: string, signal: AbortSignal): Promise<Weather> {
+  const { status, body } = await getJson(`api/v1/airports/${encodeURIComponent(code)}/weather`, signal);
+  if (status !== 200) return { metar: { state: "error", reason: `HTTP ${status}` }, taf: { state: "error", reason: `HTTP ${status}` } };
+  const env = (body ?? {}) as { metar?: unknown; taf?: unknown };
+  return { metar: part<MetarData>(env.metar), taf: part<string>(env.taf) };
+}
+
+export async function fetchAirlineNames(codes: string[], signal: AbortSignal): Promise<Record<string, string>> {
+  if (codes.length === 0) return {};
+  const { status, body } = await getJson(`api/v1/airlines?codes=${codes.join(",")}`, signal);
+  return status === 200 ? ((body ?? {}) as Record<string, string>) : {};
+}
+
+export type AirportRow = [icao: string, iata: string, name: string, lat: number, lon: number, kind: "L" | "M"];
+
+export async function fetchAirportCatalog(signal: AbortSignal): Promise<AirportRow[]> {
+  const res = await fetch(`${base()}api/v1/airports/catalog`, { signal });
+  if (!res.ok) throw new Error(`catalog HTTP ${res.status}`);
+  return (await res.json()) as AirportRow[];
+}
