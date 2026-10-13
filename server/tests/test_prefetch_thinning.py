@@ -100,6 +100,21 @@ class PrefetchTest(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(empty, 3)
         self.assertLess(empty * 2, busy)
 
+    async def test_tiles_that_stay_empty_are_left_alone_for_hours(self) -> None:
+        clock, p = FakeClock(), CountingProvider()
+        p.empty = {(2, 1)}
+        c = self.make(
+            clock,
+            p,
+            prefetch_always=True,
+            ttl_s=1.0,
+            prefetch_plan={t: PrefetchSpec(1, 60.0) for t in self.REGION},
+        )
+        await run_for(c, clock, 3600.0, step=5.0)  # an hour of fake time
+        busy, empty = p.calls.count((1, 1)), p.calls.count((2, 1))
+        self.assertGreaterEqual(busy, 50)  # every minute
+        self.assertLessEqual(empty, 8)  # a handful of looks in the whole hour, backing off further each time
+
     async def test_always_on_prefetch_works_without_viewers(self) -> None:
         clock, p = FakeClock(), CountingProvider()
         c = self.make(clock, p, prefetch_always=True)
@@ -136,16 +151,20 @@ def planes() -> list[tuple[int, Aircraft]]:
 
 
 class RegionPlanTest(unittest.TestCase):
-    def test_defaults_cover_the_planned_regions_with_priorities(self) -> None:
-        plan = build_plan(DEFAULT_REGIONS, load_traffic_tiles())
+    def test_defaults_are_europe_first_then_the_us_and_a_few_hubs_not_the_world(self) -> None:
+        traffic = load_traffic_tiles()
+        plan = build_plan(DEFAULT_REGIONS, traffic)
         eu = plan[(40, 28)]  # Warsaw
-        self.assertEqual((eu.priority, eu.interval_s), (1, 240.0))
+        self.assertEqual((eu.priority, eu.interval_s), (1, 300.0))
         self.assertEqual(plan[(21, 26)].priority, 2)  # New York area
-        self.assertEqual(plan[(26, 13)].priority, 3)  # Sao Paulo, outside every named region
-        self.assertEqual(len(plan), len(load_traffic_tiles()))  # the world class covers every traffic tile
+        self.assertEqual(plan[(26, 13)].priority, 3)  # the Sao Paulo hub
+        self.assertEqual(plan[(47, 23)].priority, 3)  # Dubai
         counts = {p: sum(1 for s in plan.values() if s.priority == p) for p in (1, 2, 3)}
         self.assertGreater(counts[1], 40)
-        self.assertGreater(counts[3], counts[1])
+        self.assertLess(sum(counts.values()), 200)  # under 200 tiles, not the 751 of the whole world
+        self.assertLess(len(plan), len(traffic) / 4)
+        self.assertNotIn((60, 5), plan)  # somewhere over the Pacific is fetched only on demand
+        self.assertTrue(all(t in traffic for t in plan))  # never a tile without an airport
 
     def test_overlaps_keep_the_better_spec_and_parsing(self) -> None:
         regs = parse_regions("a:35,72,-25,45:2:900;b:45,60,0,30:1:120")

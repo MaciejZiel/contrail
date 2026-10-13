@@ -54,6 +54,7 @@ class TileState:
     ever_had_traffic: bool = False
     avg_count: float = -1.0  # smoothed number of aircraft in the tile; negative until first fetch
     observations: int = 0
+    empty_streak: int = 0  # consecutive fetches that found no aircraft at all
     rank: int = 0  # position in the latest request, nearest the view centre first
     last_focus: float = 0.0  # monotonic; last demand from a zoomed-in view
 
@@ -70,7 +71,7 @@ class ProviderStatus:
 @dataclass
 class TileCache:
     provider: TileProvider
-    budget_rps: float = 0.2
+    budget_rps: float = 0.15
     ttl_s: float = 10.0
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
@@ -255,6 +256,10 @@ class TileCache:
         base = self.prefetch_plan[tile].interval_s
         if st is None or st.observations < 2 or st.avg_count >= 8:
             return base
+        if st.empty_streak >= 6:
+            return base * 60  # empty again and again: ocean, desert, polar: only a look every few hours
+        if st.empty_streak >= 3:
+            return base * 20
         return base * (3 if st.avg_count >= 1.5 else 10)
 
     def _pick_prefetch(self, now: float) -> Tile | None:
@@ -349,6 +354,7 @@ class TileCache:
             st.ever_had_traffic = True
         st.avg_count = float(len(aircraft)) if st.avg_count < 0 else 0.7 * st.avg_count + 0.3 * len(aircraft)
         st.observations += 1
+        st.empty_streak = 0 if aircraft else st.empty_streak + 1
         for listener in self.listeners:
             try:
                 listener(tile, aircraft, now_wall)

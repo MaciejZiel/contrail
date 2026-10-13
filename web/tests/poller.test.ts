@@ -4,8 +4,10 @@ import { classify, summarize } from "../src/core/poller";
 describe("feed freshness", () => {
   it("classifies by median tile age", () => {
     expect(classify(5)).toBe("live");
-    expect(classify(60)).toBe("delayed");
-    expect(classify(600)).toBe("stale");
+    expect(classify(80)).toBe("live");
+    expect(classify(240)).toBe("aging"); // normal for a continent that refreshes in turn
+    expect(classify(599)).toBe("aging");
+    expect(classify(600)).toBe("old");
   });
 
   it("summarises tile ages", () => {

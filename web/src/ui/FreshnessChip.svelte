@@ -11,8 +11,10 @@
         return "Offline, retrying";
       case "live":
         return `${status.pending > 0 ? "Loading areas" : "Live"} · ${count.toLocaleString("en")} aircraft${oldest()}`;
+      case "aging":
+        return `Updated ${age(status.medianAgeS)} ago · ${count.toLocaleString("en")} aircraft${oldest()}`;
       default:
-        return `Data ${age(status.medianAgeS)} old · ${count.toLocaleString("en")} aircraft${oldest()}`;
+        return `Data ${age(status.medianAgeS)} old, refreshing · ${count.toLocaleString("en")} aircraft${oldest()}`;
     }
   });
 
@@ -74,12 +76,15 @@
     box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
     animation: pulse 2.4s infinite;
   }
-  [data-state="delayed"] .dot {
+  [data-state="aging"] .dot {
+    background: var(--accent);
+    opacity: 0.8;
+  }
+  [data-state="old"] .dot {
     background: var(--warn);
   }
-  [data-state="stale"] .dot,
   [data-state="offline"] .dot {
-    background: var(--bad);
+    background: var(--bad); /* red only when the feed itself is failing, never for normal ageing */
   }
   @keyframes pulse {
     70% {

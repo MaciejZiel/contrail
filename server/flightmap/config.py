@@ -38,7 +38,7 @@ class Settings:
     prefetch_regions: str = ""
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = True
-    upstream_budget_rps: float = 0.2
+    upstream_budget_rps: float = 0.15
     tile_ttl_s: float = 10.0
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
@@ -69,7 +69,7 @@ class Settings:
             prefetch_idle_s=float(e.get("PREFETCH_IDLE_S", "900")),
             prefetch_always=_bool(e.get("PREFETCH_ALWAYS"), True),
             upstream_budget_rps=float(
-                e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.2")
+                e.get("UPSTREAM_BUDGET_RPS", "100" if _bool(e.get("DEMO_MODE"), False) else "0.15")
             ),
             tile_ttl_s=float(e.get("TILE_TTL_S", "10")),
             hot_window_s=float(e.get("HOT_WINDOW_S", "60")),

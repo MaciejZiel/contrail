@@ -1,8 +1,10 @@
 import { decodeSnapshot, type Snapshot } from "./codec";
 import { syncServerTime } from "./clock";
+import { limits } from "./staleness";
 import { rectKey, rectQuery, type TileRect } from "./tiles";
 
-export type Freshness = "loading" | "live" | "delayed" | "stale" | "offline";
+/** live: refreshed within 90 s; aging: normal for areas that refresh in turn; old: beyond the dim threshold; offline: the feed itself is failing. */
+export type Freshness = "loading" | "live" | "aging" | "old" | "offline";
 
 export interface FeedStatus {
   state: Freshness;
@@ -45,9 +47,9 @@ const FILLING_MS = 2500;
 const ERROR_MS = 8000;
 
 export function classify(medianAgeS: number): Freshness {
-  if (medianAgeS < 45) return "live";
-  if (medianAgeS < 180) return "delayed";
-  return "stale";
+  if (medianAgeS < 90) return "live";
+  if (medianAgeS < limits.dimAfterS) return "aging"; // areas refresh in turn: minutes of age are normal, not an alarm
+  return "old";
 }
 
 export function summarize(snapshot: Snapshot, pending: number): FeedStatus {
