@@ -71,3 +71,8 @@ class ParseTest(unittest.TestCase):
     def test_malformed_record_is_skipped(self) -> None:
         got = parse_point_response({"ac": [{**REAL_SHAPE, "hex": "48ad09", "dbFlags": "x"}, REAL_SHAPE]})
         self.assertEqual([a.hex_str for a in got], ["48ad08"])
+
+    def test_at_signs_are_an_empty_callsign(self) -> None:
+        a = parse_aircraft({**REAL_SHAPE, "flight": "@@@@@@@@"})
+        assert a is not None
+        self.assertEqual(a.callsign, "")
