@@ -4,7 +4,7 @@
   let { kind }: { kind: ArtKind } = $props();
 </script>
 
-<svg viewBox="0 0 420 280" role="img" aria-label={`Illustration: ${ART_LABEL[kind]}`} class="art">
+<svg viewBox="0 0 420 280" preserveAspectRatio="xMidYMid slice" role="img" aria-label={`Illustration: ${ART_LABEL[kind]}`} class="art">
   <defs>
     <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#1c3f6e" />

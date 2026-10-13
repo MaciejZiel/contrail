@@ -246,7 +246,8 @@
   .panel > :global(*) {
     flex: none;
   }
-  /* inside the phone bottom sheet the route and live numbers come first, the photo below */
+  /* Inside the phone bottom sheet the order is: header, route, photo, numbers, ...  The peek (196 px)
+     shows the header and the route line, the half-open sheet adds the photo, the full sheet the rest. */
   :global(.sheet) .panel > header {
     order: 0;
   }
@@ -256,23 +257,23 @@
   :global(.sheet) .panel > :global(.route) {
     order: 2;
   }
-  :global(.sheet) .panel > .stats {
+  :global(.sheet) .panel > .photo-slot {
     order: 3;
   }
-  :global(.sheet) .panel > .photo-slot {
+  :global(.sheet) .panel > .stats {
     order: 4;
   }
   :global(.sheet) .panel > .ages {
-    order: 3;
-  }
-  :global(.sheet) .panel > .charts {
     order: 5;
   }
-  :global(.sheet) .panel > .details {
+  :global(.sheet) .panel > .charts {
     order: 6;
   }
-  :global(.sheet) .panel > footer {
+  :global(.sheet) .panel > .details {
     order: 7;
+  }
+  :global(.sheet) .panel > footer {
+    order: 8;
   }
   header {
     display: flex;

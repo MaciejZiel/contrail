@@ -125,6 +125,11 @@
     stroke: var(--surface-2);
     stroke-width: 3;
   }
+  /* distances and the estimate need room: they appear once the sheet is expanded */
+  :global(.sheet:not(.expanded)) .legs,
+  :global(.sheet:not(.expanded)) .fine {
+    display: none;
+  }
   .legs {
     display: grid;
     gap: 4px;
