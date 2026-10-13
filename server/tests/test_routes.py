@@ -59,3 +59,7 @@ class ReferenceTest(unittest.TestCase):
         names = [n for _c, n in search_airlines("ryan")]
         self.assertIn("Ryanair", names)
         self.assertEqual(search_airlines("r"), [])
+
+    def test_exact_airline_code_ranks_first(self) -> None:
+        self.assertEqual(search_airlines("baw")[0], ("BAW", "British Airways"))
+        self.assertEqual(search_airlines("lot")[0][0], "LOT")

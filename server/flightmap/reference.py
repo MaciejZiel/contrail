@@ -42,5 +42,5 @@ def search_airlines(query: str, limit: int = 5) -> list[tuple[str, str]]:
         low = name.lower()
         if code.lower() == q or low.startswith(q) or (len(q) >= 3 and q in low):
             out.append((code, name))
-    out.sort(key=lambda it: (not it[1].lower().startswith(q), len(it[1])))
+    out.sort(key=lambda it: (it[0].lower() != q, not it[1].lower().startswith(q), len(it[1])))
     return out[:limit]
