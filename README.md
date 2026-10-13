@@ -34,7 +34,7 @@ Read this before you rely on the map. The numbers below were measured while buil
 
 | Need | Source | Terms / notes |
 |---|---|---|
-| Aircraft positions | [ADSB.lol](https://adsb.lol) public API (`/v2/point`), community ADS-B receivers | Data is ODbL 1.0: it is credited in the UI, and this app offers no bulk export of it. The API has no published rate limit ("dynamic, based on load"). |
+| Aircraft positions | [ADSB.lol](https://adsb.lol) public API (`/v2/point`), community ADS-B receivers | Data is ODbL 1.0: it is credited in the UI. The `/api/v1` output re-publishes it, so it is offered under the same licence (`X-Data-License` header on every API response); the app has no bulk export. The API has no published rate limit ("dynamic, based on load"). |
 | Route of a flight | VRS standing data (CC0), served by ADSB.lol | Scheduled route for the callsign; shown only if the aircraft plausibly is on it. |
 | Airline and aircraft type names | VRS standing data (CC0) | Bundled. |
 | Airports | OurAirports (public domain) | Bundled. |
@@ -42,6 +42,8 @@ Read this before you rely on the map. The numbers below were measured while buil
 | Photos | Planespotters photo API, called by the visitor's browser | Their terms forbid proxying or storing; credit and link are always shown. |
 | Fallback photos | 142 type photos from Wikimedia Commons, public domain / CC0 / CC BY only | Stored in `web/public/type-photos` with author and licence per image; labelled "representative photo, not this aircraft". |
 | Basemap | OpenFreeMap vector tiles (OpenStreetMap data) | Free public instance, credited. |
+
+**Upstream budgets.** Tiles, single-aircraft lookups, routes and weather each have their own request budget and their own thread, so search or weather traffic can never slow the map down: lookups 0.05 requests per second, routes 2 per second, weather 1.5 per second (NOAA allows 100 per minute). When a budget is empty the field says "busy" instead of calling upstream.
 
 **Plain limits of the aircraft feed**
 
@@ -113,11 +115,13 @@ The API is documented in [server/README.md](server/README.md).
 Contrail runs as plain processes on a small always-on server; Termux on an aarch64 Android device is one target (nothing here needs a native wheel). The public name is `contrail.maciejzielinski.dev`, reached through a tunnel with no open ports.
 
 1. Install `python`, `nodejs` (24 LTS) and `nginx` from the Termux packages and clone this repository to `~/contrail`.
-2. Build the web app once: `cd web && npm ci && npm run build`.
-3. Copy `deploy/termux/env.example` to `~/.config/contrail.env` and set `USER_AGENT_CONTACT`.
-4. Start the API with `deploy/termux/start.sh` (it creates a virtualenv, installs the six pure-Python requirements and listens on `127.0.0.1:8100`).
-5. Include `deploy/termux/nginx.conf`: a server block for `contrail.maciejzielinski.dev` that serves `web/dist` and proxies `/api/` with gzip and a 2 second micro-cache, so any number of viewers cost one backend call per two seconds. Point the tunnel at `127.0.0.1:8080`.
-6. For start at boot copy `deploy/termux/boot-contrail` to `~/.termux/boot/contrail` (Termux:Boot).
+2. Run `deploy/termux/install.sh` by hand, on the first deploy and on every update. It needs the network: it creates the virtualenv, installs the six pure-Python requirements and builds the web app. Nothing is installed at boot.
+3. Copy `deploy/termux/env.example` to `~/.config/contrail/env` and set `USER_AGENT_CONTACT`.
+4. Supervise the API like the other services on the host: link `deploy/termux/run-contrail.sh` to `~/services/run-contrail.sh` (it restarts `start.sh` after 5 seconds) and start it from `~/.termux/boot/start-services`. `start.sh` only does `exec python -m flightmap` on `127.0.0.1:8100`.
+5. nginx: include `deploy/termux/nginx-http.conf` at **http level** (it defines `proxy_cache_path`, the rate-limit zones and the client-address map, which are not allowed inside a server block) and `deploy/termux/nginx-server.conf` for the server block. Adjust the absolute paths in the includes if you cloned elsewhere, then run `nginx -t`. Point the tunnel at `127.0.0.1:8080`.
+   - `/api/` is limited to 10 requests per second and the endpoints that can cost an upstream request (search, weather, aircraft details and routes) to 1 per second, per `CF-Connecting-IP`.
+   - Responses carry a content security policy and the usual security headers (`nginx-headers.conf`, which must match `CONTENT_SECURITY_POLICY` in `server/flightmap/app.py`; a test checks it). `index.html` is never cached, hashed assets and the version-named map worker are cached for a year.
+   - `/api/` gets gzip and a 2 second micro-cache, so any number of viewers cost one backend call per two seconds.
 
 The measurements in this README were taken on a development laptop, not on that hardware.
 

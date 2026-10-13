@@ -1,4 +1,0 @@
-#!/data/data/com.termux/files/usr/bin/sh
-# Copy to ~/.termux/boot/contrail (Termux:Boot) to start the Contrail API when the device starts.
-termux-wake-lock
-nohup "$HOME/contrail/deploy/termux/start.sh" >> "$HOME/contrail.log" 2>&1 &
