@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, cast
 
@@ -34,7 +35,8 @@ _CATEGORY_MAP = {
 def _num(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return float(value)
+    number = float(value)
+    return number if math.isfinite(number) else None  # Python's JSON parser accepts NaN and Infinity
 
 
 def parse_aircraft(raw: dict[str, Any]) -> Aircraft | None:
@@ -83,7 +85,13 @@ def parse_point_response(payload: Any) -> list[Aircraft]:
     seen: dict[int, Aircraft] = {}
     records = cast(list[Any], cast(dict[str, Any], payload)["ac"])
     for rec in records:
-        if isinstance(rec, dict) and (a := parse_aircraft(cast(dict[str, Any], rec))) is not None:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            a = parse_aircraft(cast(dict[str, Any], rec))
+        except (TypeError, ValueError):  # one malformed record must not cost the whole tile
+            continue
+        if a is not None:
             seen[a.hex] = a
     return list(seen.values())
 

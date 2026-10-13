@@ -1,6 +1,6 @@
 import { decodeSnapshot, type Snapshot } from "./codec";
 import { syncServerTime } from "./clock";
-import { rectKey, rectQuery, rectTileCount, type TileRect } from "./tiles";
+import { rectKey, rectQuery, type TileRect } from "./tiles";
 
 export type Freshness = "loading" | "live" | "delayed" | "stale" | "offline";
 
@@ -113,11 +113,6 @@ export class Poller {
     this.abort = ctl;
     const rect = this.opts.getRect();
     const key = rectKey(rect);
-    if (rectTileCount(rect) > 800) {
-      this.fail("viewport too large");
-      this.schedule(ERROR_MS);
-      return;
-    }
     let next = IDLE_MS;
     try {
       const res = await this.fetchImpl(`${this.opts.baseUrl}api/v1/aircraft?${rectQuery(rect)}`, {
