@@ -82,9 +82,18 @@ class FilterTest(unittest.TestCase):
             {"cs": "lo", "ty": "a32*, b738,<script>", "alt": "0-12000", "gnd": "0"}
         )
         self.assertEqual(
-            (f.callsign_prefix, f.types, f.alt_max, f.hide_ground), ("LO", ("A32*", "B738"), 12000, True)
+            (f.callsign_prefixes, f.types, f.alt_max, f.hide_ground), (("LO",), ("A32*", "B738"), 12000, True)
         )
-        self.assertFalse(AircraftFilter.from_params({"cs": "a b!", "ty": "toolong", "alt": "x"}).active)
+        self.assertFalse(
+            AircraftFilter.from_params({"cs": "b!, toolonggg", "ty": "toolong", "alt": "x"}).active
+        )
+
+    def test_callsign_prefixes_split_on_commas_and_whitespace(self) -> None:
+        for raw in ("LO,RYR", "lo, ryr", "LO RYR", " LO ;RYR,, ", "LO,RYR,LO"):
+            self.assertEqual(AircraftFilter.from_params({"cs": raw}).callsign_prefixes, ("LO", "RYR"), raw)
+        many = ",".join(f"A{i}" for i in range(20))
+        self.assertEqual(len(AircraftFilter.from_params({"cs": many}).callsign_prefixes), 8)
+        self.assertEqual(AircraftFilter.from_params({"cs": "LO,bad!,RYR"}).callsign_prefixes, ("LO", "RYR"))
 
     def test_matching(self) -> None:
         idx = make_index()
@@ -93,7 +102,10 @@ class FilterTest(unittest.TestCase):
         self.assertTrue(fam.matches(by["WZZ2706"]))
         self.assertFalse(fam.matches(by["LOT45"]))
         self.assertFalse(fam.matches(by["LOT3"]))  # no type known
-        self.assertTrue(AircraftFilter(callsign_prefix="LOT").matches(by["LOT45"]))
+        self.assertTrue(AircraftFilter(callsign_prefixes=("LOT",)).matches(by["LOT45"]))
+        multi = AircraftFilter(callsign_prefixes=("RYR", "LOT"))
+        self.assertTrue(multi.matches(by["LOT45"]) and multi.matches(by["RYR12AB"]))
+        self.assertFalse(multi.matches(by["WZZ2706"]))
         self.assertFalse(AircraftFilter(airline="WZZ").matches(by["LOT45"]))
         self.assertFalse(AircraftFilter(hide_ground=True).matches(by["RYR12AB"]))
         self.assertFalse(AircraftFilter(alt_max=10000).matches(by["LOT45"]))

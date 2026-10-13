@@ -30,7 +30,7 @@ Everything below reads server memory only and never causes a request to ADSB.lol
   recent tracks of the aircraft in a box (`window` 60 to 3600 seconds, `limit` at most 600). Each
   track is thinned to at most 40 fixes: `{"h": "48ae23", "p": [[lon, lat, altitude_hundreds_ft], ...]}`.
   The nearest `limit` aircraft to the centre are returned and `total` says how many matched.
-- `GET /api/v1/aircraft` also accepts `cs` (callsign prefix), `air` (airline designator) and
+- `GET /api/v1/aircraft` also accepts `cs` (callsign prefixes, comma or space separated, up to 8), `air` (airline designator) and
   `ty` (comma separated ICAO types, `A32*` for a family). They only matter for thinned (low
   zoom) responses, where they are applied before thinning and are part of the ETag.
 - `GET /api/v1/types[?q=]` the most common tracked aircraft types, or the types matching a code

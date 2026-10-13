@@ -279,7 +279,9 @@ class Api:
         # Only a thinned response needs the filter (thinning would otherwise keep aircraft the client
         # then hides); full-density responses are shared and filtered by the client.
         flt = (
-            AircraftFilter(callsign_prefix=parsed.callsign_prefix, airline=parsed.airline, types=parsed.types)
+            AircraftFilter(
+                callsign_prefixes=parsed.callsign_prefixes, airline=parsed.airline, types=parsed.types
+            )
             if level > 0
             else AircraftFilter()
         )

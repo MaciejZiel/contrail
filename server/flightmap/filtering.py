@@ -19,12 +19,13 @@ _CALLSIGN_RE = re.compile(r"^[A-Z0-9]{1,8}$")
 _TYPE_RE = re.compile(r"^[A-Z0-9-]{1,4}\*?$")
 _AIRLINE_RE = re.compile(r"^[A-Z]{3}$")
 MAX_TYPE_PATTERNS = 8
+MAX_CALLSIGN_PREFIXES = 8
 ALT_LIMIT = 45000
 
 
 @dataclass(frozen=True, slots=True)
 class AircraftFilter:
-    callsign_prefix: str = ""
+    callsign_prefixes: tuple[str, ...] = ()  # an aircraft matches when its callsign starts with any
     types: tuple[str, ...] = ()  # ICAO type codes; a trailing "*" matches a family such as "A32*"
     airline: str = ""
     hide_ground: bool = False
@@ -33,8 +34,14 @@ class AircraftFilter:
 
     @classmethod
     def from_params(cls, params: Mapping[str, str]) -> AircraftFilter:
-        """Parse ``cs``, ``ty``, ``gnd=0`` and ``alt=min-max``; invalid values are ignored."""
-        cs = params.get("cs", "").strip().upper()
+        """Parse ``cs`` (prefixes separated by commas or spaces), ``ty``, ``gnd=0`` and ``alt=min-max``; invalid values are ignored."""
+        callsigns = tuple(
+            dict.fromkeys(
+                c
+                for c in re.split(r"[\s,;]+", params.get("cs", "").upper())[: MAX_CALLSIGN_PREFIXES * 4]
+                if _CALLSIGN_RE.match(c)
+            )
+        )[:MAX_CALLSIGN_PREFIXES]
         types = tuple(
             dict.fromkeys(
                 t
@@ -49,7 +56,7 @@ class AircraftFilter:
             a, b = int(m.group(1)), int(m.group(2))
             alt_min, alt_max = min(a, b, ALT_LIMIT), min(max(a, b), ALT_LIMIT)
         return cls(
-            callsign_prefix=cs if _CALLSIGN_RE.match(cs) else "",
+            callsign_prefixes=callsigns,
             types=types,
             airline=air if _AIRLINE_RE.match(air) else "",
             hide_ground=params.get("gnd") == "0",
@@ -60,7 +67,7 @@ class AircraftFilter:
     @property
     def active(self) -> bool:
         return bool(
-            self.callsign_prefix
+            self.callsign_prefixes
             or self.types
             or self.airline
             or self.hide_ground
@@ -77,12 +84,12 @@ class AircraftFilter:
     @property
     def tile_key(self) -> str:
         """Part of the filter that changes which aircraft a thinned tile response holds."""
-        return f"{self.callsign_prefix}|{self.airline}|{','.join(self.types)}"
+        return f"{','.join(self.callsign_prefixes)}|{self.airline}|{','.join(self.types)}"
 
     def matches(self, a: Aircraft) -> bool:
         if self.hide_ground and a.on_ground:
             return False
-        if self.callsign_prefix and not a.callsign.upper().startswith(self.callsign_prefix):
+        if self.callsign_prefixes and not a.callsign.upper().startswith(self.callsign_prefixes):
             return False
         if self.airline and a.callsign.upper()[:3] != self.airline:
             return False
