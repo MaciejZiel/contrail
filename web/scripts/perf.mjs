@@ -10,9 +10,16 @@ const args = process.env.GPU
   : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
 const browser = await chromium.launch({ args });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+// THROTTLE=6 emulates a CPU six times slower (a low-end phone).
+if (process.env.THROTTLE) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE) });
+}
 await page.goto(`${base}/?e2e=1&bm=offline&c=${process.env.PC ?? "30,10"}&z=${process.env.PZ ?? "3"}`);
 await page.waitForFunction(() => !!window.__flights);
-await page.evaluate((n) => {
+if (process.env.WAIT) await page.waitForTimeout(Number(process.env.WAIT) * 1000);
+// COUNT=0: measure the real traffic the server delivers instead of injecting synthetic aircraft
+if (count > 0) await page.evaluate((n) => {
   const f = window.__flights;
   const now = Date.now();
   const records = [];

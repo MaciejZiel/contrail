@@ -7,7 +7,7 @@ test("zooming out draws a thinned picture, zooming in restores full density", as
   await expect.poll(total, { timeout: 20_000 }).toBeGreaterThan(30);
   const detailed = await total();
 
-  await page.evaluate(() => (window as any).__flights.map.jumpTo({ center: [10, 40], zoom: 2.5 }));
+  await page.evaluate(() => (window as any).__flights.map.jumpTo({ center: [10, 20], zoom: 2 }));
   // the world view is thinned to about one aircraft per 36 px cell, however much traffic exists
   await expect.poll(() => page.evaluate(() => (window as any).__flights.layer.visiblePlanes().length), { timeout: 30_000 }).toBeGreaterThan(80);
   await page.waitForTimeout(4000);
