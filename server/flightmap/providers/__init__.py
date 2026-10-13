@@ -1,0 +1,17 @@
+"""Upstream data providers."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from ..models import Aircraft
+from ..tiles import Tile
+
+
+class TileProvider(Protocol):
+    name: str
+    source_id: int
+
+    async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
+        """Return the aircraft currently inside ``tile`` or raise ``UpstreamError``."""
+        ...
