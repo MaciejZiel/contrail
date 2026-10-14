@@ -26,6 +26,10 @@ class UpstreamError(Exception):
         self.retry_after = retry_after
 
 
+class EmptyBody(UpstreamError):
+    """The source answered, but with nothing in the body (e.g. HTTP 204 for "no such report")."""
+
+
 class BudgetExhausted(UpstreamError):
     """Our own per-source request budget is empty: nothing was sent, so the source is not at fault."""
 
@@ -86,7 +90,7 @@ class UpstreamClient:
         loop = asyncio.get_running_loop()
         status, raw = await loop.run_in_executor(self._pool, self._request, method, url, body, headers)
         if not raw.strip():
-            raise UpstreamError(f"empty body (HTTP {status}) from {url}", status)
+            raise EmptyBody(f"empty body (HTTP {status}) from {url}", status)
         try:
             return json.loads(raw)
         except ValueError as exc:

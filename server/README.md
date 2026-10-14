@@ -22,7 +22,7 @@ Configuration is read from environment variables only: `HOST`, `PORT`, `BASE_PAT
 wraps the antimeridian) as `application/octet-stream`, see `flightmap/codec.py` for the layout.
 The response has a strong `ETag` and answers 304 when no tile in the rectangle changed. Headers
 `X-Tiles` and `X-Pending` say how many requested tiles have data and how many are still being
-fetched. `GET /api/v1/status` reports provider health, cache size and the current request rate.
+fetched. `GET /api/v1/status` reports provider health, cache size and tile ages. The scheduler internals (hot tile count, effective refresh interval, current request rate) are served at `GET /api/v1/internal/status` to localhost only: query it on the server with `curl http://127.0.0.1:8100/api/v1/internal/status`, because the proxy blocks that path.
 
 Everything below reads server memory only and never causes a request to ADSB.lol:
 

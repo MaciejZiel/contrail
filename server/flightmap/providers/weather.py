@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from ..upstream import BudgetExhausted, TokenBucket, UpstreamClient, UpstreamError
+from ..upstream import BudgetExhausted, EmptyBody, TokenBucket, UpstreamClient, UpstreamError
 
 _ICAO = re.compile(r"^[A-Z0-9]{3,4}$")
 _SM_TO_M = 1609.344
@@ -95,6 +95,8 @@ async def _get_limited(client: UpstreamClient, bucket: TokenBucket | None, url: 
             raise BudgetExhausted("weather")
         try:
             return await client.get_json(url)
+        except EmptyBody:
+            return []  # 204 or an empty body: the station has no report right now, which is an answer
         except BudgetExhausted:
             raise
         except UpstreamError as exc:

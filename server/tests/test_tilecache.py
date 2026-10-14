@@ -2,8 +2,11 @@
 
 import asyncio
 import unittest
+from collections.abc import Callable
+from typing import ClassVar
 
 from flightmap.models import Aircraft
+from flightmap.tilecache import TileCache
 from flightmap.tiles import Tile
 from flightmap.upstream import UpstreamError
 
@@ -156,3 +159,87 @@ class AdaptiveRateTest(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(cache.snapshot_status()["current_rps"], 0.35)  # type: ignore[arg-type]
         cache._recover_rate(now + 1)  # type: ignore[attr-defined]
         self.assertLessEqual(cache._bucket.rate, 0.35)  # type: ignore[attr-defined]
+
+
+class SparseProvider(FakeProvider):
+    """Aircraft only in tiles whose x is below 10 (the 'real' traffic); everything else is open ocean."""
+
+    async def fetch_tile(self, tile: Tile) -> list[Aircraft]:
+        self.calls.append(tile)
+        if tile[0] >= 10:
+            return []
+        return [Aircraft(hex=tile[0] * 100 + tile[1], lat=1.0, lon=1.0) for _ in range(1)]
+
+
+class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
+    REAL: ClassVar[list[Tile]] = [
+        (x, y) for x in range(5) for y in range(4)
+    ]  # 20 tiles somebody really watches
+
+    async def _flood(
+        self, cache: TileCache, clock: FakeClock, tiles_for: Callable[[int], Tile], minutes: int
+    ) -> int:
+        """Real viewer asks every 10 s; an attacker asks 216 narrow views per minute (3.6 per second).
+
+        Returns how many times a real tile had no servable data when the viewer looked."""
+        empty = 0
+        n = 0
+        for _ in range(0, 400, 10):  # the real viewer is there first: its tiles are loaded and known
+            await cache.request(self.REAL, focus=True)
+            await run_for(cache, clock, 10.0, step=0.25)
+        for second in range(minutes * 60):
+            if second % 10 == 0:
+                await cache.request(self.REAL, focus=True)
+                if len(cache.entries(self.REAL)) < len(self.REAL):
+                    empty += 1
+            for _ in range(4 if second % 5 else 3):  # about 3.6 per second
+                n += 1
+                await cache.request([tiles_for(n)], focus=True)
+            await run_for(cache, clock, 1.0, step=0.25)
+        return empty
+
+    async def test_cold_tiles_outside_the_traffic_mask_cost_nothing(self) -> None:
+        clock, p = FakeClock(), SparseProvider()
+        mask = frozenset(self.REAL)
+        cache = cache_with(
+            clock,
+            provider=p,
+            budget_rps=0.15,
+            ttl_s=10.0,
+            hot_window_s=60.0,
+            max_age_s=300.0,
+            traffic_mask=mask,
+        )
+        lapses = await self._flood(cache, clock, lambda n: (20 + n % 50, 30 + n // 50), 8)
+        self.assertEqual([t for t in p.calls if t not in mask], [])
+        self.assertEqual(lapses, 0)
+        self.assertLess(cache.snapshot_status()["effective_ttl_s"], 200)  # type: ignore[operator]
+
+    async def test_cold_tiles_inside_the_mask_cannot_starve_real_ones(self) -> None:
+        clock, p = FakeClock(), SparseProvider()
+        ocean = [(20 + i % 40, 5 + i // 40) for i in range(2000)]  # in the mask, but nothing flies there
+        cache = cache_with(
+            clock,
+            provider=p,
+            budget_rps=0.15,
+            ttl_s=10.0,
+            hot_window_s=60.0,
+            max_age_s=300.0,
+            traffic_mask=frozenset(self.REAL) | frozenset(ocean),
+        )
+        lapses = await self._flood(cache, clock, lambda n: ocean[n % len(ocean)], 8)
+        self.assertEqual(lapses, 0)
+        real_calls = sum(1 for t in p.calls if t in set(self.REAL))
+        self.assertGreater(real_calls, 100)  # the real tiles kept their share (about 20 per 200 s)
+
+    async def test_usually_empty_hot_tiles_refresh_less_often_than_busy_ones(self) -> None:
+        clock, p = FakeClock(), SparseProvider()
+        cache = cache_with(
+            clock, provider=p, budget_rps=50.0, ttl_s=1.0, hot_window_s=1000.0, max_age_s=900.0
+        )
+        busy, quiet = (1, 1), (30, 30)
+        for _ in range(60):
+            await cache.request([busy, quiet])
+            await run_for(cache, clock, 5.0)
+        self.assertGreater(p.calls.count(busy), 3 * p.calls.count(quiet))
+        self.assertGreaterEqual(p.calls.count(quiet), 300 // 40)  # still looked at within max_age

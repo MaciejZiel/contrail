@@ -19,7 +19,7 @@ from flightmap.providers.weather import WeatherProvider
 from flightmap.tilecache import TileCache
 from flightmap.tiles import Tile
 from flightmap.trails import TrailStore
-from flightmap.upstream import BudgetExhausted, TokenBucket, UpstreamClient, UpstreamError
+from flightmap.upstream import BudgetExhausted, EmptyBody, TokenBucket, UpstreamClient, UpstreamError
 
 from .asgi import asgi_get
 
@@ -311,3 +311,41 @@ class HeadersTest(unittest.IsolatedAsyncioTestCase):
 class DemoStillWorks(unittest.TestCase):
     def test_demo_provider_unchanged(self) -> None:
         self.assertIsNotNone(DemoProvider(DemoTraffic(10)))
+
+
+class WeatherEmptyAnswerTest(unittest.IsolatedAsyncioTestCase):
+    async def test_204_or_empty_body_means_no_report_not_an_error(self) -> None:
+        class Empty(FakeClient):
+            async def get_json(self, url: str, headers: dict[str, str] | None = None) -> Any:
+                self.urls.append(url)
+                raise EmptyBody("empty body (HTTP 204)", 204)
+
+        client = Empty()
+        w = WeatherProvider(client, "http://x", TokenBucket(5.0, burst=5.0))
+        self.assertIsNone(await w.metar("EPWA"))
+        self.assertIsNone(await w.taf("EPWA"))
+        self.assertEqual(len(client.urls), 2)  # answered, so not retried
+        client.close()
+
+    async def test_endpoint_caches_no_report_but_not_busy_or_unavailable(self) -> None:
+        class Mixed:
+            def __init__(self, metar_exc: Exception | None) -> None:
+                self.metar_exc = metar_exc
+
+            async def metar(self, icao: str) -> None:
+                if self.metar_exc:
+                    raise self.metar_exc
+                return None
+
+            async def taf(self, icao: str) -> None:
+                return None
+
+        for exc, store in (
+            (None, "max-age=60"),
+            (BudgetExhausted("weather"), "no-store"),
+            (UpstreamError("x", 503), "no-store"),
+        ):
+            app = make_app()
+            app.state.api._weather = Mixed(exc)
+            r = await asgi_get(app, "/api/v1/airports/EPWA/weather")
+            self.assertIn(store, r.headers["cache-control"], exc)
