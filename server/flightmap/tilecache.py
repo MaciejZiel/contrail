@@ -273,7 +273,9 @@ class TileCache:
         focus = [(t, s) for t, s in hot if now - s.last_focus <= self.hot_window_s]
         if focus and len(focus) < len(hot):
             # focus tiles first, but leave part of the budget to wide views so they still fill in
-            ttl = max(self.ttl_s, self._load(focus, self._stretch) / max(self._bucket.rate * FOCUS_SHARE, 0.01))
+            ttl = max(
+                self.ttl_s, self._load(focus, self._stretch) / max(self._bucket.rate * FOCUS_SHARE, 0.01)
+            )
             tile = self._most_overdue(focus, now, ttl)
             if tile is not None:
                 return tile
