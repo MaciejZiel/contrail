@@ -205,3 +205,12 @@ test.describe("filters, tracks and airports on a 400 x 800 phone", () => {
     await page.screenshot({ path: "test-results/mobile-airport.png" });
   });
 });
+
+test("the failure state of the status pill stays visible on a phone", async ({ page }) => {
+  await page.route("**/api/v1/aircraft?**", (r) => r.abort("blockedbyclient"));
+  await page.goto("/?bm=offline&c=50,10&z=5");
+  const chip = page.locator(".chip");
+  await expect(chip).toContainText(/Can't reach the traffic feed/, { timeout: 25_000 });
+  await expect(chip).toBeInViewport({ ratio: 1 });
+  await expect(chip).toHaveAttribute("data-tone", "bad");
+});

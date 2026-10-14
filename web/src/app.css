@@ -78,6 +78,10 @@ button {
 }
 .maplibregl-ctrl-attrib a {
   color: var(--text) !important;
+  /* at least a 24 px tall target */
+  display: inline-block;
+  padding: 6px 4px;
+  line-height: 12px;
 }
 .maplibregl-ctrl-attrib-button {
   filter: invert(1);

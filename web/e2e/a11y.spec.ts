@@ -37,3 +37,28 @@ test("controls have accessible names and the page has landmarks", async ({ page 
   );
   expect(unnamed).toBe(0);
 });
+
+test("page has one h1 inside main, and search and filters come first in the tab order", async ({ page }) => {
+  await openMap(page);
+  await expect(page.locator("main h1")).toHaveCount(1);
+  await expect(page.locator("main")).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("combobox", { name: /Search flights/ })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Filters" })).toBeFocused();
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll(".maplibregl-ctrl-attrib a")].filter((a) => a.getBoundingClientRect().height > 0 && a.getBoundingClientRect().height < 24).length,
+  );
+  expect(small).toBe(0);
+});
+
+test("Escape closes the filter panel and returns focus to its button", async ({ page }) => {
+  await openMap(page);
+  const button = page.getByRole("button", { name: "Filters" });
+  await button.click();
+  await expect(page.locator("#filter-panel")).toBeVisible();
+  await page.locator("#filter-panel input.text").first().focus();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#filter-panel")).toBeHidden();
+  await expect(button).toBeFocused();
+});

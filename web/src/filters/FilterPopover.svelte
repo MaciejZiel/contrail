@@ -69,6 +69,15 @@
   let open = $state(false);
   let wrap = $state<HTMLElement>();
   let panel = $state<HTMLElement>();
+  let button = $state<HTMLButtonElement>();
+
+  /** Escape closes the panel and hands focus back to the button that opened it. */
+  function onKeydown(e: KeyboardEvent): void {
+    if (e.key !== "Escape" || !open) return;
+    e.stopPropagation(); // do not also deselect the aircraft behind
+    open = false;
+    button?.focus();
+  }
 
   // The panel may only grow down to the bottom of the screen. Its top moves when the chips next to
   // the button wrap onto more rows, so measure where it really starts instead of guessing a constant.
@@ -108,8 +117,8 @@
   const altLabel = (v: number) => (v >= ALT_LIMIT ? "any" : v >= 18000 ? `FL${Math.round(v / 100)}` : `${v.toLocaleString("en")} ft`);
 </script>
 
-<div class="wrap" bind:this={wrap}>
-  <button class="btn" onclick={toggle} aria-expanded={open} aria-controls="filter-panel" aria-label={count ? `Filters, ${count} active` : "Filters"}>
+<div class="wrap" bind:this={wrap} onkeydown={onKeydown} role="presentation">
+  <button class="btn" bind:this={button} onclick={toggle} aria-expanded={open} aria-controls="filter-panel" aria-label={count ? `Filters, ${count} active` : "Filters"}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
     {#if count}<span class="badge">{count}</span>{/if}
   </button>
