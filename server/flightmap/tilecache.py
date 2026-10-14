@@ -33,10 +33,10 @@ RECOVERY_INTERVAL_S = 30.0
 # On-demand tiles that keep coming back empty are refreshed this many times less often (and count
 # that much less towards the shared refresh interval), but never less often than max_age allows.
 EMPTY_STRETCH = ((6, 8.0), (3, 4.0), (1, 2.0))
-# A never-fetched tile ranks like a tile that is just due: any known tile that is later than that
-# goes first, so a flood of new tiles cannot push known ones past their refresh time.
-COLD_RANK = 1.0
-COLD_SHARE = 0.4  # of the budget, for immediate fetches on first sight of a tile
+# When known tiles are overdue and never-fetched ones wait too, every COLD_EVERY-th pick goes to a new
+# tile: a flood of new tiles can take a quarter of the budget, not all of it.
+COLD_EVERY = 4
+COLD_SHARE = 0.2  # of the budget, for immediate fetches on first sight of a tile
 COLD_BURST = 12.0
 
 UpdateListener = Callable[[Tile, list[Aircraft], float], None]
@@ -109,6 +109,7 @@ class TileCache:
         # Immediate fetches for never-seen tiles get their own small share, so a client cannot turn
         # "wait for the tile" into an unlimited claim on the shared budget.
         self._cold = TokenBucket(self.budget_rps * COLD_SHARE, burst=COLD_BURST, clock=self.clock)
+        self._turns = 0
         self._version = 0
         self._limited: list[float] = []
         self._last_rate_change = 0.0  # monotonic
@@ -282,17 +283,26 @@ class TileCache:
         return self._most_overdue(hot, now, self._effective_ttl(self._load(hot, self._stretch)))
 
     def _most_overdue(self, candidates: list[tuple[Tile, TileState]], now: float, ttl: float) -> Tile | None:
-        best: tuple[tuple[float, int], Tile] | None = None
+        known: tuple[float, Tile] | None = None
+        cold: tuple[int, Tile] | None = None
         for tile, st in candidates:
             if tile in self._inflight or now < st.next_attempt:
                 continue
+            if not st.last_attempt:
+                if cold is None or st.rank < cold[0]:  # the tile nearest the view centre first
+                    cold = (st.rank, tile)
+                continue
             # a tile that is usually empty rests longer, but must still be looked at before its data expires
             interval = min(ttl * self._stretch(st), max(ttl, self.max_age_s * 0.5))
-            overdue = (now - st.last_attempt) / interval if st.last_attempt else COLD_RANK
-            key = (overdue, -st.rank)  # equally overdue: the tile nearest the view centre first
-            if overdue >= 1.0 and (best is None or key > best[0]):
-                best = (key, tile)
-        return best[1] if best else None
+            overdue = (now - st.last_attempt) / interval
+            if overdue >= 1.0 and (known is None or overdue > known[0]):
+                known = (overdue, tile)
+        if known is None or cold is None:
+            return (known or cold or (0, None))[1]
+        # Both are waiting: late known tiles go first, but one pick in COLD_EVERY goes to a tile that
+        # has never been fetched, so a busy set of known tiles cannot keep a newcomer waiting for ever.
+        self._turns += 1
+        return cold[1] if self._turns % COLD_EVERY == 0 else known[1]
 
     def _prefetch_active(self, now: float) -> bool:
         if not self.prefetch_plan:
