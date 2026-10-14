@@ -12,6 +12,13 @@ from .upstream import BudgetExhausted, UpstreamError
 _MISSING = object()
 
 
+def _is_source_fault(exc: UpstreamError) -> bool:
+    """Timeouts, network errors, 429 and 5xx say the source is in trouble; an empty answer or a
+    4xx for one particular key does not, and must not switch the lookup off for everybody."""
+    status = exc.status
+    return status is None or status == 429 or status >= 500
+
+
 class EnrichmentCache:
     """TTL cache with single-flight loading, negative caching and a simple circuit breaker."""
 
@@ -76,10 +83,11 @@ class EnrichmentCache:
             raise  # our own limit, not the source's fault: no breaker, no negative caching
         except (UpstreamError, TimeoutError) as exc:
             err = exc if isinstance(exc, UpstreamError) else UpstreamError("timeout")
-            self._failures += 1
-            if self._failures >= self._threshold:
-                self._open_until = time.monotonic() + self._pause
-                self._failures = 0
+            if _is_source_fault(err):
+                self._failures += 1
+                if self._failures >= self._threshold:
+                    self._open_until = time.monotonic() + self._pause
+                    self._failures = 0
             self._put(key, err, self.neg_ttl_s)
             raise err from exc
         self._failures = 0

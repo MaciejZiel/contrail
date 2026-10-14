@@ -2,7 +2,7 @@ import asyncio
 import unittest
 
 from flightmap.enrich import EnrichmentCache
-from flightmap.upstream import UpstreamError
+from flightmap.upstream import EmptyBody, UpstreamError
 
 
 class EnrichmentCacheTest(unittest.IsolatedAsyncioTestCase):
@@ -62,3 +62,30 @@ class EnrichmentCacheTest(unittest.IsolatedAsyncioTestCase):
         c = EnrichmentCache(ttl_s=60, timeout_s=0.05)
         with self.assertRaises(UpstreamError):
             await c.get("k", slow)
+
+
+class BreakerCountsOnlySourceFaultsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_empty_and_client_errors_do_not_trip_the_breaker(self) -> None:
+        async def empty() -> int:
+            raise EmptyBody("empty body (HTTP 204)", 204)
+
+        async def missing() -> int:
+            raise UpstreamError("HTTP 404", 404)
+
+        c = EnrichmentCache(ttl_s=60, breaker_threshold=3, breaker_pause_s=60)
+        for i in range(10):
+            with self.assertRaises(UpstreamError):
+                await c.get(f"e{i}", empty if i % 2 else missing)
+        self.assertFalse(c.open)
+
+    async def test_5xx_429_and_timeouts_still_trip_it(self) -> None:
+        for status in (500, 503, 429, None):
+
+            async def down(status: int | None = status) -> int:
+                raise UpstreamError("down", status)
+
+            c = EnrichmentCache(ttl_s=60, breaker_threshold=3, breaker_pause_s=60)
+            for i in range(3):
+                with self.assertRaises(UpstreamError):
+                    await c.get(f"k{i}", down)
+            self.assertTrue(c.open, status)
