@@ -291,3 +291,38 @@ class SearchAndAirportTest(AppBase):
     async def test_airline_names(self) -> None:
         r = json.loads((await asgi_get(self.app, "/api/v1/airlines?codes=LOT,RYR,xx")).body)
         self.assertEqual(r, {"LOT": "LOT Polish Airlines", "RYR": "Ryanair"})
+
+
+class StatusExposureTest(AppBase):
+    async def test_public_status_hides_scheduler_internals_and_internal_one_is_local_only(self) -> None:
+        public = json.loads((await asgi_get(self.app, "/api/v1/status")).body)
+        for key in ("tiles_hot", "effective_ttl_s", "current_rps", "budget_rps"):
+            self.assertNotIn(key, public)
+        for key in ("max_age_s", "tiles_cached", "version", "ok"):
+            self.assertIn(key, public)  # what the web app and the status page read
+        full = await asgi_get(self.app, "/api/v1/internal/status")
+        self.assertEqual(full.status, 200)
+        self.assertIn("effective_ttl_s", json.loads(full.body))
+        proxied = await asgi_get(self.app, "/api/v1/internal/status", {"X-Forwarded-For": "203.0.113.9"})
+        self.assertEqual(proxied.status, 404)
+
+
+class SearchCachingTest(AppBase):
+    async def test_search_that_could_not_look_up_is_not_cached(self) -> None:
+        api = self.app.state.api
+        while api._lookups.try_take():  # use up the lookup allowance
+            pass
+        r = await asgi_get(self.app, "/api/v1/search?q=ZZ9999")
+        self.assertEqual(r.headers["cache-control"], "no-store")
+        ok = await asgi_get(self.app, "/api/v1/search?q=LOT")
+        self.assertIn("max-age=3", ok.headers["cache-control"])
+
+
+class TrailsKeyTest(AppBase):
+    async def test_nearby_window_values_share_one_cached_result(self) -> None:
+        box = "w=14&s=48&e=26&n=56"
+        await asgi_get(self.app, f"/api/v1/trails?{box}&window=1800")
+        n = len(self.app.state.api._trail_results)
+        await asgi_get(self.app, f"/api/v1/trails?{box}&window=1799.5")
+        await asgi_get(self.app, f"/api/v1/trails?{box}&window=1810&utm=x")
+        self.assertEqual(len(self.app.state.api._trail_results), n)

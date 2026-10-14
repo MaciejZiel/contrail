@@ -475,7 +475,8 @@ class Api:
             return JSONResponse({"error": "w, s, e and n are required numbers"}, status_code=400)
         if not all(math.isfinite(v) for v in (w, s_, e, n)) or not (-90 <= s_ <= n <= 90):
             return JSONResponse({"error": "invalid box"}, status_code=400)
-        window = _clamp_float(q.get("window"), 1800.0, 60.0, 3600.0)
+        # whole minutes: nearby values share one cached result instead of each costing a selection
+        window = float(round(_clamp_float(q.get("window"), 1800.0, 60.0, 3600.0) / 60.0) * 60)
         limit = int(_clamp_float(q.get("limit"), float(TRAILS_MAX_LIMIT), 1.0, float(TRAILS_MAX_LIMIT)))
         flt = AircraftFilter.from_params(q)
         w, s_, e, n = snap_box(w, s_, e, n)
@@ -547,11 +548,14 @@ class Api:
         if len(q) < 2:
             return JSONResponse({"aircraft": [], "airports": [], "airlines": []})
         result = search_all(self.index, self.airports, q)
+        degraded = False
         if not result["aircraft"] and len(q) >= MIN_EXACT_LOOKUP_CHARS:
-            exact = await self._exact_lookup(q)
+            exact, degraded = await self._exact_lookup(q)
             if exact is not None:
                 result["aircraft"] = [exact]
-        return JSONResponse(result, headers={"Cache-Control": "public, max-age=3"})
+        # an answer that is empty only because the lookup was refused or failed must not be cached
+        cache_control = "no-store" if degraded else "public, max-age=3"
+        return JSONResponse(result, headers={"Cache-Control": cache_control})
 
     @staticmethod
     def _exact_kind(q: str) -> tuple[str, str] | None:
@@ -565,20 +569,21 @@ class Api:
             return "callsign", up
         return None
 
-    async def _exact_lookup(self, q: str) -> dict[str, object] | None:
+    async def _exact_lookup(self, q: str) -> tuple[dict[str, object] | None, bool]:
         """A complete callsign, registration or ICAO24 that is not in a loaded tile: at most one
-        upstream call, from the lookup allowance (never the tile budget), and none when it is empty."""
+        upstream call, from the lookup allowance (never the tile budget), and none when it is empty.
+        The flag says the lookup could not be done (no allowance left, or the source failed)."""
         kind = self._exact_kind(q)
         if kind is None:
-            return None
+            return None, False
         key = f"{kind[0]}:{kind[1]}"
         if not self._searches.has(key) and not self._lookups.try_take():
-            return None
+            return None, True
         try:
             ac = await self._searches.get(key, lambda: self.cache.provider.fetch_exact(*kind))
         except UpstreamError:
-            return None
-        return aircraft_item(ac) if ac is not None else None
+            return None, True
+        return (aircraft_item(ac) if ac is not None else None), False
 
     async def airport_catalog(self, _request: Request) -> Response:
         return Response(
@@ -636,8 +641,11 @@ class Api:
 
         metar = await part(self._metars, lambda: self._weather.metar(station))
         taf = await part(self._tafs, lambda: self._weather.taf(station))
+        good = ("ok", "no_report")  # "busy" and "unavailable" are about now, not about the station
+        degraded = any(p.get("ok") is not True and p.get("reason") not in good for p in (metar, taf))
         return JSONResponse(
-            {"ok": True, "metar": metar, "taf": taf}, headers={"Cache-Control": "public, max-age=60"}
+            {"ok": True, "metar": metar, "taf": taf},
+            headers={"Cache-Control": "no-store" if degraded else "public, max-age=60"},
         )
 
     async def airline_names(self, request: Request) -> Response:
@@ -649,7 +657,21 @@ class Api:
         names = {c: n for c in codes[:60] if (n := airline_name(c))}
         return JSONResponse(names, headers={"Cache-Control": "public, max-age=86400"})
 
-    async def status(self, _request: Request) -> Response:
+    # Scheduler internals that tell a client how hard the shared budget is pressed (and so how to
+    # aim a request flood at it): kept off the public status.
+    _INTERNAL_STATUS_KEYS = frozenset(
+        {
+            "tiles_hot",
+            "effective_ttl_s",
+            "current_rps",
+            "budget_rps",
+            "last_error",
+            "prefetch_active",
+            "coverage",
+        }
+    )
+
+    def _status_data(self) -> dict[str, object]:
         data = self.cache.snapshot_status()
         data["version"] = __version__
         data["max_age_s"] = self.settings.max_tile_age_s
@@ -658,7 +680,19 @@ class Api:
         data["trails_evicted"] = self.trails.evicted
         data["trail_points"] = self.trails.points
         data["indexed_aircraft"] = len(self.index)
+        return data
+
+    async def status(self, _request: Request) -> Response:
+        data = {k: v for k, v in self._status_data().items() if k not in self._INTERNAL_STATUS_KEYS}
         return JSONResponse(data, headers={"Cache-Control": "no-store"})
+
+    async def internal_status(self, request: Request) -> Response:
+        """The full status, for the operator only. The proxy always adds X-Forwarded-For, so a request
+        that carries it came from outside and gets a 404 even where the proxy does not block this path."""
+        client = request.client.host if request.client else ""
+        if "x-forwarded-for" in request.headers or client not in ("127.0.0.1", "::1", "localhost"):
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(self._status_data(), headers={"Cache-Control": "no-store"})
 
     async def health(self, _request: Request) -> Response:
         return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
@@ -743,6 +777,7 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         HttpRoute("/api/v1/airports/{code}/weather", api.weather),
         HttpRoute("/api/v1/airlines", api.airline_names),
         HttpRoute("/api/v1/status", api.status),
+        HttpRoute("/api/v1/internal/status", api.internal_status),
         HttpRoute("/api/v1/health", api.health),
     ]
     if settings.static_dir and os.path.isdir(settings.static_dir):

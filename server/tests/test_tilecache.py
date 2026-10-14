@@ -2,8 +2,11 @@
 
 import asyncio
 import unittest
+from collections.abc import Callable
+from typing import ClassVar
 
 from flightmap.models import Aircraft
+from flightmap.tilecache import TileCache
 from flightmap.tiles import Tile
 from flightmap.upstream import UpstreamError
 
@@ -169,15 +172,16 @@ class SparseProvider(FakeProvider):
 
 
 class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
-    REAL: list[Tile] = [(x, y) for x in range(5) for y in range(4)]  # 20 tiles somebody really watches
+    REAL: ClassVar[list[Tile]] = [
+        (x, y) for x in range(5) for y in range(4)
+    ]  # 20 tiles somebody really watches
 
-    async def _flood(self, cache: object, clock: FakeClock, tiles_for: object, minutes: int) -> int:
+    async def _flood(
+        self, cache: TileCache, clock: FakeClock, tiles_for: Callable[[int], Tile], minutes: int
+    ) -> int:
         """Real viewer asks every 10 s; an attacker asks 216 narrow views per minute (3.6 per second).
 
         Returns how many times a real tile had no servable data when the viewer looked."""
-        from flightmap.tilecache import TileCache
-
-        assert isinstance(cache, TileCache)
         empty = 0
         n = 0
         for _ in range(0, 400, 10):  # the real viewer is there first: its tiles are loaded and known
@@ -190,7 +194,7 @@ class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
                     empty += 1
             for _ in range(4 if second % 5 else 3):  # about 3.6 per second
                 n += 1
-                await cache.request([tiles_for(n)], focus=True)  # type: ignore[operator]
+                await cache.request([tiles_for(n)], focus=True)
             await run_for(cache, clock, 1.0, step=0.25)
         return empty
 
@@ -198,7 +202,13 @@ class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
         clock, p = FakeClock(), SparseProvider()
         mask = frozenset(self.REAL)
         cache = cache_with(
-            clock, provider=p, budget_rps=0.15, ttl_s=10.0, hot_window_s=60.0, max_age_s=300.0, traffic_mask=mask
+            clock,
+            provider=p,
+            budget_rps=0.15,
+            ttl_s=10.0,
+            hot_window_s=60.0,
+            max_age_s=300.0,
+            traffic_mask=mask,
         )
         lapses = await self._flood(cache, clock, lambda n: (20 + n % 50, 30 + n // 50), 8)
         self.assertEqual([t for t in p.calls if t not in mask], [])
@@ -224,7 +234,9 @@ class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_usually_empty_hot_tiles_refresh_less_often_than_busy_ones(self) -> None:
         clock, p = FakeClock(), SparseProvider()
-        cache = cache_with(clock, provider=p, budget_rps=50.0, ttl_s=1.0, hot_window_s=1000.0, max_age_s=900.0)
+        cache = cache_with(
+            clock, provider=p, budget_rps=50.0, ttl_s=1.0, hot_window_s=1000.0, max_age_s=900.0
+        )
         busy, quiet = (1, 1), (30, 30)
         for _ in range(60):
             await cache.request([busy, quiet])
