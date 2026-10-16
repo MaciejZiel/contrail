@@ -15,6 +15,7 @@ import { AirportLayer } from "./airportLayer";
 import { offlineStyle, onlineStyle } from "./style";
 import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
+import { GlobeShading } from "./globeShading";
 
 export interface UrlSelection {
   selected: string | null;
@@ -177,6 +178,7 @@ export class MapController {
   private lastClick: MapMouseEvent | null = null;
   private globe = false;
   private flatZoom = 5;
+  private shading: GlobeShading | null = null;
 
   /** Zoom at which the whole globe fits the screen: radius is 60% of the shorter side. */
   private globeFitZoom(): number {
@@ -202,7 +204,7 @@ export class MapController {
             "sky-horizon-blend": 0.5,
             "horizon-fog-blend": 0.5,
             "fog-ground-blend": 0.9,
-            "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
+            "atmosphere-blend": 0,
           }
         : { "atmosphere-blend": 0 },
     );
@@ -218,6 +220,14 @@ export class MapController {
     this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
+    if (on && !this.shading) {
+      // between the basemap canvas and the aircraft canvas
+      this.shading = new GlobeShading(m, this.o.container.querySelector(".aircraft-canvas"));
+      this.shading.start();
+    } else if (!on && this.shading) {
+      this.shading.stop();
+      this.shading = null;
+    }
     this.syncUrl();
     this.poller.refreshNow();
   }
@@ -231,6 +241,7 @@ export class MapController {
     this.recentTrails.destroy();
     this.poller.stop();
     this.aircraft?.stop();
+    this.shading?.stop();
     this.map.remove();
   }
 
