@@ -61,7 +61,7 @@ const smooth = (e0: number, e1: number, x: number): number => {
 
 /**
  * What makes the globe look like a planet, in two canvases around the basemap:
- *  - behind it, faint stars (they drift slightly as the globe is turned);
+ *  - behind it, faint stars (fixed: the sky does not move when the globe is turned);
  *  - on top of it, the night side. It is the real position of the Sun now: the dark half follows the clock,
  *    with a soft twilight band at the terminator, limb darkening and a thin atmosphere ring that is brighter on
  *    the lit side. All of it is low in contrast on purpose.
@@ -160,12 +160,13 @@ export class GlobeShading {
     const zoom = this.map.getZoom();
     const minute = Math.floor(Date.now() / 60000);
     const fade = clamp((5.5 - zoom) / 2, 0, 1);
-    this.drawStars(w, h, dpr, c.lng, c.lat, fade);
+    this.drawStars(w, h, dpr, fade);
     this.drawShade(w, h, dpr, c.lng, c.lat, zoom, minute, fade);
   };
 
-  private drawStars(w: number, h: number, dpr: number, lon: number, lat: number, fade: number): void {
-    const key = `${w}x${h}@${dpr}|${lon.toFixed(1)}|${lat.toFixed(1)}|${fade > 0}`;
+  /** The sky stays put while the globe is turned: stars are drawn once per window size. */
+  private drawStars(w: number, h: number, dpr: number, fade: number): void {
+    const key = `${w}x${h}@${dpr}|${fade > 0}`;
     if (key === this.starsKey) return;
     this.starsKey = key;
     this.fit(this.stars, w, h, dpr);
@@ -173,16 +174,10 @@ export class GlobeShading {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     if (fade <= 0) return;
-    // the sky turns slowly, much slower than the globe
-    const dx = -lon * 0.9;
-    const dy = lat * 0.9;
-    const wrap = (v: number, m: number) => ((v % m) + m) % m;
     for (const s of this.starList) {
-      const x = wrap(s.x * w + dx, w);
-      const y = wrap(s.y * h + dy, h);
       ctx.fillStyle = `rgba(${s.rgb},${s.a})`;
       ctx.beginPath();
-      ctx.arc(x, y, s.r, 0, Math.PI * 2);
+      ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -268,21 +263,22 @@ export class GlobeShading {
           px[o + 3] = 0;
           continue;
         }
-        const day = smooth(-0.2, 0.14, light); // 0 in the night, 1 in the day
-        const dusk = Math.sin(Math.PI * day) ** 2; // 1 in the middle of the twilight band
-        const nightA = (1 - day) * 0.64;
-        // a cool lift on the lit side, strongest where the Sun is high, so the day reads against the night
-        const dayA = day * 0.13 * clamp(light, 0, 1) ** 0.7;
-        const warm = dusk * 0.3;
-        const nr = 5 + warm * 130;
-        const ng = 9 + warm * 60;
-        const nb = 22 + warm * 18;
-        const a = nightA + dayA + dusk * 0.05;
-        // blend the two colours by their share of the alpha
-        const wn = (nightA + dusk * 0.05) / Math.max(a, 1e-6);
-        px[o] = nr * wn + 150 * (1 - wn);
-        px[o + 1] = ng * wn + 188 * (1 - wn);
-        px[o + 2] = nb * wn + 238 * (1 - wn);
+        // 0 in the night, 1 in the day; the twilight is a wide, soft band, not a line
+        const day = smooth(-0.3, 0.32, light);
+        // 1 in the middle of the band: the sky there turns from deep blue towards a dim violet
+        const dusk = Math.sin(Math.PI * day) ** 1.5;
+        const nightA = (1 - day) ** 1.15 * 0.8;
+        // a cool lift on the lit side, strongest where the Sun is high, so the day clearly reads against the night
+        const dayA = day * 0.2 * clamp(light, 0, 1) ** 0.6;
+        const a = nightA + dayA;
+        const wn = nightA / Math.max(a, 1e-6);
+        // night colour: deep blue black, a trace of violet in the twilight; day colour: a soft cool white
+        const nr = 3 + dusk * 46;
+        const ng = 7 + dusk * 14;
+        const nb = 20 + dusk * 44;
+        px[o] = nr * wn + 168 * (1 - wn);
+        px[o + 1] = ng * wn + 198 * (1 - wn);
+        px[o + 2] = nb * wn + 240 * (1 - wn);
         px[o + 3] = clamp(a, 0, 1) * 255;
       }
     }
