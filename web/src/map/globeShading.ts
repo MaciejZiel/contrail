@@ -5,7 +5,7 @@ import { subsolarPoint, sunInView, sunLight } from "./sun";
 
 const TILE_SIZE = 512;
 /** Resolution of the night mask; it is smooth, so it is drawn scaled up. */
-const MASK = 176;
+const MASK = 128;
 const STAR_COUNT = 640;
 
 interface Star {
@@ -74,6 +74,8 @@ export class GlobeShading {
   private stars: HTMLCanvasElement;
   private starsCtx: CanvasRenderingContext2D;
   private mask = document.createElement("canvas");
+  private ringCanvas = document.createElement("canvas");
+  private sprite: HTMLCanvasElement | null = null;
   private maskCtx: CanvasRenderingContext2D;
   private starList = makeStars();
   private shadeKey = "";
@@ -145,7 +147,7 @@ export class GlobeShading {
 
   private size(): { w: number; h: number; dpr: number } {
     const c = this.map.getContainer();
-    return { w: c.clientWidth, h: c.clientHeight, dpr: window.devicePixelRatio || 1 };
+    return { w: c.clientWidth, h: c.clientHeight, dpr: Math.min(1.25, window.devicePixelRatio || 1) };
   }
 
   private fit(cv: HTMLCanvasElement, w: number, h: number, dpr: number): void {
@@ -214,12 +216,18 @@ export class GlobeShading {
     atmo.addColorStop(Math.min(0.999, edge + 0.0001), "rgba(110,155,215,0.42)");
     atmo.addColorStop(Math.min(0.9995, edge + (1 - edge) * 0.4), "rgba(110,155,215,0.13)");
     atmo.addColorStop(1, "rgba(110,155,215,0)");
-    const ringCanvas = document.createElement("canvas");
-    ringCanvas.width = Math.round(2 * outer * dpr);
-    ringCanvas.height = ringCanvas.width;
+    const ringCanvas = this.ringCanvas;
+    const ringPx = Math.round(2 * outer * dpr);
+    if (ringCanvas.width !== ringPx) {
+      ringCanvas.width = ringPx;
+      ringCanvas.height = ringPx;
+    } else {
+      ringCanvas.getContext("2d")?.clearRect(0, 0, ringPx, ringPx);
+    }
     const rc = ringCanvas.getContext("2d");
     if (rc && typeof rc.createConicGradient === "function") {
-      rc.scale(dpr, dpr);
+      rc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      rc.globalCompositeOperation = "source-over";
       const g = rc.createRadialGradient(outer, outer, 0, outer, outer, outer);
       for (const [pos, col] of [
         [0, "rgba(110,155,215,0)"],
@@ -298,6 +306,24 @@ export class GlobeShading {
     ctx.restore();
   }
 
+  /** One soft warm dot, drawn once and scaled for every city. */
+  private citySprite(): HTMLCanvasElement {
+    if (this.sprite) return this.sprite;
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const x = c.getContext("2d");
+    if (x) {
+      const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, "rgba(255,214,150,1)");
+      g.addColorStop(0.1, "rgba(255,170,90,0.4)");
+      g.addColorStop(1, "rgba(255,150,70,0)");
+      x.fillStyle = g;
+      x.fillRect(0, 0, 64, 64);
+    }
+    return (this.sprite = c);
+  }
+
   /** Warm city lights on the night side, from the same projection the aircraft use. */
   private drawCityLights(
     ctx: CanvasRenderingContext2D,
@@ -316,7 +342,9 @@ export class GlobeShading {
     const A = view.camera;
     const R = view.radius;
     const unit = clamp(r / 420, 0.45, 1.8);
+    const sprite = this.citySprite();
     ctx.save();
+    const base = ctx.globalAlpha;
     ctx.globalCompositeOperation = "lighter";
     for (const [lo, la, wgt] of CITY_LIGHTS) {
       const p = la * rad;
@@ -333,13 +361,8 @@ export class GlobeShading {
       const y = cy - ny * k;
       const facing = smooth(0.05, 0.4, nz); // fades out towards the limb
       const size = (0.7 + wgt * 0.45) * unit;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
-      const alpha = Math.min(1, 0.35 + wgt * 0.12) * dark * facing;
-      g.addColorStop(0, `rgba(255,214,150,${alpha})`);
-      g.addColorStop(0.3, `rgba(255,170,90,${alpha * 0.4})`);
-      g.addColorStop(1, "rgba(255,150,70,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(x - size * 3, y - size * 3, size * 6, size * 6);
+      ctx.globalAlpha = base * Math.min(1, 0.35 + wgt * 0.12) * dark * facing;
+      ctx.drawImage(sprite, x - size * 3, y - size * 3, size * 6, size * 6);
     }
     ctx.restore();
   }
