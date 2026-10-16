@@ -9,8 +9,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
+import random
 import re
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 
@@ -27,9 +30,32 @@ MIN_RPS = 0.1
 DEFAULT_MAX_AGE_S = 900.0
 # Share of the budget that zoomed-in ("focus") tiles may use while wide views also want tiles.
 FOCUS_SHARE = 0.75
+# Share of the request rate that tiles somebody is looking at may use. A tile refreshes at most every
+# ttl_s, but with few viewers that would be the whole budget (4 zoomed-in tiles every 27 s), and the
+# background plan would never run: the map outside the viewer's window would empty out. The rest goes to
+# background tiles; when none is due, viewers get it back (see tick).
+HOT_SHARE = 0.65
 # After a 429 the rate grows back by RECOVERY_STEP_RPS per RECOVERY_INTERVAL_S without another one.
 RECOVERY_STEP_RPS = 0.02
-RECOVERY_INTERVAL_S = 30.0
+RECOVERY_INTERVAL_S = 20.0
+# The rate that last drew refusals is remembered as a ceiling for 10 minutes: recovery is quick up to 90
+# percent of it, then it only probes upwards slowly instead of running into the same wall again.
+CEILING_MEMORY_S = 600.0
+PROBE_STEP_RPS = 0.005
+PROBE_INTERVAL_S = 120.0
+# HTTP 429 handling. A tile that was just refused rests for a while (jittered, so tiles do not all come
+# back in the same second); without a Retry-After header, consecutive refusals pause all fetching for
+# longer each time, up to PAUSE_CAP_S. A success resets the count.
+LIMITED_TILE_COOLDOWN_S = 15.0
+LIMITED_TILE_COOLDOWN_CAP_S = 120.0
+DEFAULT_PAUSE_S = 4.0
+PAUSE_CAP_S = 90.0
+EVENT_WINDOW_S = 600.0  # window of the upstream outcome counters in the status
+# Background plan fitting: which planned tiles the budget can keep on the map (see _refit).
+FIT_INTERVAL_S = 60.0
+BG_FRACTION = 0.7  # of the request rate that background tiles may count on; viewers get the rest first
+VALUE_WEIGHT = 0.35  # busier tiles are refreshed sooner: weight 1 + VALUE_WEIGHT * log2(1 + aircraft)
+UNOBSERVED_AIRCRAFT = 8.0  # a planned tile nobody has fetched yet is assumed to be moderately busy
 # On-demand tiles that keep coming back empty are refreshed this many times less often (and count
 # that much less towards the shared refresh interval), but never less often than max_age allows.
 EMPTY_STRETCH = ((6, 8.0), (3, 4.0), (1, 2.0))
@@ -84,6 +110,9 @@ class TileCache:
     hot_window_s: float = 60.0
     evict_after_s: float = 600.0
     max_age_s: float = DEFAULT_MAX_AGE_S
+    # How long tile data is still served, with its age, so the client can show an old aircraft as a faded
+    # "ghost" instead of dropping it at max_age_s. 0 means: the same as max_age_s (no ghosts).
+    ghost_age_s: float = 0.0
     prefetch_plan: dict[Tile, PrefetchSpec] = field(default_factory=lambda: dict[Tile, PrefetchSpec]())
     prefetch_idle_s: float = 900.0
     prefetch_always: bool = False
@@ -95,6 +124,7 @@ class TileCache:
     wall_clock: Callable[[], float] = time.time
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     listeners: list[UpdateListener] = field(default_factory=lambda: list[UpdateListener]())
+    rng: random.Random = field(default_factory=random.Random)
 
     def __post_init__(self) -> None:
         self._states: dict[Tile, TileState] = {}
@@ -114,6 +144,13 @@ class TileCache:
         self._limited: list[float] = []
         self._last_rate_change = 0.0  # monotonic
         self._paused_until = 0.0
+        self._consecutive_limited = 0
+        self._ceiling: float | None = None
+        self._ceiling_at = 0.0  # monotonic
+        self._ghost = max(self.ghost_age_s, self.max_age_s)
+        self._events: deque[tuple[float, str]] = deque()  # (monotonic time, ok | limited | error)
+        self._demoted: frozenset[Tile] = frozenset()
+        self._fit_at = -1e9
         self._wake = asyncio.Event()
         self._runner: asyncio.Task[None] | None = None
         self.status = ProviderStatus()
@@ -127,12 +164,16 @@ class TileCache:
         return self.wall_clock()
 
     def entries(self, tiles: Iterable[Tile]) -> list[TileEntry]:
-        """Current tile data; tiles that could not be refreshed for ``max_age_s`` are dropped."""
+        """Current tile data; tiles that could not be refreshed for ``ghost_age_s`` are dropped.
+
+        Data between ``max_age_s`` and ``ghost_age_s`` is still returned: every entry carries its fetch
+        time, so the client decides how to show it (dimmed, then as a ghost, never as if it were live).
+        """
         out: list[TileEntry] = []
         now = self._wall()
         for t in tiles:
             st = self._states.get(t)
-            if st and st.entry and now - st.entry.fetched_at <= self.max_age_s:
+            if st and st.entry and now - st.entry.fetched_at <= self._ghost:
                 out.append(st.entry)
         return out
 
@@ -198,10 +239,15 @@ class TileCache:
         await asyncio.wait(tasks, timeout=cold_deadline_s)
 
     def _coverage(self, wall: float) -> dict[str, dict[str, float | int | None]]:
-        """Per priority class: planned tiles, tiles with data, median and oldest age, share within 2x target."""
+        """Per priority class (and "demand": tiles only viewers asked for): planned tiles, tiles with data,
+        tiles within ``max_age_s`` and within ``ghost_age_s``, median and oldest age, share within 2x target."""
         out: dict[str, dict[str, float | int | None]] = {}
-        for prio in sorted(CLASS_WEIGHTS):
-            tiles = [t for t, sp in self.prefetch_plan.items() if sp.priority == prio]
+        groups: list[tuple[str, list[Tile], int | None]] = [
+            (str(prio), [t for t, sp in self.prefetch_plan.items() if sp.priority == prio], prio)
+            for prio in sorted(CLASS_WEIGHTS)
+        ]
+        groups.append(("demand", [t for t in self._states if t not in self.prefetch_plan], None))
+        for name, tiles, prio in groups:
             ages: list[float] = []
             on_target = 0
             for t in tiles:
@@ -209,16 +255,20 @@ class TileCache:
                 if st and st.entry:
                     age = wall - st.entry.fetched_at
                     ages.append(age)
-                    if age <= 2 * self.prefetch_plan[t].interval_s:
+                    spec = self.prefetch_plan.get(t)
+                    if spec is not None and age <= 2 * spec.interval_s:
                         on_target += 1
             ages.sort()
-            out[str(prio)] = {
+            out[name] = {
                 "tiles": len(tiles),
                 "with_data": len(ages),
+                "fresh": sum(1 for a in ages if a <= self.max_age_s),
+                "ghost": sum(1 for a in ages if self.max_age_s < a <= self._ghost),
                 "on_target": on_target,
                 "median_age_s": round(ages[len(ages) // 2], 1) if ages else None,
                 "oldest_age_s": round(ages[-1], 1) if ages else None,
-                "served": self._served[prio],
+                "served": self._served[prio] if prio is not None else 0,
+                "demoted": sum(1 for t in tiles if t in self._demoted),
             }
         return out
 
@@ -237,6 +287,8 @@ class TileCache:
             "tiles_hot": len(hot),
             "prefetch_tiles": len(self.prefetch_plan),
             "coverage": self._coverage(wall),
+            "upstream_10min": self.upstream_window(),
+            "ghost_age_s": self._ghost,
             "prefetch_active": self._prefetch_active(now),
             "median_tile_age_s": round(ages[len(ages) // 2], 1) if ages else None,
             "oldest_tile_age_s": round(ages[-1], 1) if ages else None,
@@ -248,14 +300,50 @@ class TileCache:
         }
 
     def _on_rate_limited(self, retry_after: float | None) -> None:
-        """A few HTTP 429s are normal on a shared public API; sustained ones lower our request rate."""
+        """A single HTTP 429 is normal on a shared public API; two within a minute lower our request rate."""
         now = self._now()
-        self._paused_until = now + (retry_after or 4.0)
+        self._consecutive_limited += 1
+        if retry_after:
+            pause = retry_after  # the server said how long: believe it
+        else:
+            pause = (
+                min(PAUSE_CAP_S, DEFAULT_PAUSE_S * 2 ** min(self._consecutive_limited - 1, 5))
+                * self._jitter()
+            )
+        self._paused_until = now + pause
         self._last_rate_change = now  # no recovery step until things have been quiet for a while
         self._limited = [t for t in self._limited if now - t < 60.0] + [now]
-        if len(self._limited) >= 3:
-            self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.7)
+        if len(self._limited) >= 2:
+            self._ceiling = self._bucket.rate
+            self._ceiling_at = now
+            self._bucket.rate = max(MIN_RPS, self._bucket.rate * 0.8)
             self._limited.clear()
+
+    def _jitter(self) -> float:
+        """A factor between 0.8 and 1.25, from the injectable generator (deterministic in tests)."""
+        return 0.8 + 0.45 * self.rng.random()
+
+    def _record(self, kind: str) -> None:
+        now = self._now()
+        self._events.append((now, kind))
+        while self._events and now - self._events[0][0] > EVENT_WINDOW_S:
+            self._events.popleft()
+
+    def upstream_window(self) -> dict[str, float | int]:
+        """Outcomes of upstream tile requests over the last 10 minutes (for the operator's status)."""
+        now = self._now()
+        while self._events and now - self._events[0][0] > EVENT_WINDOW_S:
+            self._events.popleft()
+        total = len(self._events)
+        limited = sum(1 for _t, k in self._events if k == "limited")
+        failed = sum(1 for _t, k in self._events if k == "error")
+        return {
+            "window_s": EVENT_WINDOW_S,
+            "requests": total,
+            "limited_429": limited,
+            "other_errors": failed,
+            "limited_share": round(limited / total, 3) if total else 0.0,
+        }
 
     async def with_budget[T](self, call: Callable[[], Awaitable[T]], wait_s: float = 6.0) -> T:
         """Run one extra upstream call (e.g. a single-aircraft lookup) against the shared budget."""
@@ -266,21 +354,22 @@ class TileCache:
 
     # -- scheduling -------------------------------------------------------------------
 
-    def _effective_ttl(self, load: float) -> float:
-        return max(self.ttl_s, load / max(self._bucket.rate, 0.01))
+    def _effective_ttl(self, load: float, share: float = HOT_SHARE) -> float:
+        return max(self.ttl_s, load / max(self._bucket.rate * share, 0.01))
 
-    def _pick(self, now: float) -> Tile | None:
+    def _pick(self, now: float, share: float = HOT_SHARE) -> Tile | None:
         hot = self._hot(now)
         focus = [(t, s) for t, s in hot if now - s.last_focus <= self.hot_window_s]
         if focus and len(focus) < len(hot):
             # focus tiles first, but leave part of the budget to wide views so they still fill in
             ttl = max(
-                self.ttl_s, self._load(focus, self._stretch) / max(self._bucket.rate * FOCUS_SHARE, 0.01)
+                self.ttl_s,
+                self._load(focus, self._stretch) / max(self._bucket.rate * share * FOCUS_SHARE, 0.01),
             )
             tile = self._most_overdue(focus, now, ttl)
             if tile is not None:
                 return tile
-        return self._most_overdue(hot, now, self._effective_ttl(self._load(hot, self._stretch)))
+        return self._most_overdue(hot, now, self._effective_ttl(self._load(hot, self._stretch), share))
 
     def _most_overdue(self, candidates: list[tuple[Tile, TileState]], now: float, ttl: float) -> Tile | None:
         known: tuple[float, Tile] | None = None
@@ -323,12 +412,43 @@ class TileCache:
             return base * 20
         return base * (3 if st.avg_count >= 1.5 else 10)
 
+    def _value(self, tile: Tile) -> float:
+        """Expected number of aircraft in a tile, from what was fetched so far."""
+        st = self._states.get(tile)
+        return st.avg_count if st is not None and st.avg_count >= 0 else UNOBSERVED_AIRCRAFT
+
+    def _refit(self, now: float) -> None:
+        """Decide which planned tiles the request budget can actually keep on the map.
+
+        Every fetch buys at most ``ghost_age_s`` of display time, so with request rate ``r`` a class can keep
+        about ``r * share * 0.9 * ghost_age_s`` tiles visible. A plan that is larger than that (the default
+        plan wants 0.35 requests per second against a budget of 0.15) makes every tile equally stale and
+        most of them blank. The busiest tiles of an over-full class are kept, the rest are demoted to a
+        tail that is only fetched when nothing else is due, so the budget is never left idle.
+        """
+        if now - self._fit_at < FIT_INTERVAL_S:
+            return
+        self._fit_at = now
+        bg = self._bucket.rate * BG_FRACTION
+        horizon = self._ghost * 0.9
+        demoted: set[Tile] = set()
+        for prio, weight in CLASS_WEIGHTS.items():
+            tiles = [t for t, sp in self.prefetch_plan.items() if sp.priority == prio]
+            keep = max(1, int(bg * weight * horizon))
+            if len(tiles) > keep:
+                tiles.sort(key=self._value, reverse=True)
+                demoted.update(tiles[keep:])
+        self._demoted = frozenset(demoted)
+
     def _pick_prefetch(self, now: float) -> Tile | None:
         """Spare-capacity fetch: pick the priority class that is furthest below its weighted share
-        among classes that have a tile due, then that class's most overdue tile (relative to its target)."""
+        among classes that have a tile due, then that class's most overdue tile (relative to its target,
+        busier tiles first). Tiles the budget cannot keep fresh (see ``_refit``) only get what is left."""
         if not self._prefetch_active(now):
             return None
+        self._refit(now)
         best: dict[int, tuple[float, Tile]] = {}
+        tail: dict[int, tuple[float, Tile]] = {}
         for tile, spec in self.prefetch_plan.items():
             if tile in self._inflight:
                 continue
@@ -340,15 +460,19 @@ class TileCache:
             overdue = 1e9 if not last else (now - last) / interval
             if overdue < 1.0:
                 continue
-            cur = best.get(spec.priority)
+            if last:
+                overdue *= 1.0 + VALUE_WEIGHT * math.log2(1.0 + self._value(tile))
+            group = tail if tile in self._demoted else best
+            cur = group.get(spec.priority)
             if cur is None or overdue > cur[0]:
-                best[spec.priority] = (overdue, tile)
-        if not best:
+                group[spec.priority] = (overdue, tile)
+        chosen = best or tail
+        if not chosen:
             return None
         # deficit round robin between classes: lowest served/weight goes first
-        prio = min(best, key=lambda p: self._served[p] / CLASS_WEIGHTS[p])
+        prio = min(chosen, key=lambda p: self._served[p] / CLASS_WEIGHTS[p])
         self._served[prio] += 1
-        return best[prio][1]
+        return chosen[prio][1]
 
     def _ensure_fetch(self, tile: Tile) -> asyncio.Task[None]:
         task = self._inflight.get(tile)
@@ -382,21 +506,32 @@ class TileCache:
             self.status.ok = False
             self.status.last_error = str(exc)
             st.failures += 1
-            st.next_attempt = self._now() + min(60.0, 2.0**st.failures)
             if exc.status in (429, 503):
+                # Refused, not broken: leave this tile alone for a (jittered) while and slow everything down
+                self._record("limited")
+                cooldown = min(
+                    LIMITED_TILE_COOLDOWN_CAP_S, LIMITED_TILE_COOLDOWN_S * 2 ** min(st.failures - 1, 3)
+                )
+                st.next_attempt = self._now() + cooldown * self._jitter()
                 self._on_rate_limited(exc.retry_after)
+            else:
+                self._record("error")
+                st.next_attempt = self._now() + min(60.0, 2.0**st.failures)
             log.warning("tile %s fetch failed: %s", tile, exc)
             return
         except Exception:
             self.status.errors += 1
             self.status.ok = False
             self.status.last_error = "internal provider error"
+            self._record("error")
             st.failures += 1
             st.next_attempt = self._now() + min(60.0, 2.0**st.failures)
             log.exception("tile %s provider crashed", tile)
             return
         st.failures = 0
         st.next_attempt = 0.0
+        self._consecutive_limited = 0
+        self._record("ok")
         self._recover_rate(self._now())
         self.status.ok = True
         self.status.last_error = ""
@@ -428,8 +563,15 @@ class TileCache:
         Pacing by time rather than by successful requests keeps the recovery from a low rate
         as quick as from a high one (counting requests took most of an hour at the floor).
         """
-        if self._bucket.rate < self.budget_rps and now - self._last_rate_change >= RECOVERY_INTERVAL_S:
-            self._bucket.rate = min(self.budget_rps, self._bucket.rate + RECOVERY_STEP_RPS)
+        if self._ceiling is not None and now - self._ceiling_at > CEILING_MEMORY_S:
+            self._ceiling = None
+        if self._bucket.rate >= self.budget_rps:
+            return
+        near = self._ceiling is not None and self._bucket.rate >= 0.9 * self._ceiling
+        wait = PROBE_INTERVAL_S if near else RECOVERY_INTERVAL_S
+        if now - self._last_rate_change >= wait:
+            step = PROBE_STEP_RPS if near else RECOVERY_STEP_RPS
+            self._bucket.rate = min(self.budget_rps, self._bucket.rate + step)
             self._last_rate_change = now
 
     async def tick(self) -> int:
@@ -440,7 +582,8 @@ class TileCache:
             return 0  # rate limited: do not start fetches that would only sit waiting for the pause to end
         scheduled = 0
         while len(self._inflight) < MAX_INFLIGHT and self._bucket.available():
-            tile = self._pick(now) or self._pick_prefetch(now)
+            # viewers first (within their share), then the background plan, then viewers again with what is left
+            tile = self._pick(now) or self._pick_prefetch(now) or self._pick(now, 1.0)
             if tile is None:
                 break
             self._ensure_fetch(tile)
@@ -467,7 +610,9 @@ class TileCache:
         """Free memory of tile data too old to be served and tell listeners (the search index)."""
         wall = self._wall()
         for tile, st in self._states.items():
-            if st.entry is not None and wall - st.entry.fetched_at > self.max_age_s * 1.5:
+            if st.entry is not None and wall - st.entry.fetched_at > max(
+                self.max_age_s * 1.5, self._ghost * 1.1
+            ):
                 st.entry = None
                 for listener in self.expire_listeners:
                     listener(tile)

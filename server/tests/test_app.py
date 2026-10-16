@@ -296,13 +296,14 @@ class SearchAndAirportTest(AppBase):
 class StatusExposureTest(AppBase):
     async def test_public_status_hides_scheduler_internals_and_internal_one_is_local_only(self) -> None:
         public = json.loads((await asgi_get(self.app, "/api/v1/status")).body)
-        for key in ("tiles_hot", "effective_ttl_s", "current_rps", "budget_rps"):
+        for key in ("tiles_hot", "effective_ttl_s", "current_rps", "budget_rps", "upstream_10min"):
             self.assertNotIn(key, public)
-        for key in ("max_age_s", "tiles_cached", "version", "ok"):
+        for key in ("max_age_s", "ghost_age_s", "tiles_cached", "version", "ok"):
             self.assertIn(key, public)  # what the web app and the status page read
         full = await asgi_get(self.app, "/api/v1/internal/status")
         self.assertEqual(full.status, 200)
         self.assertIn("effective_ttl_s", json.loads(full.body))
+        self.assertIn("limited_share", json.loads(full.body)["upstream_10min"])
         proxied = await asgi_get(self.app, "/api/v1/internal/status", {"X-Forwarded-For": "203.0.113.9"})
         self.assertEqual(proxied.status, 404)
 

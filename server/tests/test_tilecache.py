@@ -213,7 +213,8 @@ class BudgetFloodTest(unittest.IsolatedAsyncioTestCase):
         lapses = await self._flood(cache, clock, lambda n: (20 + n % 50, 30 + n // 50), 8)
         self.assertEqual([t for t in p.calls if t not in mask], [])
         self.assertEqual(lapses, 0)
-        self.assertLess(cache.snapshot_status()["effective_ttl_s"], 200)  # type: ignore[operator]
+        # viewers may use 65 percent of the budget, so the same load shows as a 1.5 times longer interval
+        self.assertLess(cache.snapshot_status()["effective_ttl_s"], 300)  # type: ignore[operator]
 
     async def test_cold_tiles_inside_the_mask_cannot_starve_real_ones(self) -> None:
         clock, p = FakeClock(), SparseProvider()

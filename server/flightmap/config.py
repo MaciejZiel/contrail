@@ -34,6 +34,8 @@ class Settings:
     trail_retention_s: float = 2700.0
     trail_min_interval_s: float = 10.0
     max_tile_age_s: float = 900.0
+    # tile data older than max_tile_age_s is still served (with its age) up to this, for faded ghosts
+    ghost_age_s: float = 1800.0
     # name:south,north,west,east:priority:interval_s;...  (empty: defaults, "off": no prefetching)
     prefetch_regions: str = ""
     prefetch_idle_s: float = 900.0
@@ -63,6 +65,7 @@ class Settings:
             trail_retention_s=float(e.get("TRAIL_RETENTION_S", "2700")),
             trail_min_interval_s=float(e.get("TRAIL_MIN_INTERVAL_S", "10")),
             max_tile_age_s=float(e.get("MAX_TILE_AGE_S", "900")),
+            ghost_age_s=float(e.get("GHOST_AGE_S", "1800")),
             prefetch_regions="off"
             if _bool(e.get("DEMO_MODE"), False) and "PREFETCH_REGIONS" not in e
             else e.get("PREFETCH_REGIONS", ""),
