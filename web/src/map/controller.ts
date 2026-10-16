@@ -180,12 +180,11 @@ export class MapController {
   private flatZoom = 5;
   private shading: GlobeShading | null = null;
 
-  /** Zoom at which the whole globe fits the screen: radius is 60% of the shorter side. */
+  /** Zoom at which the globe is as big as the screen allows: its outline spans 88% of the shorter side. */
   private globeFitZoom(): number {
     const c = this.o.container;
-    const cosLat = Math.max(0.2, Math.cos(this.map.getCenter().lat * (Math.PI / 180)));
-    const z = Math.log2((0.6 * Math.min(c.clientWidth, c.clientHeight) * 2 * Math.PI * cosLat) / 512);
-    return Math.min(2.6, Math.max(0, z));
+    const target = 0.44 * Math.min(c.clientWidth, c.clientHeight);
+    return Math.min(2.8, Math.max(0, GlobeShading.zoomForRadius(target, this.map.getCenter().lat, c.clientHeight)));
   }
 
   /** Switch between the flat map and the globe. The aircraft layer follows the projection. */

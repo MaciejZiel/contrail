@@ -6,6 +6,7 @@ import type { Plane } from "../core/plane";
 import type { AircraftStore } from "../core/store";
 import { AircraftGl, STRIDE_FLOATS } from "./aircraftGl";
 import { ACCENT_RGB, altitudeRgb, GHOST_RGB, packRgba } from "./palette";
+import { GlobeShading } from "./globeShading";
 import { SPRITE, spriteFor } from "./sprites";
 
 const TILE_SIZE = 512; // MapLibre world size at zoom 0
@@ -298,7 +299,8 @@ export class AircraftLayer {
     const cy = h / 2;
     // length of the look-ahead used for the heading: about 30 px on screen
     const stepDeg = clamp(30 / (radius * RAD), 0.02, 2);
-    const size = baseSize(zoom) * 0.9;
+    // on a small globe (a phone) the aircraft must not crowd the disc: size follows the outline as well as the zoom
+    const size = Math.min(baseSize(zoom), Math.max(6.5, 0.026 * GlobeShading.silhouetteRadius(zoom, center.lat, h))) * 0.9;
     const selected = this.opts.getSelected();
     const accepts = this.opts.accepts;
     const planes = this.opts.store.planes;
