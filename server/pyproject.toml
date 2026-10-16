@@ -18,6 +18,8 @@ ignore = ["S101", "S311", "S324", "E501"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S"]
 "scripts/*" = ["S310"]
+# starts the local interpreter and two local tools on purpose
+"scripts/simulate_freshness.py" = ["S310", "S603", "S607"]
 
 [tool.pyright]
 include = ["flightmap", "tests"]
