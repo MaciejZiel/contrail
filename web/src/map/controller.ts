@@ -12,7 +12,7 @@ import { rectForBounds } from "../core/tiles";
 import { preservedParams, serializeUrlState, type TrailMinutes, type ViewState } from "../core/urlState";
 import { AircraftLayer } from "./aircraftLayer";
 import { AirportLayer } from "./airportLayer";
-import { offlineStyle, onlineStyle } from "./style";
+import { COLORS, offlineStyle, onlineStyle } from "./style";
 import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
 import { GlobeShading } from "./globeShading";
@@ -219,6 +219,7 @@ export class MapController {
     this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
+    this.paintGlobe(on);
     if (on && !this.shading) {
       // between the basemap canvas and the aircraft canvas
       this.shading = new GlobeShading(m, this.o.container.querySelector(".aircraft-canvas"));
@@ -229,6 +230,24 @@ export class MapController {
     }
     this.syncUrl();
     this.poller.refreshNow();
+  }
+
+  /** The globe shows daylight colours (blue ocean, slate land) so the night shading has something to darken. */
+  private paintGlobe(on: boolean): void {
+    const m = this.map;
+    const set = (id: string, prop: "fill-color" | "line-color" | "background-color", value: string): void => {
+      if (m.getLayer(id)) m.setPaintProperty(id, prop, value);
+    };
+    const ocean = on ? "#1d4168" : COLORS.water;
+    const land = on ? "#47575b" : COLORS.land;
+    set("water", "fill-color", ocean);
+    set("waterway", "line-color", ocean);
+    set("landuse", "fill-color", on ? "#4d5e60" : COLORS.landUse);
+    set(m.getLayer("water") ? "background" : "land", m.getLayer("water") ? "background-color" : "fill-color", land);
+    if (!m.getLayer("water")) set("background", "background-color", ocean);
+    set("boundary-country", "line-color", on ? "#7d8a94" : COLORS.boundary);
+    set("boundary-state", "line-color", on ? "#7d8a94" : COLORS.boundary);
+    set("borders", "line-color", on ? "#7d8a94" : COLORS.boundary);
   }
 
   destroy(): void {

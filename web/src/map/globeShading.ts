@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { clamp } from "../core/geo";
+import { CITY_LIGHTS } from "./cityLights";
 import { subsolarPoint, sunInView, sunLight } from "./sun";
 
 const TILE_SIZE = 512;
@@ -263,22 +264,14 @@ export class GlobeShading {
           px[o + 3] = 0;
           continue;
         }
-        // 0 in the night, 1 in the day; the twilight is a wide, soft band, not a line
-        const day = smooth(-0.3, 0.32, light);
-        // 1 in the middle of the band: the sky there turns from deep blue towards a dim violet
-        const dusk = Math.sin(Math.PI * day) ** 1.5;
-        const nightA = (1 - day) ** 1.15 * 0.8;
-        // a cool lift on the lit side, strongest where the Sun is high, so the day clearly reads against the night
-        const dayA = day * 0.2 * clamp(light, 0, 1) ** 0.6;
-        const a = nightA + dayA;
-        const wn = nightA / Math.max(a, 1e-6);
-        // night colour: deep blue black, a trace of violet in the twilight; day colour: a soft cool white
-        const nr = 3 + dusk * 46;
-        const ng = 7 + dusk * 14;
-        const nb = 20 + dusk * 44;
-        px[o] = nr * wn + 168 * (1 - wn);
-        px[o + 1] = ng * wn + 198 * (1 - wn);
-        px[o + 2] = nb * wn + 240 * (1 - wn);
+        // 0 in the night, 1 in the day; the twilight is a wide, soft ramp, not a line
+        const day = smooth(-0.22, 0.26, light);
+        // the sky glows a faint warm rose where the Sun has just set
+        const dusk = Math.sin(Math.PI * day) ** 2;
+        const a = (1 - day) ** 1.2 * 0.68;
+        px[o] = 4 + dusk * 30;
+        px[o + 1] = 8 + dusk * 8;
+        px[o + 2] = 24 + dusk * 16;
         px[o + 3] = clamp(a, 0, 1) * 255;
       }
     }
@@ -292,6 +285,8 @@ export class GlobeShading {
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(this.mask, cx - r, cy - r, 2 * r, 2 * r);
 
+    this.drawCityLights(ctx, view, sun, lat, lon, cx, cy, r);
+
     // limb darkening on top: the sphere falls away towards its edge, a little less on the lit side
     const limb = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
     limb.addColorStop(0, "rgba(5,6,8,0)");
@@ -300,6 +295,52 @@ export class GlobeShading {
     ctx.fillStyle = limb;
     ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
     ctx.restore();
+    ctx.restore();
+  }
+
+  /** Warm city lights on the night side, from the same projection the aircraft use. */
+  private drawCityLights(
+    ctx: CanvasRenderingContext2D,
+    view: { radius: number; camera: number },
+    sun: { sx: number; sy: number; sz: number },
+    lat0: number,
+    lon0: number,
+    cx: number,
+    cy: number,
+    r: number,
+  ): void {
+    const rad = Math.PI / 180;
+    const p0 = lat0 * rad;
+    const sinP0 = Math.sin(p0);
+    const cosP0 = Math.cos(p0);
+    const A = view.camera;
+    const R = view.radius;
+    const unit = clamp(r / 420, 0.45, 1.8);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const [lo, la, wgt] of CITY_LIGHTS) {
+      const p = la * rad;
+      const dl = (lo - lon0) * rad;
+      const nx = Math.cos(p) * Math.sin(dl);
+      const ny = cosP0 * Math.sin(p) - sinP0 * Math.cos(p) * Math.cos(dl);
+      const nz = sinP0 * Math.sin(p) + cosP0 * Math.cos(p) * Math.cos(dl);
+      if (nz <= R / (R + A) + 0.02) continue;
+      const light = nx * sun.sx + ny * sun.sy + nz * sun.sz;
+      const dark = smooth(0.02, -0.2, light);
+      if (dark <= 0.01) continue;
+      const k = (R * A) / (R + A - R * nz);
+      const x = cx + nx * k;
+      const y = cy - ny * k;
+      const facing = smooth(0.05, 0.4, nz); // fades out towards the limb
+      const size = (0.7 + wgt * 0.45) * unit;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
+      const alpha = Math.min(1, 0.35 + wgt * 0.12) * dark * facing;
+      g.addColorStop(0, `rgba(255,214,150,${alpha})`);
+      g.addColorStop(0.3, `rgba(255,170,90,${alpha * 0.4})`);
+      g.addColorStop(1, "rgba(255,150,70,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - size * 3, y - size * 3, size * 6, size * 6);
+    }
     ctx.restore();
   }
 }
