@@ -4,8 +4,14 @@ import { DEFAULT_VIEW, parseUrlState, preservedParams, serializeUrlState } from 
 
 describe("url state", () => {
   it("round trips the view", () => {
-    const v = { lat: 52.2297, lon: 21.0122, zoom: 8.25, selected: "48ad08", airport: null, filters: DEFAULT_FILTERS, trails: 0 as const };
+    const v = { lat: 52.2297, lon: 21.0122, zoom: 8.25, selected: "48ad08", airport: null, filters: DEFAULT_FILTERS, trails: 0 as const, globe: false };
     expect(parseUrlState(`?${serializeUrlState(v)}`)).toEqual(v);
+  });
+
+  it("round trips the globe flag and keeps the flat map out of the URL", () => {
+    expect(parseUrlState(`?${serializeUrlState({ ...DEFAULT_VIEW, globe: true })}`).globe).toBe(true);
+    expect(serializeUrlState(DEFAULT_VIEW)).not.toContain("g=");
+    expect(preservedParams("?g=1&e2e=1").has("g")).toBe(false);
   });
 
   it("falls back to defaults on junk", () => {

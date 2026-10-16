@@ -8,6 +8,7 @@
     now,
     fill = false,
     zero = false,
+    big = false,
     format,
   }: {
     title: string;
@@ -18,11 +19,13 @@
     now: number;
     fill?: boolean;
     zero?: boolean;
+    /** The chart the panel is built around: taller, with the value at the larger size. */
+    big?: boolean;
     format: (v: number) => string;
   } = $props();
 
   const W = 300;
-  const H = 54;
+  const H = $derived(big ? 120 : 44);
   const PAD = 4;
 
   const pts = $derived(
@@ -58,10 +61,10 @@
   }
 </script>
 
-<div class="spark">
+<div class="spark" class:big>
   <div class="head">
     <span class="title">{title}</span>
-    <span class="val" style={`color:${color}`}>
+    <span class="val num">
       {#if hoverPoint}
         {format(hoverPoint.v)} {unit} <small>· {Math.round((now - hoverPoint.t) / 60)} min ago</small>
       {:else if last !== null}
@@ -73,6 +76,7 @@
   </div>
   {#if pts.length >= 2}
     <svg
+      style={`height:${H}px`}
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
       role="img"
@@ -81,48 +85,57 @@
       onpointerleave={() => (hover = null)}
     >
       {#if zero}<line x1="0" x2={W} y1={y(0)} y2={y(0)} class="zero" />{/if}
-      {#if fill}<path d={area} fill={color} opacity="0.18" />{/if}
+      {#if fill}<path d={area} fill={color} opacity="0.2" />{/if}
       <path d={line} fill="none" stroke={color} stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" />
       {#if hoverPoint}
         <line x1={x(hoverPoint.t)} x2={x(hoverPoint.t)} y1="0" y2={H} class="guide" vector-effect="non-scaling-stroke" />
       {/if}
     </svg>
   {:else}
-    <div class="empty">Collecting history, check back in a minute</div>
+    <div class="empty" style={`height:${H}px`}>Collecting history, check back in a minute</div>
   {/if}
 </div>
 
 <style>
   .spark {
-    padding: 6px 0;
+    padding: 12px 14px 10px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    min-width: 0;
   }
   .head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    font-size: 12px;
-    margin-bottom: 2px;
+    align-items: baseline;
+    gap: 2px 8px;
+    margin-bottom: 8px;
   }
   .title {
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 11px;
+    font-size: var(--fs-s);
   }
   .val {
-    font: 600 13px var(--mono);
+    font-weight: 600;
+    font-size: var(--fs-m);
+    color: var(--text);
+  }
+  .big .val {
+    font-size: var(--fs-l);
   }
   small {
     color: var(--text-dim);
     font-weight: 400;
+    font-size: var(--fs-s);
   }
   svg {
     width: 100%;
-    height: 54px;
     display: block;
     touch-action: pan-y;
   }
   .zero {
-    stroke: var(--border);
+    stroke: var(--surface-3);
+    stroke-width: 1;
     stroke-dasharray: 3 3;
     vector-effect: non-scaling-stroke;
   }
@@ -131,12 +144,13 @@
     stroke-width: 1;
   }
   .empty {
-    height: 54px;
     display: grid;
     place-items: center;
-    font-size: 12px;
+    text-align: center;
+    padding: 0 8px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
-    border: 1px dashed var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
   }
 </style>

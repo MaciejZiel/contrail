@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [svelte()],
   define: { __MAPLIBRE_DIR__: JSON.stringify(workerDir) },
   server: {
-    proxy: { "/api": "http://127.0.0.1:8000" },
+    proxy: { "/api": `http://127.0.0.1:${process.env.API_PORT ?? 8000}` },
   },
   build: {
     target: "es2022",

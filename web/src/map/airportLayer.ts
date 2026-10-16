@@ -38,8 +38,8 @@ export class AirportLayer {
         filter: ["==", ["get", "kind"], kind],
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], minzoom, radius[0], 12, radius[1]],
-          "circle-color": "#0b1020",
-          "circle-stroke-color": "#8fa3cc",
+          "circle-color": "#0d0f12",
+          "circle-stroke-color": "#8d95a1",
           "circle-stroke-width": 1.5,
         },
       });
@@ -50,7 +50,7 @@ export class AirportLayer {
       type: "circle",
       source: SOURCE,
       filter: ["==", ["get", "icao"], ""],
-      paint: { "circle-radius": 10, "circle-color": "rgba(94,234,212,0.15)", "circle-stroke-color": "#5eead4", "circle-stroke-width": 2 },
+      paint: { "circle-radius": 10, "circle-color": "rgba(255,138,61,0.16)", "circle-stroke-color": "#ff8a3d", "circle-stroke-width": 2 },
     });
     if (hasGlyphs) {
       const label = (id: string, kind: string, minzoom: number) =>
@@ -68,7 +68,7 @@ export class AirportLayer {
             "text-anchor": "top",
             "text-optional": true,
           },
-          paint: { "text-color": "#9fb0d4", "text-halo-color": "#0b1020", "text-halo-width": 1.5 },
+          paint: { "text-color": "#a4abb6", "text-halo-color": "#0d0f12", "text-halo-width": 1.5 },
         });
       label("airports-large-label", "L", 5.5);
       label("airports-medium-label", "M", 8);

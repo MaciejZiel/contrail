@@ -21,6 +21,7 @@ export interface UrlSelection {
   airport: string | null;
   filters: Filters;
   trails: TrailMinutes;
+  globe: boolean;
 }
 
 export interface ControllerOptions {
@@ -150,6 +151,7 @@ export class MapController {
     });
     m.on("load", () => {
       o.onLoaded();
+      if (o.view.globe) this.setGlobe(true);
       // the credits stay one tap away but do not cover a small map on first paint
       if (window.innerWidth < 900) {
         const attr = o.container.querySelector(".maplibregl-ctrl-attrib");
@@ -173,6 +175,52 @@ export class MapController {
   }
 
   private lastClick: MapMouseEvent | null = null;
+  private globe = false;
+  private flatZoom = 5;
+
+  /** Zoom at which the whole globe fits the screen: radius is 60% of the shorter side. */
+  private globeFitZoom(): number {
+    const c = this.o.container;
+    const cosLat = Math.max(0.2, Math.cos(this.map.getCenter().lat * (Math.PI / 180)));
+    const z = Math.log2((0.6 * Math.min(c.clientWidth, c.clientHeight) * 2 * Math.PI * cosLat) / 512);
+    return Math.min(2.6, Math.max(0, z));
+  }
+
+  /** Switch between the flat map and the globe. The aircraft layer follows the projection. */
+  setGlobe(on: boolean, animate = false): void {
+    if (this.globe === on) return;
+    this.globe = on;
+    const m = this.map;
+    const before = m.getCenter();
+    m.setProjection({ type: on ? "globe" : "mercator" });
+    m.setSky(
+      on
+        ? {
+            "sky-color": "#10151d",
+            "horizon-color": "#3b5f93",
+            "fog-color": "#0d0f12",
+            "sky-horizon-blend": 0.5,
+            "horizon-fog-blend": 0.5,
+            "fog-ground-blend": 0.9,
+            "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
+          }
+        : { "atmosphere-blend": 0 },
+    );
+    if (on) {
+      this.flatZoom = m.getZoom();
+      m.setMinZoom(0);
+    } else {
+      // leaving the globe from a far-out view: return to the zoom the flat map had, so the centre is not clamped
+      m.jumpTo({ center: before, zoom: Math.max(m.getZoom(), this.flatZoom, 3) });
+      m.setMinZoom(2);
+    }
+    // outer space is a touch darker than the ocean, so the disc reads against it
+    this.o.container.style.background = on ? "#050608" : "";
+    if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
+    this.aircraft?.setGlobe(on);
+    this.syncUrl();
+    this.poller.refreshNow();
+  }
 
   destroy(): void {
     this.timers.forEach(clearInterval);
@@ -302,7 +350,7 @@ export class MapController {
     this.urlTimer = setTimeout(() => {
       const c = this.map.getCenter().wrap();
       const sel = this.o.getUrlSelection();
-      const q = serializeUrlState({ lat: c.lat, lon: c.lng, zoom: this.map.getZoom(), ...sel });
+      const q = serializeUrlState({ lat: c.lat, lon: c.lng, zoom: this.map.getZoom(), ...sel, globe: this.globe });
       const extra = preservedParams(location.search);
       history.replaceState(null, "", `${location.pathname}?${q}${extra.size ? `&${extra}` : ""}${location.hash}`);
       this.lastUrlWrite = Date.now();

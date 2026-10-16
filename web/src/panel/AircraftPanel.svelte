@@ -206,9 +206,14 @@
     {#if trail.state === "error"}
       <p class="muted">History is temporarily unavailable.</p>
     {:else}
-      <Sparkline title="Altitude" times={series?.t ?? []} values={series?.alt ?? []} color="#5eead4" unit="ft" {now} fill format={(v) => Math.round(v).toLocaleString("en")} />
-      <Sparkline title="Ground speed" times={series?.t ?? []} values={series?.gs ?? []} color="#fbbf24" unit="kt" {now} format={(v) => Math.round(v).toString()} />
-      <Sparkline title="Vertical rate" times={series?.t ?? []} values={series?.vr ?? []} color="#a78bfa" unit="ft/min" {now} zero format={(v) => Math.round(v).toLocaleString("en")} />
+      <Sparkline title="Altitude" times={series?.t ?? []} values={series?.alt ?? []} color="#7cbeee" unit="ft" {now} fill big format={(v) => Math.round(v).toLocaleString("en")} />
+      <Sparkline title="Ground speed" times={series?.t ?? []} values={series?.gs ?? []} color="#c9d1dc" unit="kt" {now} format={(v) => Math.round(v).toString()} />
+      <Sparkline title="Vertical rate" times={series?.t ?? []} values={series?.vr ?? []} color="#c9d1dc" unit="ft/min" {now} zero format={(v) => Math.round(v).toLocaleString("en")} />
+      {#if series && series.t.length > 0}
+        <p class="muted since" data-testid="history-since">
+          History starts {fmtAge(now - (series.t[0] as number))}, when this server first saw the flight. It is not the whole flight.
+        </p>
+      {/if}
     {/if}
   </section>
 
@@ -234,31 +239,66 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 14px;
+    padding: 18px 16px 16px;
     overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--surface);
-    border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow); /* taste-skill-ignore: the desktop panel floats over the map */
   }
   .panel > :global(*) {
     flex: none;
   }
-  /* Inside the phone bottom sheet the order is: header, route, photo, numbers, ...  The peek (196 px)
-     shows the header and the route line, the half-open sheet adds the photo, the full sheet the rest. */
-  :global(.sheet) .panel > header {
+  /* The parts come in one after the other: opacity and a short rise, transform only. */
+  .panel > :global(*) {
+    animation: rise 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  .panel > :nth-child(1) { --i: 0; }
+  .panel > :nth-child(2) { --i: 1; }
+  .panel > :nth-child(3) { --i: 2; }
+  .panel > :nth-child(4) { --i: 3; }
+  .panel > :nth-child(5) { --i: 4; }
+  .panel > :nth-child(6) { --i: 5; }
+  .panel > :nth-child(n + 7) { --i: 6; }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel > :global(*) {
+      animation: none;
+    }
+  }
+  /* Order of the parts: header, route, photo, the live numbers, the altitude chart, details. On the
+     phone the peek (196 px) shows the header and the route, the half-open sheet adds the photo, the
+     full sheet the rest. */
+  .panel > header {
     order: 0;
   }
-  :global(.sheet) .panel > .alert {
+  .panel > .alert {
     order: 1;
   }
-  :global(.sheet) .panel > :global(.route) {
+  .panel > :global(.route) {
     order: 2;
   }
-  :global(.sheet) .panel > .photo-slot {
+  .panel > .photo-slot {
     order: 3;
+  }
+  .panel > .charts {
+    order: 4;
+  }
+  .panel > .stats {
+    order: 5;
+  }
+  .panel > .ages {
+    order: 6;
   }
   :global(.sheet) .panel > .stats {
     order: 4;
@@ -269,10 +309,10 @@
   :global(.sheet) .panel > .charts {
     order: 6;
   }
-  :global(.sheet) .panel > .details {
+  .panel > .details {
     order: 7;
   }
-  :global(.sheet) .panel > footer {
+  .panel > footer {
     order: 8;
   }
   header {
@@ -283,78 +323,100 @@
   }
   h2 {
     margin: 0;
-    font: 700 22px var(--mono);
-    letter-spacing: 0.02em;
+    outline: none; /* focused by script so a screen reader announces it; not an interactive control */
+    font: 700 var(--fs-xl) / 1.05 var(--font);
+    letter-spacing: -0.02em;
   }
   .sub {
-    margin: 2px 0 0;
+    margin: 4px 0 0;
     color: var(--text-dim);
-    font-size: 13px;
+    font-size: var(--fs-s);
   }
   .close {
     flex: none;
-    width: 44px;
-    height: 44px;
-    margin: -8px -8px 0 0;
+    width: 40px;
+    height: 40px;
+    margin: -6px -6px 0 0;
     border: 0;
+    border-radius: var(--radius);
     background: none;
-    font-size: 26px;
+    font-size: 24px;
+    line-height: 1;
     color: var(--text-dim);
     cursor: pointer;
+    transition: background-color 120ms, color 120ms;
+  }
+  .close:hover {
+    background: var(--surface-2);
+    color: var(--text);
   }
   .alert {
     margin: 0;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: rgba(248, 113, 113, 0.16);
-    border: 1px solid rgba(248, 113, 113, 0.5);
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: rgba(248, 113, 113, 0.18);
     font-weight: 600;
   }
   .stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px 8px;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
     margin: 0;
+    padding: 14px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
   }
   dt {
-    font-size: 11px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
   dd {
     margin: 2px 0 0;
-    font: 600 15px var(--mono);
+    font: 600 var(--fs-l) / 1.2 var(--font);
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .charts {
-    border-top: 1px solid var(--border);
-    padding-top: 4px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .charts > .since {
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
+    font-size: var(--fs-s);
+  }
+  .charts > :global(.spark:first-child),
+  .charts > .muted {
+    grid-column: 1 / -1;
   }
   .details {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 10px;
     margin: 0;
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
+    padding: 14px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
   }
   .details div {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     gap: 12px;
   }
   .details dd {
-    font: 500 14px var(--font);
+    font: 500 var(--fs-m) / 1.3 var(--font);
     text-align: right;
     white-space: normal;
   }
   .mono {
-    font-family: var(--mono) !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
   }
   .muted {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     margin: 0;
   }
   .full {
@@ -364,15 +426,34 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
   }
   .ghost {
-    padding: 8px 12px;
+    padding: 8px 14px;
     min-height: 40px;
-    border-radius: 10px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface-3);
+    font-weight: 600;
+    font-size: var(--fs-s);
     cursor: pointer;
+    transition: background-color 120ms, transform 120ms;
+  }
+  .ghost:hover {
+    background: #3d4756;
+  }
+  .ghost:active {
+    transform: translateY(1px);
+  }
+  /* the phone sheet: tighter, so the half-open state still shows header, route and photo */
+  :global(.sheet) .panel {
+    gap: 10px;
+    padding: 2px 16px 16px;
+    background: none;
+    box-shadow: none; /* taste-skill-ignore: reset */
+  }
+  :global(.sheet) h2 {
+    font-size: 24px;
   }
 </style>

@@ -15,7 +15,7 @@ if (process.env.THROTTLE) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.THROTTLE) });
 }
-await page.goto(`${base}/?e2e=1&bm=offline&c=${process.env.PC ?? "30,10"}&z=${process.env.PZ ?? "3"}`);
+await page.goto(`${base}/?e2e=1&bm=offline&c=${process.env.PC ?? "30,10"}&z=${process.env.PZ ?? "3"}${process.env.GLOBE ? "&g=1" : ""}`);
 await page.waitForFunction(() => !!window.__flights);
 if (process.env.WAIT) await page.waitForTimeout(Number(process.env.WAIT) * 1000);
 // COUNT=0: measure the real traffic the server delivers instead of injecting synthetic aircraft

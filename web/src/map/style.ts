@@ -6,15 +6,15 @@ const OFM_TILEJSON = "https://tiles.openfreemap.org/planet";
 const OFM_GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 
 export const COLORS = {
-  land: "#121a2c",
-  landUse: "#16203a",
-  water: "#070c18",
-  boundary: "#3d4b6b",
-  road: "#222d47",
-  roadMajor: "#2f3d5e",
-  label: "#a9b4cb",
-  labelStrong: "#d3dbea",
-  halo: "#0b1020",
+  land: "#171a20",
+  landUse: "#1b1f26",
+  water: "#0c1017",
+  boundary: "#3b424d",
+  road: "#252a33",
+  roadMajor: "#323945",
+  label: "#a4abb6",
+  labelStrong: "#d4d7dc",
+  halo: "#0d0f12",
 } as const;
 
 const name: ExpressionSpecification = ["coalesce", ["get", "name:latin"], ["get", "name"]];
@@ -68,7 +68,7 @@ export function onlineStyle(): StyleSpecification {
         minzoom: 10,
         filter: ["in", ["get", "class"], ["literal", ["runway", "taxiway"]]],
         paint: {
-          "line-color": "#3a4a6d",
+          "line-color": "#3a414c",
           "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 15, ["case", ["==", ["get", "class"], "runway"], 12, 3]],
         },
       },
@@ -117,9 +117,7 @@ export function onlineStyle(): StyleSpecification {
         layout: {
           "text-field": name,
           "text-font": ["Noto Sans Bold"],
-          "text-size": ["interpolate", ["linear"], ["zoom"], 2, 10, 6, 16],
-          "text-transform": "uppercase",
-          "text-letter-spacing": 0.1,
+          "text-size": ["interpolate", ["linear"], ["zoom"], 2, 11, 6, 16],
           "text-max-width": 8,
         },
         paint: { "text-color": COLORS.label, "text-halo-color": COLORS.halo, "text-halo-width": 1.5, "text-opacity": 0.7 },

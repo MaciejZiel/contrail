@@ -19,50 +19,40 @@
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    border-radius: 999px;
+    gap: 9px;
+    padding: 0 14px;
+    min-height: 44px;
+    border-radius: var(--radius);
     background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    font-size: 13px;
+    font-size: var(--fs-s);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
-    backdrop-filter: blur(8px);
     max-width: 100%;
   }
   @media (max-width: 480px) {
     .chip {
       white-space: normal;
+      padding-block: 6px;
     }
   }
   .dot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--text-dim);
     flex: none;
   }
   [data-tone="ok"] .dot {
     background: var(--good);
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
-    animation: pulse 2.4s infinite;
   }
   [data-tone="neutral"] .dot {
-    background: var(--accent);
-    opacity: 0.8;
+    background: var(--text-dim);
   }
   [data-tone="warn"] .dot {
     background: var(--warn);
   }
   [data-tone="bad"] .dot {
     background: var(--bad); /* red only when the feed itself is failing, never for normal ageing */
-  }
-  @keyframes pulse {
-    70% {
-      box-shadow: 0 0 0 7px rgba(74, 222, 128, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
-    }
   }
 </style>

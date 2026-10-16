@@ -3,12 +3,13 @@ import { altitudeRgb } from "../src/map/palette";
 import { spriteFor, SPRITE } from "../src/map/sprites";
 
 describe("palette", () => {
-  it("is ordered from warm at low altitude to violet at the top", () => {
+  it("gets lighter with altitude and stays in the blue family at the bottom", () => {
+    const lum = (c: number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+    const steps = [0, 5000, 15000, 28000, 40000].map((ft) => lum(altitudeRgb(ft, false)));
+    for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeGreaterThan(steps[i - 1]!);
     const low = altitudeRgb(0, false);
-    const high = altitudeRgb(40000, false);
-    expect(low[0]).toBeGreaterThan(low[2]);
-    expect(high[2]).toBeGreaterThan(high[0] - 1);
-    expect(altitudeRgb(99999, false)).toEqual(high);
+    expect(low[2]).toBeGreaterThan(low[0]);
+    expect(altitudeRgb(99999, false)).toEqual(altitudeRgb(40000, false));
   });
   it("greys out ground traffic and unknown altitude", () => {
     expect(altitudeRgb(5000, true)).not.toEqual(altitudeRgb(5000, false));
