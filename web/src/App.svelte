@@ -110,7 +110,8 @@
 
   // the theme changes: the map restyles in place
   $effect(() => {
-    ctl?.setTheme(themeState.theme);
+    const theme = themeState.theme; // read first: with no map yet, optional chaining would skip the read and the effect would never rerun
+    ctl?.setTheme(theme);
   });
 
   function setTrails(m: TrailMinutes): void {

@@ -6,6 +6,7 @@
   --surface-solid: #1e232b;
   --surface-2: #272d37;
   --surface-3: #323a46;
+  --surface-4: #3b4452;
   --border: transparent;
   --text: #eceae6;
   --text-dim: #a0a7b2;
@@ -35,7 +36,6 @@
   --ctrl-icon-filter: invert(1) opacity(0.9);
   --spark-1: #7cbeee;
   --spark-2: #c9d1dc;
-  --track: #3d4756;
   --sheet-shadow: 0 -12px 36px rgba(0, 0, 0, 0.5); /* taste-skill-ignore: shadow token for the phone sheet */
 }
 
@@ -47,6 +47,7 @@
   --surface-solid: #ffffff;
   --surface-2: #ece9e3;
   --surface-3: #ddd9d1;
+  --surface-4: #d0cbc1;
   --text: #1a1d22;
   --text-dim: #565d68;
   --accent: #ff8a3d;
@@ -61,7 +62,6 @@
   --ctrl-icon-filter: opacity(0.85);
   --spark-1: #2a64c4;
   --spark-2: #4b535f;
-  --track: #c9c4ba;
   --sheet-shadow: 0 -12px 36px rgba(26, 29, 34, 0.16); /* taste-skill-ignore: the phone sheet floats over the map */
 }
 

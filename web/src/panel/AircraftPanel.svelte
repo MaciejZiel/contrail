@@ -441,7 +441,7 @@
     transition: background-color 120ms, transform 120ms;
   }
   .ghost:hover {
-    background: var(--track);
+    background: var(--surface-4);
   }
   .ghost:active {
     transform: translateY(1px);
