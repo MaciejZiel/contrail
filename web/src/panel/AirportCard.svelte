@@ -312,7 +312,7 @@
     font-weight: 700;
   }
   .cat[data-cat="VFR"] strong {
-    background: var(--good);
+    background: #4ade80;
     color: #08170d;
   }
   .cat[data-cat="MVFR"] strong {
@@ -320,7 +320,7 @@
     color: #08121f;
   }
   .cat[data-cat="IFR"] strong {
-    background: var(--bad);
+    background: #f87171;
     color: #1f0a0a;
   }
   .cat[data-cat="LIFR"] strong {
@@ -408,7 +408,7 @@
     transition: background-color 0.15s;
   }
   .plane:hover {
-    background: #3b4452;
+    background: var(--surface-4);
   }
   .plane strong {
     font-size: var(--fs-m);
@@ -513,7 +513,7 @@
     display: inline-flex;
     align-items: center;
     min-height: 44px;
-    color: var(--accent);
+    color: var(--accent-text);
     font-weight: 600;
     text-decoration: none;
   }
@@ -522,7 +522,7 @@
     text-decoration: underline;
   }
   .note a {
-    color: var(--accent);
+    color: var(--accent-text);
   }
   .muted,
   .note {

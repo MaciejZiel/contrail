@@ -1,26 +1,95 @@
-import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import type { Theme } from "../core/theme";
 import bordersUrl from "../assets/borders.json?url";
 import landUrl from "../assets/land.json?url";
 
 const OFM_TILEJSON = "https://tiles.openfreemap.org/planet";
 const OFM_GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 
-export const COLORS = {
-  land: "#171a20",
-  landUse: "#1b1f26",
-  water: "#0c1017",
-  boundary: "#3b424d",
-  road: "#252a33",
-  roadMajor: "#323945",
-  label: "#a4abb6",
-  labelStrong: "#d4d7dc",
-  halo: "#0d0f12",
-} as const;
+export interface MapColors {
+  land: string;
+  landUse: string;
+  green: string;
+  water: string;
+  boundary: string;
+  road: string;
+  roadMajor: string;
+  aeroway: string;
+  label: string;
+  labelStrong: string;
+  halo: string;
+}
+
+export const COLORS: Record<Theme, MapColors> = {
+  dark: {
+    land: "#171a20",
+    landUse: "#1b1f26",
+    green: "#1a2024",
+    water: "#0c1017",
+    boundary: "#3b424d",
+    road: "#252a33",
+    roadMajor: "#323945",
+    aeroway: "#3a414c",
+    label: "#a4abb6",
+    labelStrong: "#d4d7dc",
+    halo: "#0d0f12",
+  },
+  light: {
+    land: "#f5f3ee",
+    landUse: "#ebe7dd",
+    green: "#e0ead2",
+    water: "#b7d6ee",
+    boundary: "#b4afa2",
+    road: "#ffffff",
+    roadMajor: "#f9e9c3",
+    aeroway: "#d6d1c4",
+    label: "#5a616c",
+    labelStrong: "#272b32",
+    halo: "#fbfaf7",
+  },
+};
+
+/** Paint properties of the basemap layers that carry a theme colour, per style. */
+function themedPaint(offline: boolean, c: MapColors): Array<[layer: string, prop: string, value: string]> {
+  if (offline) {
+    return [
+      ["background", "background-color", c.water],
+      ["land", "fill-color", c.land],
+      ["land", "fill-outline-color", c.boundary],
+      ["borders", "line-color", c.boundary],
+    ];
+  }
+  return [
+    ["background", "background-color", c.land],
+    ["landuse", "fill-color", c.landUse],
+    ["landcover", "fill-color", c.green],
+    ["park", "fill-color", c.green],
+    ["water", "fill-color", c.water],
+    ["waterway", "line-color", c.water],
+    ["aeroway", "line-color", c.aeroway],
+    ["road-minor", "line-color", c.road],
+    ["road-major", "line-color", c.roadMajor],
+    ["boundary-state", "line-color", c.boundary],
+    ["boundary-country", "line-color", c.boundary],
+    ["label-country", "text-color", c.label],
+    ["label-country", "text-halo-color", c.halo],
+    ["label-place", "text-color", c.labelStrong],
+    ["label-place", "text-halo-color", c.halo],
+  ];
+}
+
+/** Recolour the basemap in place (no style reload, so every other layer and source stays). */
+export function applyBasemapTheme(map: MapLibreMap, theme: Theme, offline: boolean): void {
+  for (const [layer, prop, value] of themedPaint(offline, COLORS[theme])) {
+    if (map.getLayer(layer)) map.setPaintProperty(layer, prop as "background-color", value);
+  }
+}
 
 const name: ExpressionSpecification = ["coalesce", ["get", "name:latin"], ["get", "name"]];
 
-/** Dark basemap on OpenFreeMap vector tiles (OpenMapTiles schema). Needs network access. */
-export function onlineStyle(): StyleSpecification {
+/** Basemap (dark by default; ``applyBasemapTheme`` recolours it) on OpenFreeMap vector tiles (OpenMapTiles schema). Needs network access. */
+export function onlineStyle(theme: Theme = "dark"): StyleSpecification {
+  const colors = COLORS[theme];
   return {
     version: 8,
     glyphs: OFM_GLYPHS,
@@ -35,7 +104,7 @@ export function onlineStyle(): StyleSpecification {
       },
     },
     layers: [
-      { id: "background", type: "background", paint: { "background-color": COLORS.land } },
+      { id: "background", type: "background", paint: { "background-color": colors.land } },
       {
         id: "landuse",
         type: "fill",
@@ -43,14 +112,31 @@ export function onlineStyle(): StyleSpecification {
         "source-layer": "landuse",
         minzoom: 7,
         filter: ["in", ["get", "class"], ["literal", ["residential", "industrial", "commercial", "retail"]]],
-        paint: { "fill-color": COLORS.landUse, "fill-opacity": 0.8 },
+        paint: { "fill-color": colors.landUse, "fill-opacity": 0.8 },
+      },
+      {
+        id: "landcover",
+        type: "fill",
+        source: "ofm",
+        "source-layer": "landcover",
+        minzoom: 3,
+        filter: ["in", ["get", "class"], ["literal", ["wood", "grass"]]],
+        paint: { "fill-color": colors.green, "fill-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 9, 0.9] },
+      },
+      {
+        id: "park",
+        type: "fill",
+        source: "ofm",
+        "source-layer": "park",
+        minzoom: 8,
+        paint: { "fill-color": colors.green, "fill-opacity": 0.9 },
       },
       {
         id: "water",
         type: "fill",
         source: "ofm",
         "source-layer": "water",
-        paint: { "fill-color": COLORS.water },
+        paint: { "fill-color": colors.water },
       },
       {
         id: "waterway",
@@ -58,7 +144,7 @@ export function onlineStyle(): StyleSpecification {
         source: "ofm",
         "source-layer": "waterway",
         minzoom: 8,
-        paint: { "line-color": COLORS.water, "line-width": 1 },
+        paint: { "line-color": colors.water, "line-width": 1 },
       },
       {
         id: "aeroway",
@@ -68,7 +154,7 @@ export function onlineStyle(): StyleSpecification {
         minzoom: 10,
         filter: ["in", ["get", "class"], ["literal", ["runway", "taxiway"]]],
         paint: {
-          "line-color": "#3a414c",
+          "line-color": colors.aeroway,
           "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 15, ["case", ["==", ["get", "class"], "runway"], 12, 3]],
         },
       },
@@ -79,7 +165,7 @@ export function onlineStyle(): StyleSpecification {
         "source-layer": "transportation",
         minzoom: 10,
         filter: ["in", ["get", "class"], ["literal", ["minor", "service", "tertiary", "secondary"]]],
-        paint: { "line-color": COLORS.road, "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.4, 16, 2] },
+        paint: { "line-color": colors.road, "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.4, 16, 2] },
       },
       {
         id: "road-major",
@@ -88,7 +174,7 @@ export function onlineStyle(): StyleSpecification {
         "source-layer": "transportation",
         minzoom: 6,
         filter: ["in", ["get", "class"], ["literal", ["motorway", "trunk", "primary"]]],
-        paint: { "line-color": COLORS.roadMajor, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.4, 16, 3] },
+        paint: { "line-color": colors.roadMajor, "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.4, 16, 3] },
       },
       {
         id: "boundary-state",
@@ -97,7 +183,7 @@ export function onlineStyle(): StyleSpecification {
         "source-layer": "boundary",
         minzoom: 4,
         filter: ["all", ["==", ["get", "admin_level"], 4], ["!=", ["get", "maritime"], 1]],
-        paint: { "line-color": COLORS.boundary, "line-width": 0.6, "line-dasharray": [3, 3], "line-opacity": 0.7 },
+        paint: { "line-color": colors.boundary, "line-width": 0.6, "line-dasharray": [3, 3], "line-opacity": 0.7 },
       },
       {
         id: "boundary-country",
@@ -105,7 +191,7 @@ export function onlineStyle(): StyleSpecification {
         source: "ofm",
         "source-layer": "boundary",
         filter: ["all", ["==", ["get", "admin_level"], 2], ["!=", ["get", "maritime"], 1]],
-        paint: { "line-color": COLORS.boundary, "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.5, 8, 1.4] },
+        paint: { "line-color": colors.boundary, "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.5, 8, 1.4] },
       },
       {
         id: "label-country",
@@ -120,7 +206,7 @@ export function onlineStyle(): StyleSpecification {
           "text-size": ["interpolate", ["linear"], ["zoom"], 2, 11, 6, 16],
           "text-max-width": 8,
         },
-        paint: { "text-color": COLORS.label, "text-halo-color": COLORS.halo, "text-halo-width": 1.5, "text-opacity": 0.7 },
+        paint: { "text-color": colors.label, "text-halo-color": colors.halo, "text-halo-width": 1.5, "text-opacity": 0.7 },
       },
       {
         id: "label-place",
@@ -136,14 +222,15 @@ export function onlineStyle(): StyleSpecification {
           "text-max-width": 8,
           "symbol-sort-key": ["coalesce", ["get", "rank"], 99],
         },
-        paint: { "text-color": COLORS.labelStrong, "text-halo-color": COLORS.halo, "text-halo-width": 1.5, "text-opacity": 0.75 },
+        paint: { "text-color": colors.labelStrong, "text-halo-color": colors.halo, "text-halo-width": 1.5, "text-opacity": 0.75 },
       },
     ],
   };
 }
 
 /** Offline basemap from bundled Natural Earth data (public domain): no network needed. */
-export function offlineStyle(): StyleSpecification {
+export function offlineStyle(theme: Theme = "dark"): StyleSpecification {
+  const colors = COLORS[theme];
   const abs = (u: string) => new URL(u, document.baseURI).href;
   return {
     version: 8,
@@ -152,13 +239,13 @@ export function offlineStyle(): StyleSpecification {
       borders: { type: "geojson", data: abs(bordersUrl) },
     },
     layers: [
-      { id: "background", type: "background", paint: { "background-color": COLORS.water } },
-      { id: "land", type: "fill", source: "land", paint: { "fill-color": COLORS.land, "fill-outline-color": COLORS.boundary } },
+      { id: "background", type: "background", paint: { "background-color": colors.water } },
+      { id: "land", type: "fill", source: "land", paint: { "fill-color": colors.land, "fill-outline-color": colors.boundary } },
       {
         id: "borders",
         type: "line",
         source: "borders",
-        paint: { "line-color": COLORS.boundary, "line-width": 0.8, "line-dasharray": [3, 3] },
+        paint: { "line-color": colors.boundary, "line-width": 0.8, "line-dasharray": [3, 3] },
       },
     ],
   };

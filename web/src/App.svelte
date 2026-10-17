@@ -21,6 +21,8 @@
   import SearchBox from "./search/SearchBox.svelte";
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
   import ProjectionToggle from "./ui/ProjectionToggle.svelte";
+  import ThemeToggle from "./ui/ThemeToggle.svelte";
+  import { setTheme, themeState } from "./core/themeState.svelte";
   import FilterChip from "./ui/FilterChip.svelte";
   import ViewList from "./ui/ViewList.svelte";
   import FreshnessChip from "./ui/FreshnessChip.svelte";
@@ -106,6 +108,12 @@
     ctl?.filtersChanged();
   });
 
+  // the theme changes: the map restyles in place
+  $effect(() => {
+    const theme = themeState.theme; // read first: with no map yet, optional chaining would skip the read and the effect would never rerun
+    ctl?.setTheme(theme);
+  });
+
   function setTrails(m: TrailMinutes): void {
     ui.trails = m;
     ctl?.setRecentTrails(m);
@@ -166,6 +174,7 @@
           store,
           view,
           offline: params.get("bm") === "offline",
+          theme: themeState.theme,
           workerUrl: worker.url,
           getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters, trails: ui.trails, globe: ui.globe }),
           accepts: accept,
@@ -209,6 +218,7 @@
           layer: c.aircraft,
           select: selectAircraft,
           recentTrails: c.recentTrails,
+          ctl: c,
         };
       }
     })();
@@ -252,6 +262,7 @@
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
     <FilterPopover bind:filters={ui.filters} {store} onTrails={setTrails} />
     <ProjectionToggle globe={ui.globe} onChange={(g) => { ui.globe = g; ctl?.setGlobe(g, true); }} />
+    <ThemeToggle theme={themeState.theme} onChange={setTheme} />
     <FreshnessChip status={ui.status} count={ui.aircraftCount} />
     {#if ui.filters.airline}
       <FilterChip
@@ -281,7 +292,7 @@
 
   <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={accept} onPick={(h) => { selectAircraft(h); }} />
 
-  <div class="legend-slot"><AltitudeLegend /></div>
+  <div class="legend-slot"><AltitudeLegend mapTheme={themeState.theme} uiTheme={themeState.theme} /></div>
 
   {#if ui.selected}
     {#key ui.selected}

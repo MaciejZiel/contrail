@@ -12,7 +12,9 @@ import { rectForBounds } from "../core/tiles";
 import { preservedParams, serializeUrlState, type TrailMinutes, type ViewState } from "../core/urlState";
 import { AircraftLayer } from "./aircraftLayer";
 import { AirportLayer } from "./airportLayer";
-import { offlineStyle, onlineStyle } from "./style";
+import type { Theme } from "../core/theme";
+import { applyBasemapTheme, offlineStyle, onlineStyle } from "./style";
+import { setPaletteTheme } from "./palette";
 import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
 import { GlobeShading } from "./globeShading";
@@ -30,6 +32,8 @@ export interface ControllerOptions {
   store: AircraftStore;
   view: ViewState;
   offline: boolean;
+  /** The interface theme; the globe always draws dark whatever this is. */
+  theme: Theme;
   getUrlSelection: () => UrlSelection;
   accepts: (p: Plane) => boolean;
   getSelected: () => number | null;
@@ -47,6 +51,8 @@ export interface ControllerOptions {
 }
 
 const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
+
+const SPACE = "#050608";
 
 /** Owns the MapLibre map, the aircraft/trail/airport layers, the poller and URL syncing. */
 export class MapController {
@@ -67,9 +73,11 @@ export class MapController {
 
   constructor(private o: ControllerOptions) {
     setWorkerUrl(o.workerUrl);
+    this.theme = o.theme;
+    setPaletteTheme(o.theme);
     const m = new MapLibreMap({
       container: o.container,
-      style: o.offline ? offlineStyle() : onlineStyle(),
+      style: o.offline ? offlineStyle(o.theme) : onlineStyle(o.theme),
       center: [o.view.lon, o.view.lat],
       zoom: o.view.zoom,
       minZoom: 2,
@@ -94,7 +102,7 @@ export class MapController {
           '<a href="https://aviationweather.gov" target="_blank" rel="noopener">Weather: NOAA AWC</a> · ' +
           '<a href="licenses/NOTICES.txt" target="_blank" rel="noopener">Licences</a>',
       }),
-      "bottom-right",
+      "bottom-left",
     );
     this.trail = new TrailLayer(m);
     this.recentTrails = new RecentTrailsLayer(m, () => serverFilterQuery(o.getUrlSelection().filters, true), o.onTrailsStatus);
@@ -152,6 +160,7 @@ export class MapController {
     });
     m.on("load", () => {
       o.onLoaded();
+      this.applyMapTheme();
       if (o.view.globe) this.setGlobe(true);
       // the credits stay one tap away but do not cover a small map on first paint
       if (window.innerWidth < 900) {
@@ -175,7 +184,39 @@ export class MapController {
     );
   }
 
+  private theme: Theme;
   private lastClick: MapMouseEvent | null = null;
+
+  /** Switch the interface theme: the map restyles in place, with no reload. */
+  setTheme(theme: Theme): void {
+    this.theme = theme;
+    this.applyMapTheme();
+  }
+
+  /** The map, the globe included, follows the interface theme. */
+  private mapTheme(): Theme {
+    return this.theme;
+  }
+
+  /** Outer space behind the globe is dark with stars in both themes; only the sphere follows the theme. */
+  private paintSpace(): void {
+    this.o.container.style.background = this.globe ? SPACE : "";
+  }
+
+  private applyMapTheme(): void {
+    const t = this.mapTheme();
+    setPaletteTheme(t);
+    try {
+      applyBasemapTheme(this.map, t, this.o.offline);
+    } catch {
+      // the style document is still loading: the "load" handler applies the theme
+    }
+    this.trail.applyTheme();
+    this.recentTrails.applyTheme();
+    this.airports.applyTheme();
+    this.aircraft?.applyTheme();
+    this.paintSpace();
+  }
   private globe = false;
   private flatZoom = 5;
   private shading: GlobeShading | null = null;
@@ -215,10 +256,9 @@ export class MapController {
       m.jumpTo({ center: before, zoom: Math.max(m.getZoom(), this.flatZoom, 3) });
       m.setMinZoom(2);
     }
-    // outer space is a touch darker than the ocean, so the disc reads against it
-    this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
+    this.applyMapTheme();
     if (on && !this.shading) {
       // faint stars behind the basemap
       this.shading = new GlobeShading(m);
@@ -227,6 +267,7 @@ export class MapController {
       this.shading.stop();
       this.shading = null;
     }
+    this.paintSpace();
     this.syncUrl();
     this.poller.refreshNow();
   }

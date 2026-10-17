@@ -1,18 +1,31 @@
 <script lang="ts">
-  import { altitudeRgb, LEGEND } from "../map/palette";
+  import type { Theme } from "../core/theme";
+  import { altitudeRgb, LEGEND, ramp } from "../map/palette";
 
-  const stops = LEGEND.map((l) => {
-    const [r, g, b] = altitudeRgb(l.ft, false);
-    return `rgb(${r},${g},${b}) ${(l.ft / 40000) * 100}%`;
-  }).join(",");
+  /** The theme of the map the legend describes (the globe is dark even when the interface is light), and the interface's. */
+  let { mapTheme, uiTheme }: { mapTheme: Theme; uiTheme: Theme } = $props();
+
+  const stops = $derived(
+    LEGEND.map((l) => {
+      const [r, g, b] = altitudeRgb(l.ft, false, mapTheme);
+      return `rgb(${r},${g},${b}) ${(l.ft / 40000) * 100}%`;
+    }).join(","),
+  );
+  const ghost = $derived(ramp(mapTheme).ghost.join(","));
+  const order = $derived(mapTheme === "dark" ? "lighter is higher" : "darker is higher");
 </script>
 
-<div class="legend" role="img" aria-label="Altitude colour legend, from 0 to 40,000 feet, lighter is higher; grey means last known position">
+<div
+  class="legend"
+  class:on-dark={mapTheme === "dark" && uiTheme === "light"}
+  role="img"
+  aria-label={`Altitude colour legend, from 0 to 40,000 feet, ${order}; grey means last known position`}
+>
   <div class="bar" style={`background: linear-gradient(90deg, ${stops})`}></div> <!-- taste-skill-ignore: a continuous colour scale is data, not decoration -->
   <div class="ticks">
     {#each LEGEND as l (l.ft)}<span>{l.label}</span>{/each}
   </div>
-  <div class="ghost"><i aria-hidden="true"></i>Grey: last known position</div>
+  <div class="ghost"><i aria-hidden="true" style={`--ghost:${ghost}`}></i>Grey: last known position</div>
 </div>
 
 <style>
@@ -25,6 +38,11 @@
     font-weight: 500;
     font-variant-numeric: tabular-nums;
     color: var(--text-dim);
+  }
+  /* the globe is a dark sphere in both themes, so its legend stays dark on a light interface */
+  .on-dark {
+    --surface: #1e232b;
+    --text-dim: #a0a7b2;
   }
   .bar {
     height: 6px;
@@ -41,7 +59,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: rgb(150, 158, 170);
+    background: rgb(var(--ghost));
     opacity: 0.7;
   }
   .ticks {

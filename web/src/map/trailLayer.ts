@@ -2,7 +2,8 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Trail } from "../core/api";
 import type { LonLat } from "../core/geodesy";
-import { altitudeRgb } from "./palette";
+import { altitudeRgb, ramp } from "./palette";
+import { prefersReducedMotion, Reveal, revealSequence } from "./reveal";
 
 type SegmentFeature = Feature<LineString, { c: string }>;
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -37,6 +38,11 @@ export function trailSegments(trail: Trail): SegmentFeature[] {
 /** The selected aircraft's recorded trail plus a dashed projection ahead of it. */
 export class TrailLayer {
   private ready = false;
+  private trail: Trail | null = null;
+  private reveal = new Reveal();
+  private latest: SegmentFeature[] = [];
+  /** Start time of the track shown; a different one is a new track (animated), the same one only grew. */
+  private trackStart: number | null = null;
 
   constructor(private map: MapLibreMap) {
     const add = () => {
@@ -48,7 +54,7 @@ export class TrailLayer {
         type: "line",
         source: "trail",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#07080a", "line-width": 6, "line-opacity": 0.65 },
+        paint: { "line-color": ramp().casing, "line-width": 6, "line-opacity": 0.65 },
       });
       map.addLayer({
         id: "trail-line",
@@ -62,7 +68,7 @@ export class TrailLayer {
         type: "line",
         source: "trail-live",
         filter: ["==", ["get", "kind"], "ahead"],
-        paint: { "line-color": "#eceae6", "line-width": 2, "line-dasharray": [1.2, 2], "line-opacity": 0.8 },
+        paint: { "line-color": ramp().trailLine, "line-width": 2, "line-dasharray": [1.2, 2], "line-opacity": 0.8 },
       });
       map.addLayer({
         id: "trail-join",
@@ -78,7 +84,7 @@ export class TrailLayer {
         source: "route",
         filter: ["==", ["get", "kind"], "remaining"],
         layout: { "line-cap": "round" },
-        paint: { "line-color": "#eceae6", "line-width": 2, "line-dasharray": [2, 3], "line-opacity": 0.65 },
+        paint: { "line-color": ramp().trailLine, "line-width": 2, "line-dasharray": [2, 3], "line-opacity": 0.65 },
       });
       map.addLayer({
         id: "route-estimated",
@@ -86,7 +92,7 @@ export class TrailLayer {
         source: "route",
         filter: ["==", ["get", "kind"], "estimated"],
         layout: { "line-cap": "round" },
-        paint: { "line-color": "#a4abb6", "line-width": 2, "line-dasharray": [1, 3], "line-opacity": 0.7 },
+        paint: { "line-color": ramp().trailMuted, "line-width": 2, "line-dasharray": [1, 3], "line-opacity": 0.7 },
       });
       this.ready = true;
     };
@@ -94,12 +100,41 @@ export class TrailLayer {
     else map.once("load", add);
   }
 
+  /** Recolour for the palette that is now current (the segment colours are data, so they are rebuilt). */
+  applyTheme(): void {
+    const m = this.map;
+    if (!this.ready) return;
+    const r = ramp();
+    m.setPaintProperty("trail-casing", "line-color", r.casing);
+    m.setPaintProperty("trail-ahead", "line-color", r.trailLine);
+    m.setPaintProperty("route-remaining", "line-color", r.trailLine);
+    m.setPaintProperty("route-estimated", "line-color", r.trailMuted);
+    this.setTrail(this.trail);
+  }
+
   private src(id: string): GeoJSONSource | undefined {
     return this.map.getSource(id) as GeoJSONSource | undefined;
   }
 
   setTrail(trail: Trail | null): void {
-    this.src("trail")?.setData(trail ? { type: "FeatureCollection", features: trailSegments(trail) } : EMPTY);
+    this.trail = trail;
+    const src = this.src("trail");
+    const start = trail && trail.t.length ? (trail.t[0] as number) : null;
+    const isNew = start !== null && start !== this.trackStart;
+    this.trackStart = start;
+    if (!trail) {
+      this.reveal.cancel();
+      src?.setData(EMPTY);
+      return;
+    }
+    const features = trailSegments(trail);
+    this.latest = features;
+    if (isNew && src && features.length > 1 && !prefersReducedMotion()) {
+      // a new track grows from its old end to the aircraft; frames are queued only until it is done
+      this.reveal.start((f) => src.setData({ type: "FeatureCollection", features: revealSequence(this.latest, f) }));
+    } else if (!this.reveal.running) {
+      src?.setData({ type: "FeatureCollection", features });
+    } // else: an update during the reveal; the run carries on over the longer track
   }
 
   /** Connect the last recorded point to the live position and project the path ahead. */
