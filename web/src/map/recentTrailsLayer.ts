@@ -2,6 +2,9 @@ import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import { fetchRecentTrails, type RecentTrail } from "../core/api";
 import { altitudeRgb } from "./palette";
+import { prefersReducedMotion, Reveal, truncateLine } from "./reveal";
+
+type TrailFeature = Feature<LineString, { c: string; h: string }>;
 
 /** Below this zoom there are too many aircraft for readable tracks; nothing is requested. */
 export const TRAILS_MIN_ZOOM = 6;
@@ -19,8 +22,8 @@ export interface TrailsStatus {
 }
 
 /** One GeoJSON line per aircraft, coloured by its current altitude; antimeridian jumps are cut. */
-export function trailFeatures(trails: RecentTrail[]): Array<Feature<LineString, { c: string }>> {
-  const out: Array<Feature<LineString, { c: string }>> = [];
+export function trailFeatures(trails: RecentTrail[]): TrailFeature[] {
+  const out: TrailFeature[] = [];
   for (const t of trails) {
     const parts: Array<[number, number]>[] = [[]];
     let prev: number | null = null;
@@ -33,7 +36,7 @@ export function trailFeatures(trails: RecentTrail[]): Array<Feature<LineString, 
     const [r, g, b] = altitudeRgb(alt === null ? null : alt * 100, false);
     for (const coordinates of parts) {
       if (coordinates.length > 1) {
-        out.push({ type: "Feature", properties: { c: `rgb(${r},${g},${b})` }, geometry: { type: "LineString", coordinates } });
+        out.push({ type: "Feature", properties: { c: `rgb(${r},${g},${b})`, h: t.h }, geometry: { type: "LineString", coordinates } });
       }
     }
   }
@@ -51,6 +54,8 @@ export class RecentTrailsLayer {
   private abort: AbortController | undefined;
   private ready = false;
   private generation = 0;
+  private reveal = new Reveal();
+  private known = new Set<string>();
   private moveTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -129,14 +134,38 @@ export class RecentTrailsLayer {
       if (ctl.signal.aborted || gen !== this.generation) return;
       const features = trailFeatures(r.trails);
       this.featureCount = features.length;
-      (this.map.getSource("recent-trails") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features });
+      this.draw(features);
       this.onStatus({ state: "ok", shown: r.trails.length, total: r.total });
     } catch {
       if (!ctl.signal.aborted) this.onStatus({ state: "error", shown: 0, total: 0 });
     }
   }
 
+  /** Tracks of aircraft not drawn before grow from their old end; the rest just update. */
+  private draw(features: TrailFeature[]): void {
+    const src = this.map.getSource("recent-trails") as GeoJSONSource | undefined;
+    const fresh = new Set(features.filter((f) => !this.known.has(f.properties.h)));
+    this.known = new Set(features.map((f) => f.properties.h));
+    if (!src) return;
+    if (!fresh.size || prefersReducedMotion()) {
+      this.reveal.cancel();
+      src.setData({ type: "FeatureCollection", features });
+      return;
+    }
+    this.reveal.start((k) =>
+      src.setData({
+        type: "FeatureCollection",
+        features:
+          k >= 1
+            ? features
+            : features.map((f) => (fresh.has(f) ? { ...f, geometry: { type: "LineString" as const, coordinates: truncateLine(f.geometry.coordinates, k) } } : f)),
+      }),
+    );
+  }
+
   private clear(): void {
+    this.reveal.cancel();
+    this.known.clear();
     this.featureCount = 0;
     (this.map.getSource("recent-trails") as GeoJSONSource | undefined)?.setData(EMPTY);
   }
@@ -145,5 +174,6 @@ export class RecentTrailsLayer {
     clearInterval(this.timer);
     clearTimeout(this.moveTimer);
     this.abort?.abort();
+    this.reveal.cancel();
   }
 }

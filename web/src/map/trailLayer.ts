@@ -3,6 +3,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Trail } from "../core/api";
 import type { LonLat } from "../core/geodesy";
 import { altitudeRgb, ramp } from "./palette";
+import { prefersReducedMotion, Reveal, revealSequence } from "./reveal";
 
 type SegmentFeature = Feature<LineString, { c: string }>;
 const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -38,6 +39,10 @@ export function trailSegments(trail: Trail): SegmentFeature[] {
 export class TrailLayer {
   private ready = false;
   private trail: Trail | null = null;
+  private reveal = new Reveal();
+  private latest: SegmentFeature[] = [];
+  /** Start time of the track shown; a different one is a new track (animated), the same one only grew. */
+  private trackStart: number | null = null;
 
   constructor(private map: MapLibreMap) {
     const add = () => {
@@ -113,7 +118,23 @@ export class TrailLayer {
 
   setTrail(trail: Trail | null): void {
     this.trail = trail;
-    this.src("trail")?.setData(trail ? { type: "FeatureCollection", features: trailSegments(trail) } : EMPTY);
+    const src = this.src("trail");
+    const start = trail && trail.t.length ? (trail.t[0] as number) : null;
+    const isNew = start !== null && start !== this.trackStart;
+    this.trackStart = start;
+    if (!trail) {
+      this.reveal.cancel();
+      src?.setData(EMPTY);
+      return;
+    }
+    const features = trailSegments(trail);
+    this.latest = features;
+    if (isNew && src && features.length > 1 && !prefersReducedMotion()) {
+      // a new track grows from its old end to the aircraft; frames are queued only until it is done
+      this.reveal.start((f) => src.setData({ type: "FeatureCollection", features: revealSequence(this.latest, f) }));
+    } else if (!this.reveal.running) {
+      src?.setData({ type: "FeatureCollection", features });
+    } // else: an update during the reveal; the run carries on over the longer track
   }
 
   /** Connect the last recorded point to the live position and project the path ahead. */
