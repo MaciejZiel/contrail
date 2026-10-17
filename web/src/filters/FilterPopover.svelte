@@ -299,7 +299,7 @@
   .link {
     border: 0;
     background: none;
-    color: var(--accent);
+    color: var(--accent-text);
     font-weight: 600;
     cursor: pointer;
     min-height: 32px;
@@ -402,7 +402,7 @@
     color: var(--accent-ink);
   }
   .radio:has(input:focus-visible) {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-text);
     outline-offset: 2px;
   }
   code {

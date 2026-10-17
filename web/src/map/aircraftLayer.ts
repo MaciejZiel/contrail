@@ -5,7 +5,7 @@ import { staleOpacity } from "../core/staleness";
 import type { Plane } from "../core/plane";
 import type { AircraftStore } from "../core/store";
 import { AircraftGl, STRIDE_FLOATS } from "./aircraftGl";
-import { ACCENT_RGB, altitudeRgb, GHOST_RGB, packRgba } from "./palette";
+import { altitudeRgb, packRgba, ramp } from "./palette";
 import { GlobeShading } from "./globeShading";
 import { SPRITE, spriteFor } from "./sprites";
 
@@ -75,6 +75,12 @@ export class AircraftLayer {
     const ctx = labels.getContext("2d");
     if (!ctx) throw new Error("2D canvas unavailable");
     this.labelCtx = ctx;
+  }
+
+  /** Recolour for the theme the map now shows (the palette itself is switched by the caller first). */
+  applyTheme(): void {
+    this.gl.setOutline(ramp().outline);
+    if (this.running) this.draw();
   }
 
   /** Draw for MapLibre's globe projection: aircraft are projected one by one and hidden behind the horizon. */
@@ -189,6 +195,7 @@ export class AircraftLayer {
     }
 
     const now = serverNow();
+    const { accent, ghost } = ramp();
     const frameDt = this.lastFrameTime ? clamp((t0 - this.lastFrameTime) / 1000, 0.001, 0.25) : 0.016;
     this.lastFrameTime = t0;
     const zoom = map.getZoom();
@@ -228,7 +235,7 @@ export class AircraftLayer {
       dx -= Math.round(dx);
       const rot = (p.easeTrack(frameDt, now) * Math.PI) / 180;
       const sprite = spriteFor(p.category, p.onGround);
-      const [r, g, b] = isSel ? ACCENT_RGB : opacity < 1 ? GHOST_RGB : altitudeRgb(p.altitudeAt(now), p.onGround);
+      const [r, g, b] = isSel ? accent : opacity < 1 ? ghost : altitudeRgb(p.altitudeAt(now), p.onGround);
       const color = packRgba(r, g, b, Math.round(255 * opacity));
       const sz = size * sprite.scale * (isSel ? 1.35 : 1);
       for (let k = -1; k <= 1; k++) {
@@ -263,7 +270,7 @@ export class AircraftLayer {
       this.instances[o + 1] = selY;
       this.instances[o + 2] = 0;
       this.instances[o + 3] = Math.max(size * 2.1, 34);
-      this.colors[o + 4] = packRgba(ACCENT_RGB[0], ACCENT_RGB[1], ACCENT_RGB[2], 255);
+      this.colors[o + 4] = packRgba(accent[0], accent[1], accent[2], 255);
       this.instances[o + 5] = SPRITE.ring;
       n++;
     }
@@ -288,6 +295,7 @@ export class AircraftLayer {
    * nothing pops at the edge. The heading comes from projecting a point a little ahead along the track.
    */
   private drawGlobe(now: number, frameDt: number, zoom: number, center: { lat: number; lng: number }, w: number, h: number, dpr: number, t0: number): void {
+    const { accent, ghost } = ramp();
     const lon0 = center.lng * RAD;
     const sinLat0 = Math.sin(center.lat * RAD);
     const cosLat0 = Math.cos(center.lat * RAD);
@@ -347,7 +355,7 @@ export class AircraftLayer {
       const limb = clamp((cosC - cosHorizon) / (1 - cosHorizon), 0, 1);
       const edge = Math.min(1, limb * 5);
       const sprite = spriteFor(p.category, p.onGround);
-      const [r, g, b] = isSel ? ACCENT_RGB : baseOpacity < 1 ? GHOST_RGB : altitudeRgb(p.altitudeAt(now), p.onGround);
+      const [r, g, b] = isSel ? accent : baseOpacity < 1 ? ghost : altitudeRgb(p.altitudeAt(now), p.onGround);
       const color = packRgba(r, g, b, Math.round(255 * baseOpacity * (isSel ? 1 : edge)));
       const o = n * STRIDE_FLOATS;
       this.instances[o] = px;
@@ -375,7 +383,7 @@ export class AircraftLayer {
       this.instances[o + 1] = selY;
       this.instances[o + 2] = 0;
       this.instances[o + 3] = Math.max(size * 2.1, 34);
-      this.colors[o + 4] = packRgba(ACCENT_RGB[0], ACCENT_RGB[1], ACCENT_RGB[2], 255);
+      this.colors[o + 4] = packRgba(accent[0], accent[1], accent[2], 255);
       this.instances[o + 5] = SPRITE.ring;
       n++;
     }
@@ -404,8 +412,8 @@ export class AircraftLayer {
     ctx.textBaseline = "middle";
     ctx.lineJoin = "round";
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(10,12,15,0.92)";
-    ctx.fillStyle = "#eceae6";
+    ctx.strokeStyle = ramp().labelHalo;
+    ctx.fillStyle = ramp().labelText;
     const occupied = new Set<number>();
     const limit = Math.min(cands.length, MAX_LABELS);
     for (let i = 0; i < limit; i++) {

@@ -12,7 +12,9 @@ import { rectForBounds } from "../core/tiles";
 import { preservedParams, serializeUrlState, type TrailMinutes, type ViewState } from "../core/urlState";
 import { AircraftLayer } from "./aircraftLayer";
 import { AirportLayer } from "./airportLayer";
-import { offlineStyle, onlineStyle } from "./style";
+import type { Theme } from "../core/theme";
+import { applyBasemapTheme, offlineStyle, onlineStyle } from "./style";
+import { setPaletteTheme } from "./palette";
 import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
 import { GlobeShading } from "./globeShading";
@@ -30,6 +32,8 @@ export interface ControllerOptions {
   store: AircraftStore;
   view: ViewState;
   offline: boolean;
+  /** The interface theme; the globe always draws dark whatever this is. */
+  theme: Theme;
   getUrlSelection: () => UrlSelection;
   accepts: (p: Plane) => boolean;
   getSelected: () => number | null;
@@ -67,9 +71,11 @@ export class MapController {
 
   constructor(private o: ControllerOptions) {
     setWorkerUrl(o.workerUrl);
+    this.theme = o.theme;
+    setPaletteTheme(o.theme);
     const m = new MapLibreMap({
       container: o.container,
-      style: o.offline ? offlineStyle() : onlineStyle(),
+      style: o.offline ? offlineStyle(o.theme) : onlineStyle(o.theme),
       center: [o.view.lon, o.view.lat],
       zoom: o.view.zoom,
       minZoom: 2,
@@ -152,6 +158,7 @@ export class MapController {
     });
     m.on("load", () => {
       o.onLoaded();
+      this.applyMapTheme();
       if (o.view.globe) this.setGlobe(true);
       // the credits stay one tap away but do not cover a small map on first paint
       if (window.innerWidth < 900) {
@@ -175,7 +182,33 @@ export class MapController {
     );
   }
 
+  private theme: Theme;
   private lastClick: MapMouseEvent | null = null;
+
+  /** Switch the interface theme: the map restyles in place, with no reload. */
+  setTheme(theme: Theme): void {
+    this.theme = theme;
+    this.applyMapTheme();
+  }
+
+  /** The globe is a dark sphere in space in both themes. */
+  private mapTheme(): Theme {
+    return this.globe ? "dark" : this.theme;
+  }
+
+  private applyMapTheme(): void {
+    const t = this.mapTheme();
+    setPaletteTheme(t);
+    try {
+      applyBasemapTheme(this.map, t, this.o.offline);
+    } catch {
+      // the style document is still loading: the "load" handler applies the theme
+    }
+    this.trail.applyTheme();
+    this.recentTrails.applyTheme();
+    this.airports.applyTheme();
+    this.aircraft?.applyTheme();
+  }
   private globe = false;
   private flatZoom = 5;
   private shading: GlobeShading | null = null;
@@ -219,6 +252,7 @@ export class MapController {
     this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
+    this.applyMapTheme();
     if (on && !this.shading) {
       // faint stars behind the basemap
       this.shading = new GlobeShading(m);

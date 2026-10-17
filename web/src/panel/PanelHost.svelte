@@ -149,7 +149,7 @@
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--surface);
     border-radius: 8px 8px 0 0;
-    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.5); /* taste-skill-ignore: the phone sheet floats over the map */
+    box-shadow: var(--sheet-shadow); /* taste-skill-ignore: the phone sheet floats over the map */
     transition: height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
     overflow: hidden;
   }

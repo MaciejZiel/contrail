@@ -157,7 +157,7 @@
     color: var(--accent-ink);
   }
   .primary:hover {
-    background: #ff9c58;
+    background: color-mix(in srgb, var(--accent) 88%, white);
   }
   .tech {
     color: var(--text-dim);
