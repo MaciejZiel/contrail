@@ -120,6 +120,7 @@
 <div class="wrap" bind:this={wrap} onkeydown={onKeydown} role="presentation">
   <button class="btn" bind:this={button} onclick={toggle} aria-expanded={open} aria-controls="filter-panel" aria-label={count ? `Filters, ${count} active` : "Filters"}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+    <span class="label">Filters</span>
     {#if count}<span class="badge">{count}</span>{/if}
   </button>
   {#if open}
@@ -216,48 +217,57 @@
   }
   .btn {
     position: relative;
-    width: 44px;
     height: 44px;
-    border-radius: 50%;
-    border: 1px solid var(--border);
+    padding: 0 14px;
+    border-radius: var(--radius);
+    border: 0;
     background: var(--surface);
-    box-shadow: var(--shadow);
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
     cursor: pointer;
-    backdrop-filter: blur(8px);
+    font-size: var(--fs-s);
+    font-weight: 600;
+  }
+  .btn:hover,
+  .btn[aria-expanded="true"] {
+    background: var(--surface-2);
   }
   svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     fill: none;
     stroke: var(--text);
     stroke-width: 2;
     stroke-linecap: round;
   }
+  .label {
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .label {
+      display: inline;
+    }
+  }
   .badge {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    border-radius: 9px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm);
     background: var(--accent);
-    color: #04201c;
-    font: 700 11px/18px var(--font);
+    color: var(--accent-ink);
+    font: 700 12px/20px var(--font);
     text-align: center;
   }
   .panel {
     position: absolute;
     top: 52px;
     left: 0;
-    width: min(320px, calc(100vw - 24px));
-    padding: 14px;
+    width: min(340px, calc(100vw - 24px));
+    padding: 18px;
     border-radius: var(--radius);
-    background: var(--surface-solid);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+    background: var(--surface);
+    box-shadow: var(--shadow); /* taste-skill-ignore: the filter menu floats over the map */
     z-index: 10;
     max-height: calc(var(--room, calc(100dvh - 76px)) - env(safe-area-inset-bottom));
     overflow-y: auto;
@@ -280,12 +290,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 14px;
+  }
+  .head strong {
+    font-size: var(--fs-l);
+    font-weight: 650;
   }
   .link {
     border: 0;
     background: none;
     color: var(--accent);
+    font-weight: 600;
     cursor: pointer;
     min-height: 32px;
   }
@@ -296,21 +311,22 @@
   fieldset {
     border: 0;
     padding: 0;
-    margin: 0 0 12px;
+    margin: 0 0 16px;
   }
   legend,
   .field span {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-dim);
+    font-size: var(--fs-s);
+    font-weight: 600;
+    color: var(--text);
     padding: 0;
   }
   .range-values {
     display: flex;
     justify-content: space-between;
-    font: 600 13px var(--mono);
-    margin: 4px 0;
+    font: 500 var(--fs-s) var(--font);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    margin: 6px 0;
   }
   input[type="range"] {
     width: 100%;
@@ -323,6 +339,7 @@
     align-items: center;
     gap: 10px;
     min-height: 44px;
+    margin-bottom: 8px;
   }
   .check input {
     width: 20px;
@@ -332,37 +349,31 @@
   .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    margin-bottom: 4px;
   }
-  select {
-    height: 44px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--text);
-    padding: 0 10px;
-    font: inherit;
-  }
+  select,
   .text {
     height: 44px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    border: 0;
     background: var(--surface-2);
     color: var(--text);
-    padding: 0 10px;
+    padding: 0 12px;
     font: inherit;
     min-width: 0;
   }
-  .field {
-    margin-bottom: 4px;
+  select:hover,
+  .text:hover {
+    background: var(--surface-3);
   }
   .trails {
-    margin: 12px 0 0;
+    margin: 16px 0 0;
   }
   .radios {
     display: flex;
-    gap: 8px;
-    margin-top: 4px;
+    gap: 4px;
+    margin-top: 6px;
   }
   .radio {
     flex: 1;
@@ -370,11 +381,14 @@
     min-height: 44px;
     display: grid;
     place-items: center;
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius);
     background: var(--surface-2);
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--fs-s);
+    font-weight: 600;
+  }
+  .radio:hover {
+    background: var(--surface-3);
   }
   .radio input {
     position: absolute;
@@ -384,19 +398,21 @@
     cursor: pointer;
   }
   .radio:has(input:checked) {
-    border-color: var(--accent);
-    background: rgba(94, 234, 212, 0.14);
+    background: var(--accent);
+    color: var(--accent-ink);
   }
   .radio:has(input:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   code {
-    font-family: var(--mono);
+    font-family: var(--font);
+    font-weight: 600;
   }
   .hint {
     margin: 8px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
+    line-height: 1.45;
     color: var(--text-dim);
   }
 </style>

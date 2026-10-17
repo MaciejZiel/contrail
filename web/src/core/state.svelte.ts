@@ -11,6 +11,7 @@ export const ui = $state({
   airport: null as string | null,
   filters: DEFAULT_FILTERS as Filters,
   trails: 0 as TrailMinutes,
+  globe: false,
   trailsStatus: { state: "off", shown: 0, total: 0 } as TrailsStatus,
   aircraftCount: 0,
   zoom: 5,

@@ -11,14 +11,13 @@
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 0 4px 0 12px;
-    min-height: 36px;
-    border-radius: 999px;
-    /* tinted but opaque, so map labels never show through the text */
-    background: linear-gradient(rgba(94, 234, 212, 0.14), rgba(94, 234, 212, 0.14)), var(--surface-solid);
-    border: 1px solid rgba(94, 234, 212, 0.5);
-    font-size: 13px;
+    gap: 2px;
+    padding: 0 2px 0 12px;
+    min-height: 40px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    font-size: var(--fs-s);
+    font-weight: 500;
     max-width: 100%;
   }
   span {
@@ -27,12 +26,17 @@
     white-space: nowrap;
   }
   button {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border: 0;
+    border-radius: var(--radius-sm);
     background: none;
     font-size: 18px;
     cursor: pointer;
+    color: var(--text-dim);
+  }
+  button:hover {
+    background: var(--surface-3);
     color: var(--text);
   }
 </style>

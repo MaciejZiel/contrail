@@ -128,7 +128,7 @@
   .side {
     position: absolute;
     z-index: 6;
-    left: var(--gutter);
+    right: var(--gutter);
     top: calc(12px + env(safe-area-inset-top));
     bottom: 12px;
     width: 380px;
@@ -147,10 +147,9 @@
     display: flex;
     flex-direction: column;
     padding-bottom: env(safe-area-inset-bottom);
-    background: var(--surface-solid);
-    border-top: 1px solid var(--border);
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+    background: var(--surface);
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.5); /* taste-skill-ignore: the phone sheet floats over the map */
     transition: height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
     overflow: hidden;
   }
@@ -166,11 +165,10 @@
     cursor: grab;
   }
   .bar {
-    width: 40px;
-    height: 5px;
-    border-radius: 3px;
-    background: var(--text-dim);
-    opacity: 0.7;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
   }
   .content {
     flex: 1;
@@ -180,11 +178,9 @@
   .content > :global(.panel) {
     flex: 1;
     min-width: 0;
-    border: 0;
     border-radius: 0;
-    box-shadow: none;
+    box-shadow: none; /* taste-skill-ignore: reset */
     background: none;
-    backdrop-filter: none;
     overflow-y: hidden;
   }
   .expanded .content > :global(.panel) {

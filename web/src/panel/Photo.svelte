@@ -99,7 +99,6 @@
     </figcaption>
   {:else if shown.tier === "type"}
     <img src={shown.url} width="640" height="427" alt={`Representative photo of ${typeName ?? typeCode}`} onerror={typeFallback} />
-    <span class="chip">Representative photo, not this aircraft</span>
     <figcaption>
       {shown.photo.author} ·
       <a href={shown.photo.license_url || shown.photo.source_url} target="_blank" rel="noopener">{shown.photo.license}</a> ·
@@ -117,7 +116,7 @@
 <style>
   .photo {
     margin: 0;
-    border-radius: 12px;
+    border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface-2);
     position: relative;
@@ -126,18 +125,18 @@
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 3 / 2;
+    aspect-ratio: 16 / 9;
     object-fit: cover;
   }
   a {
     display: block;
   }
   figcaption {
-    padding: 6px 10px 7px;
-    font-size: 11px;
+    padding: 8px 12px 9px;
+    font-size: var(--fs-s);
     line-height: 1.35;
     color: var(--text-dim);
-    background: rgba(5, 9, 20, 0.5);
+    background: var(--surface-2);
   }
   figcaption a {
     display: inline;
@@ -152,26 +151,28 @@
     aspect-ratio: 16 / 7;
     object-fit: cover;
   }
+  /* plain text under the picture says what it is, not a badge on top of it */
   .chip {
-    position: absolute;
-    left: 8px;
-    top: 8px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    color: #e6ebf5;
-    background: rgba(5, 9, 20, 0.7);
-    backdrop-filter: blur(4px);
+    display: block;
+    padding: 8px 12px 9px;
+    font-size: var(--fs-s);
+    line-height: 1.35;
+    color: var(--text);
+    background: var(--surface-2);
   }
   .skeleton {
-    aspect-ratio: 3 / 2;
-    background: linear-gradient(100deg, var(--surface-2) 30%, #223052 50%, var(--surface-2) 70%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite linear;
+    aspect-ratio: 16 / 9;
+    background: var(--surface-3);
+    animation: pulse 1.4s ease-in-out infinite;
   }
-  @keyframes shimmer {
-    to {
-      background-position: -200% 0;
+  @keyframes pulse {
+    50% {
+      opacity: 0.45;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
     }
   }
 </style>

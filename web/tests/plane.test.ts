@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AircraftRecord } from "../src/core/codec";
-import { latToY, lonToX, yToLat, xToLon } from "../src/core/geo";
+import { angleDiff, latToY, lonToX, yToLat, xToLon } from "../src/core/geo";
 import { BLEND_S, MAX_EXTRAPOLATION_S, Plane } from "../src/core/plane";
 import { AircraftStore } from "../src/core/store";
 
@@ -10,6 +10,82 @@ function rec(over: Partial<AircraftRecord> = {}): AircraftRecord {
     category: 2, flags: 0, ageS: 0, callsign: "TEST1", squawk: 1000, ...over,
   };
 }
+
+describe("Plane turn extrapolation", () => {
+  // an aircraft flying a standard rate turn (3 deg/s) at 250 kt, reported every 10 s
+  const KT = 0.514444;
+  const speed = 250 * KT;
+  const w = (3 * Math.PI) / 180;
+  const truth = (t: number) => {
+    // position in metres (east, north) of a clockwise circle starting heading east
+    const a0 = Math.PI / 2;
+    return { e: (speed / w) * (Math.cos(a0) - Math.cos(a0 + w * t)), n: (speed / w) * (Math.sin(a0 + w * t) - Math.sin(a0)) };
+  };
+  const lat0 = 50;
+  const lon0 = 20;
+  const toRec = (t: number): AircraftRecord => {
+    const p = truth(t);
+    return rec({
+      lat: lat0 + p.n / 111195,
+      lon: lon0 + p.e / (111195 * Math.cos((lat0 * Math.PI) / 180)),
+      track: (90 + (w * t * 180) / Math.PI) % 360,
+      speedKt: 250,
+    });
+  };
+  const errM = (plane: Plane, now: number, t: number) => {
+    const pos = plane.positionAt(now);
+    const tr = truth(t);
+    const e = (xToLon(pos.x) - lon0) * 111195 * Math.cos((lat0 * Math.PI) / 180);
+    const n = (yToLat(pos.y) - lat0) * 111195;
+    return Math.hypot(e - tr.e, n - tr.n);
+  };
+
+  it("predicts a steady turn better than a straight line", () => {
+    const turning = new Plane(1);
+    turning.update(toRec(0), 1000, 1000);
+    turning.update(toRec(10), 1010, 1010);
+    expect(turning.turnRate).toBeCloseTo(w, 3);
+    const straight = new Plane(2);
+    straight.update(rec({ ...toRec(10) }), 1010, 1010);
+    const now = 1030; // 20 s after the last fix
+    expect(errM(turning, now, 30)).toBeLessThan(errM(straight, now, 30) / 5);
+  });
+
+  it("ignores noise, fixes far apart, and clamps absurd rates", () => {
+    const quiet = new Plane(1);
+    quiet.update(rec({ track: 90 }), 1000, 1000);
+    quiet.update(rec({ track: 90.5 }), 1010, 1010);
+    expect(quiet.turnRate).toBe(0);
+    const far = new Plane(2);
+    far.update(rec({ track: 90 }), 1000, 1000);
+    far.update(rec({ track: 150 }), 1300, 1300);
+    expect(far.turnRate).toBe(0);
+    const wild = new Plane(3);
+    wild.update(rec({ track: 90 }), 1000, 1000);
+    wild.update(rec({ track: 270 }), 1003, 1003);
+    expect(Math.abs(wild.turnRate)).toBeLessThanOrEqual((3 * Math.PI) / 180 + 1e-9);
+  });
+
+  it("stops turning after the turn limit and flies straight", () => {
+    const p = new Plane(1);
+    p.update(toRec(0), 1000, 1000);
+    p.update(toRec(10), 1010, 1010);
+    const a = p.positionAt(1010 + 100);
+    const b = p.positionAt(1010 + 150);
+    const c = p.positionAt(1010 + 200);
+    // straight flight after the limit: equal steps in a fixed direction
+    expect(Math.hypot(c.x - b.x, c.y - b.y)).toBeCloseTo(Math.hypot(b.x - a.x, b.y - a.y), 8);
+  });
+
+  it("drawn heading follows the predicted turn", () => {
+    const p = new Plane(1);
+    p.update(toRec(0), 1000, 1000);
+    p.update(toRec(10), 1010, 1010);
+    for (let i = 0; i < 200; i++) p.easeTrack(0.1, 1020);
+    // 10 s after the fix at 3 deg/s: 30 deg beyond the reported track
+    expect(Math.abs(angleDiff(p.shownTrack, (p.track as number) + 30))).toBeLessThan(1.5);
+  });
+});
 
 describe("Plane dead reckoning", () => {
   it("moves east along the track and never fades", () => {

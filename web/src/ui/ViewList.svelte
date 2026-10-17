@@ -66,9 +66,9 @@
     width: min(360px, 90vw);
     max-height: 70vh;
     overflow: auto;
-    background: var(--surface-solid);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow); /* taste-skill-ignore: floating list */
     padding: 8px;
   }
   .viewlist:focus-within {
@@ -79,6 +79,8 @@
     min-height: 44px;
     display: flex;
     align-items: center;
+    padding: 0 8px;
+    font-weight: 600;
     cursor: pointer;
   }
   ul {
@@ -89,21 +91,27 @@
   button {
     width: 100%;
     min-height: 44px;
+    padding: 0 10px;
+    margin-bottom: 2px;
     text-align: left;
-    background: none;
+    background: var(--surface-2);
+    color: var(--text);
     border: 0;
-    border-radius: 8px;
-    font: 600 14px var(--mono);
+    border-radius: var(--radius-sm);
+    font: 700 var(--fs-m) var(--font);
     cursor: pointer;
   }
   button:hover,
   button:focus-visible {
-    background: var(--surface-2);
+    background: var(--surface-3);
   }
   button span {
     float: right;
+    margin-top: 12px;
     color: var(--text-dim);
+    font-size: var(--fs-s);
     font-weight: 400;
+    font-variant-numeric: tabular-nums;
   }
   .empty {
     color: var(--text-dim);

@@ -1,15 +1,25 @@
 import { clamp } from "../core/geo";
 
-/** Altitude ramp (feet -> colour), tuned for contrast on the dark basemap. */
+/**
+ * Altitude ramp (feet -> colour): one hue family, and the higher the aircraft, the lighter it gets, like a
+ * contrail against the sky. Lightness carries the order, so it reads for colour-blind viewers and stays calm
+ * with thousands of aircraft on screen. The accent colour is kept for the selected flight only.
+ */
 const STOPS: ReadonlyArray<readonly [number, readonly [number, number, number]]> = [
-  [0, [249, 115, 22]],
-  [5000, [250, 190, 40]],
-  [15000, [132, 225, 90]],
-  [28000, [34, 211, 238]],
-  [40000, [167, 139, 250]],
+  [0, [67, 118, 214]],
+  [5000, [84, 150, 228]],
+  [15000, [124, 190, 238]],
+  [28000, [168, 212, 242]],
+  [40000, [222, 236, 248]],
 ];
-const GROUND: readonly [number, number, number] = [148, 163, 184];
-const UNKNOWN_ALT: readonly [number, number, number] = [203, 213, 225];
+const GROUND: readonly [number, number, number] = [107, 114, 128];
+const UNKNOWN_ALT: readonly [number, number, number] = [150, 160, 172];
+
+/** Aircraft whose area has not been refreshed for a while: a grey ghost at the last known position. */
+export const GHOST_RGB: readonly [number, number, number] = [150, 158, 170];
+
+/** The one accent of the interface: the selected flight, the primary action. */
+export const ACCENT_RGB: readonly [number, number, number] = [255, 138, 61];
 
 export function altitudeRgb(altFt: number | null, onGround: boolean): [number, number, number] {
   if (onGround) return [...GROUND];
