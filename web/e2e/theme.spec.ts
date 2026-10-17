@@ -70,7 +70,7 @@ test("the globe follows the light theme too", async ({ page }) => {
   await expect(page.getByRole("img", { name: /Altitude colour legend.*darker is higher/ })).toBeVisible();
   expect(await mapBg(page)).toBe(flatLight); // the sphere uses the light palette
   const space = await page.evaluate(() => getComputedStyle(document.querySelector(".maplibregl-map") as HTMLElement).backgroundColor);
-  expect(space).toBe("rgb(219, 225, 232)"); // pale sky, not black
+  expect(space).toBe("rgb(207, 215, 225)"); // pale sky, not black
   await page.waitForTimeout(500);
   expect(await covered(page)).toBeGreaterThan(300);
   await page.screenshot({ path: "test-results/theme-globe.png" });

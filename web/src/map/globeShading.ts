@@ -128,8 +128,11 @@ export class GlobeShading {
     const w = c.clientWidth;
     const h = c.clientHeight;
     const dpr = Math.min(1.25, window.devicePixelRatio || 1);
-    const visible = this.map.getZoom() < 5.5 && !this.light;
-    const key = `${w}x${h}@${dpr}|${visible}`;
+    const zoom = this.map.getZoom();
+    const lat = this.map.getCenter().lat;
+    const near = zoom < 5.5;
+    // the light sky has no stars but a soft shadow around the globe, so the pale sphere does not glare against it
+    const key = this.light ? `${w}x${h}@${dpr}|L|${near}|${zoom.toFixed(3)}|${lat.toFixed(2)}` : `${w}x${h}@${dpr}|${near}`;
     if (key === this.starsKey) return;
     this.starsKey = key;
     const cv = this.stars;
@@ -140,7 +143,19 @@ export class GlobeShading {
     const ctx = this.starsCtx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    if (!visible) return;
+    if (!near) return;
+    if (this.light) {
+      const r = GlobeShading.view(zoom, lat, h).rim;
+      if (r > 3 * Math.max(w, h)) return;
+      const reach = r * 1.16;
+      const g = ctx.createRadialGradient(w / 2, h / 2, r * 0.97, w / 2, h / 2, reach);
+      g.addColorStop(0, "rgba(52,72,104,0.30)");
+      g.addColorStop(0.35, "rgba(52,72,104,0.12)");
+      g.addColorStop(1, "rgba(52,72,104,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      return;
+    }
     for (const s of this.starList) {
       ctx.fillStyle = `rgba(${s.rgb},${s.a})`;
       ctx.beginPath();

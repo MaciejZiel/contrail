@@ -53,7 +53,7 @@ export interface ControllerOptions {
 const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
 
 const SPACE_DARK = "#050608";
-const SPACE_LIGHT = "#dbe1e8";
+const SPACE_LIGHT = "#cfd7e1";
 
 /** Owns the MapLibre map, the aircraft/trail/airport layers, the poller and URL syncing. */
 export class MapController {
