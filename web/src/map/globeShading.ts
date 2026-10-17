@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { clamp } from "../core/geo";
+import { PlanetLayer } from "./planet";
 import { subsolarPoint, sunInView, sunLight } from "./sun";
 
 const TILE_SIZE = 512;
@@ -79,6 +80,8 @@ export class GlobeShading {
   private shadeKey = "";
   private starsKey = "";
   private running = false;
+  /** True while the textured planet is drawn underneath: the night mask then only serves the transition to the vector map. */
+  planet = false;
 
   constructor(private map: MapLibreMap, aircraftCanvas: Element | null) {
     const container = map.getContainer();
@@ -100,6 +103,10 @@ export class GlobeShading {
     const m = this.mask.getContext("2d");
     if (!m) throw new Error("2D canvas unavailable");
     this.maskCtx = m;
+  }
+
+  get starsCanvas(): HTMLCanvasElement {
+    return this.stars;
   }
 
   start(): void {
@@ -162,7 +169,9 @@ export class GlobeShading {
     const minute = Math.floor(Date.now() / 60000);
     const fade = clamp((5.5 - zoom) / 2, 0, 1);
     this.drawStars(w, h, dpr, fade);
-    this.drawShade(w, h, dpr, c.lng, c.lat, zoom, minute, fade);
+    // the textured planet has its own night side and atmosphere; the mask only takes over as the picture fades out
+    const shadeFade = this.planet ? (1 - PlanetLayer.opacityAt(zoom)) * clamp((6.6 - zoom) / 1.2, 0, 1) : fade;
+    this.drawShade(w, h, dpr, c.lng, c.lat, zoom, minute, shadeFade);
   };
 
   /** The sky stays put while the globe is turned: stars are drawn once per window size. */
