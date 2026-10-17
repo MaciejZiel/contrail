@@ -14,22 +14,20 @@ function watchErrors(page: Page): string[] {
   return problems;
 }
 
-/** Press the switch until it reads the wanted preference (system, light, dark, system...). */
-async function choose(page: Page, name: "System" | "Light" | "Dark"): Promise<void> {
-  for (let i = 0; i < 3; i++) {
-    if ((await toggle(page).getAttribute("title")) === `Theme: ${name}`) return;
-    await toggle(page).click();
-  }
-  throw new Error(`could not select ${name}`);
+/** Press the switch until it reads the wanted theme. */
+async function choose(page: Page, name: "Light" | "Dark"): Promise<void> {
+  if ((await toggle(page).getAttribute("title")) !== `Theme: ${name}`) await toggle(page).click();
+  await expect(toggle(page)).toHaveAttribute("title", `Theme: ${name}`);
 }
 
-test("follows the system setting by default", async ({ page }) => {
+test("starts dark whatever the system says, with no automatic mode", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openMap(page);
-  expect(await theme(page)).toBe("light");
-  await expect(toggle(page)).toHaveAttribute("title", "Theme: System");
+  expect(await theme(page)).toBe("dark");
+  await expect(toggle(page)).toHaveAttribute("title", "Theme: Dark");
   await page.emulateMedia({ colorScheme: "dark" });
-  await expect.poll(() => theme(page)).toBe("dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  expect(await theme(page)).toBe("dark");
 });
 
 test("switching to light restyles the map without a reload, and the choice is remembered", async ({ page }) => {
@@ -51,7 +49,7 @@ test("switching to light restyles the map without a reload, and the choice is re
   await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible();
   await page.screenshot({ path: "test-results/theme-light.png" });
 
-  // remembered across a reload, even though the system says dark
+  // remembered across a reload
   await openMap(page);
   expect(await theme(page)).toBe("light");
   expect(await page.evaluate(() => localStorage.getItem("contrail.theme"))).toBe("light");
@@ -63,19 +61,23 @@ test("switching to light restyles the map without a reload, and the choice is re
   expect(problems.filter((p) => !/planespotters|Failed to load resource/.test(p))).toEqual([]);
 });
 
-test("the globe stays a dark sphere in the light theme", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "light" });
+test("the globe follows the light theme too", async ({ page }) => {
   await openMap(page, "c=50,10&z=2");
-  const flat = await mapBg(page);
+  await choose(page, "Light");
+  await expect.poll(() => theme(page)).toBe("light");
+  const flatLight = await mapBg(page);
   await page.getByRole("button", { name: "Globe" }).click();
-  await expect.poll(() => mapBg(page)).not.toBe(flat);
-  expect(await theme(page)).toBe("light"); // the interface stays light
-  await expect(page.getByRole("img", { name: /Altitude colour legend.*lighter is higher/ })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Altitude colour legend.*darker is higher/ })).toBeVisible();
+  expect(await mapBg(page)).toBe(flatLight); // the sphere uses the light palette
+  const space = await page.evaluate(() => getComputedStyle(document.querySelector(".maplibregl-map") as HTMLElement).backgroundColor);
+  expect(space).toBe("rgb(219, 225, 232)"); // pale sky, not black
   await page.waitForTimeout(500);
   expect(await covered(page)).toBeGreaterThan(300);
   await page.screenshot({ path: "test-results/theme-globe.png" });
+  await choose(page, "Dark");
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector(".maplibregl-map") as HTMLElement).backgroundColor)).toBe("rgb(5, 6, 8)");
   await page.getByRole("button", { name: "Map" }).click();
-  await expect.poll(() => mapBg(page)).toBe(flat);
+  await expect.poll(() => mapBg(page)).not.toBe(flatLight);
 });
 
 test("blocked storage does not break the page", async ({ page }) => {
@@ -86,10 +88,9 @@ test("blocked storage does not break the page", async ({ page }) => {
     };
     Object.defineProperty(window, "localStorage", { get: boom });
   });
-  await page.emulateMedia({ colorScheme: "light" });
   await openMap(page);
-  expect(await theme(page)).toBe("light");
-  await choose(page, "Dark");
-  await expect.poll(() => theme(page)).toBe("dark");
+  expect(await theme(page)).toBe("dark");
+  await choose(page, "Light");
+  await expect.poll(() => theme(page)).toBe("light");
   expect(problems.filter((p) => !/planespotters|Failed to load resource/.test(p))).toEqual([]);
 });

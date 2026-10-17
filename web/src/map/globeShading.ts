@@ -62,6 +62,7 @@ export class GlobeShading {
   private starList = makeStars();
   private starsKey = "";
   private running = false;
+  private light = false;
 
   constructor(private map: MapLibreMap) {
     const c = document.createElement("canvas");
@@ -73,6 +74,13 @@ export class GlobeShading {
     this.stars = c;
     this.starsCtx = ctx;
     map.getContainer().insertBefore(c, map.getContainer().firstChild); // behind the basemap
+  }
+
+  /** Stars belong to the dark sky only. */
+  setTheme(theme: "light" | "dark"): void {
+    this.light = theme === "light";
+    this.starsKey = "";
+    this.draw();
   }
 
   start(): void {
@@ -120,7 +128,7 @@ export class GlobeShading {
     const w = c.clientWidth;
     const h = c.clientHeight;
     const dpr = Math.min(1.25, window.devicePixelRatio || 1);
-    const visible = this.map.getZoom() < 5.5;
+    const visible = this.map.getZoom() < 5.5 && !this.light;
     const key = `${w}x${h}@${dpr}|${visible}`;
     if (key === this.starsKey) return;
     this.starsKey = key;

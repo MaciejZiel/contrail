@@ -199,3 +199,7 @@ button {
   background: color-mix(in srgb, var(--text-dim) 75%, transparent);
   background-clip: content-box;
 }
+/* the attribution opens from the bottom-left corner: keep it clear of the zoom buttons on a narrow screen */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib {
+  max-width: calc(100vw - 96px);
+}

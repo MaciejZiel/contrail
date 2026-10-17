@@ -22,7 +22,7 @@
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
   import ProjectionToggle from "./ui/ProjectionToggle.svelte";
   import ThemeToggle from "./ui/ThemeToggle.svelte";
-  import { setThemePref, themeState } from "./core/themeState.svelte";
+  import { setTheme, themeState } from "./core/themeState.svelte";
   import FilterChip from "./ui/FilterChip.svelte";
   import ViewList from "./ui/ViewList.svelte";
   import FreshnessChip from "./ui/FreshnessChip.svelte";
@@ -262,7 +262,7 @@
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
     <FilterPopover bind:filters={ui.filters} {store} onTrails={setTrails} />
     <ProjectionToggle globe={ui.globe} onChange={(g) => { ui.globe = g; ctl?.setGlobe(g, true); }} />
-    <ThemeToggle pref={themeState.pref} onChange={setThemePref} />
+    <ThemeToggle theme={themeState.theme} onChange={setTheme} />
     <FreshnessChip status={ui.status} count={ui.aircraftCount} />
     {#if ui.filters.airline}
       <FilterChip
@@ -292,7 +292,7 @@
 
   <ViewList {store} center={() => { const c = ctl?.map.getCenter(); return { lat: c?.lat ?? 0, lon: c?.lng ?? 0 }; }} accepts={accept} onPick={(h) => { selectAircraft(h); }} />
 
-  <div class="legend-slot"><AltitudeLegend mapTheme={ui.globe ? "dark" : themeState.theme} uiTheme={themeState.theme} /></div>
+  <div class="legend-slot"><AltitudeLegend mapTheme={themeState.theme} uiTheme={themeState.theme} /></div>
 
   {#if ui.selected}
     {#key ui.selected}

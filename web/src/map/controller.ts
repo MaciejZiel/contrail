@@ -52,6 +52,9 @@ export interface ControllerOptions {
 
 const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
 
+const SPACE_DARK = "#050608";
+const SPACE_LIGHT = "#dbe1e8";
+
 /** Owns the MapLibre map, the aircraft/trail/airport layers, the poller and URL syncing. */
 export class MapController {
   readonly map: MapLibreMap;
@@ -100,7 +103,7 @@ export class MapController {
           '<a href="https://aviationweather.gov" target="_blank" rel="noopener">Weather: NOAA AWC</a> · ' +
           '<a href="licenses/NOTICES.txt" target="_blank" rel="noopener">Licences</a>',
       }),
-      "bottom-right",
+      "bottom-left",
     );
     this.trail = new TrailLayer(m);
     this.recentTrails = new RecentTrailsLayer(m, () => serverFilterQuery(o.getUrlSelection().filters, true), o.onTrailsStatus);
@@ -191,9 +194,15 @@ export class MapController {
     this.applyMapTheme();
   }
 
-  /** The globe is a dark sphere in space in both themes. */
+  /** The map, the globe included, follows the interface theme. */
   private mapTheme(): Theme {
-    return this.globe ? "dark" : this.theme;
+    return this.theme;
+  }
+
+  /** Outer space behind the globe: near black in the dark theme, a pale cool grey in the light one. */
+  private paintSpace(): void {
+    this.o.container.style.background = this.globe ? (this.theme === "light" ? SPACE_LIGHT : SPACE_DARK) : "";
+    this.shading?.setTheme(this.theme);
   }
 
   private applyMapTheme(): void {
@@ -208,6 +217,7 @@ export class MapController {
     this.recentTrails.applyTheme();
     this.airports.applyTheme();
     this.aircraft?.applyTheme();
+    this.paintSpace();
   }
   private globe = false;
   private flatZoom = 5;
@@ -248,8 +258,6 @@ export class MapController {
       m.jumpTo({ center: before, zoom: Math.max(m.getZoom(), this.flatZoom, 3) });
       m.setMinZoom(2);
     }
-    // outer space is a touch darker than the ocean, so the disc reads against it
-    this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
     this.applyMapTheme();
@@ -261,6 +269,7 @@ export class MapController {
       this.shading.stop();
       this.shading = null;
     }
+    this.paintSpace();
     this.syncUrl();
     this.poller.refreshNow();
   }

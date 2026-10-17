@@ -1,49 +1,32 @@
-/** Theme preference (what the visitor chose) and the theme actually shown. Pure helpers plus a thin storage layer. */
-export type ThemePref = "system" | "light" | "dark";
+/** The theme shown: the visitor's explicit choice (dark until they pick light). Pure helpers plus a thin storage layer. */
 export type Theme = "light" | "dark";
 
 export const THEME_KEY = "contrail.theme";
-export const PREFS: readonly ThemePref[] = ["system", "light", "dark"];
+export const DEFAULT_THEME: Theme = "dark";
 
-/** Anything that is not a known preference (missing, corrupted, from another version) means "follow the system". */
-export function parsePref(raw: unknown): ThemePref {
-  return raw === "light" || raw === "dark" || raw === "system" ? raw : "system";
+/** Anything that is not a known theme (missing, corrupted, "system" from an earlier version) means the default. */
+export function parseTheme(raw: unknown): Theme {
+  return raw === "light" || raw === "dark" ? raw : DEFAULT_THEME;
 }
 
-/** The theme to draw: an explicit choice wins, "system" follows prefers-color-scheme. */
-export function resolveTheme(pref: ThemePref, systemDark: boolean): Theme {
-  if (pref === "light") return "light";
-  if (pref === "dark") return "dark";
-  return systemDark ? "dark" : "light";
+/** The theme the switch moves to. */
+export function otherTheme(theme: Theme): Theme {
+  return theme === "dark" ? "light" : "dark";
 }
 
-/** The next preference when the switch is pressed: system, light, dark, system... */
-export function nextPref(pref: ThemePref): ThemePref {
-  return PREFS[(PREFS.indexOf(pref) + 1) % PREFS.length] as ThemePref;
-}
-
-export function loadPref(): ThemePref {
+export function loadTheme(): Theme {
   try {
-    return parsePref(localStorage.getItem(THEME_KEY));
+    return parseTheme(localStorage.getItem(THEME_KEY));
   } catch {
-    return "system"; // storage blocked or unavailable
+    return DEFAULT_THEME; // storage blocked or unavailable
   }
 }
 
-export function savePref(pref: ThemePref): void {
+export function saveTheme(theme: Theme): void {
   try {
-    if (pref === "system") localStorage.removeItem(THEME_KEY);
-    else localStorage.setItem(THEME_KEY, pref);
+    localStorage.setItem(THEME_KEY, theme);
   } catch {
     // the choice then lasts for this visit only
-  }
-}
-
-export function systemPrefersDark(): boolean {
-  try {
-    return matchMedia("(prefers-color-scheme: dark)").matches;
-  } catch {
-    return true; // the app was dark before there was a choice
   }
 }
 
