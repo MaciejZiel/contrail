@@ -1,6 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { clamp } from "../core/geo";
-import { CITY_LIGHTS } from "./cityLights";
 import { subsolarPoint, sunInView, sunLight } from "./sun";
 
 const TILE_SIZE = 512;
@@ -75,7 +74,6 @@ export class GlobeShading {
   private starsCtx: CanvasRenderingContext2D;
   private mask = document.createElement("canvas");
   private ringCanvas = document.createElement("canvas");
-  private sprite: HTMLCanvasElement | null = null;
   private maskCtx: CanvasRenderingContext2D;
   private starList = makeStars();
   private shadeKey = "";
@@ -262,6 +260,9 @@ export class GlobeShading {
     // the night side: light at each point of the disc, from the Sun's real position
     const img = this.maskCtx.createImageData(MASK, MASK);
     const px = img.data;
+    // half-way between the Sun and the viewer: the sheen peaks there
+    const hl = Math.hypot(sun.sx, sun.sy, sun.sz + 1) || 1;
+    const [hx, hy, hz] = [sun.sx / hl, sun.sy / hl, (sun.sz + 1) / hl];
     for (let j = 0; j < MASK; j++) {
       for (let i = 0; i < MASK; i++) {
         const u = ((i + 0.5) / MASK) * 2 - 1;
@@ -277,10 +278,15 @@ export class GlobeShading {
         // the sky glows a faint warm rose where the Sun has just set
         const dusk = Math.sin(Math.PI * day) ** 2;
         const a = (1 - day) ** 1.2 * 0.68;
-        px[o] = 4 + dusk * 30;
-        px[o + 1] = 8 + dusk * 8;
-        px[o + 2] = 24 + dusk * 16;
-        px[o + 3] = clamp(a, 0, 1) * 255;
+        // a broad sheen of sunlight where the surface faces both the Sun and the viewer
+        const nz = Math.sqrt(Math.max(0, 1 - u * u - v * v));
+        const sheen = Math.max(0, u * hx + v * hy + nz * hz) ** 18 * 0.2 * day;
+        const total = a + sheen * (1 - a);
+        const wn = a / Math.max(total, 1e-6);
+        px[o] = (4 + dusk * 30) * wn + 190 * (1 - wn);
+        px[o + 1] = (8 + dusk * 8) * wn + 220 * (1 - wn);
+        px[o + 2] = (24 + dusk * 16) * wn + 255 * (1 - wn);
+        px[o + 3] = clamp(total, 0, 1) * 255;
       }
     }
     this.maskCtx.putImageData(img, 0, 0);
@@ -293,8 +299,6 @@ export class GlobeShading {
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(this.mask, cx - r, cy - r, 2 * r, 2 * r);
 
-    this.drawCityLights(ctx, view, sun, lat, lon, cx, cy, r);
-
     // limb darkening on top: the sphere falls away towards its edge, a little less on the lit side
     const limb = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
     limb.addColorStop(0, "rgba(5,6,8,0)");
@@ -303,67 +307,6 @@ export class GlobeShading {
     ctx.fillStyle = limb;
     ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
     ctx.restore();
-    ctx.restore();
-  }
-
-  /** One soft warm dot, drawn once and scaled for every city. */
-  private citySprite(): HTMLCanvasElement {
-    if (this.sprite) return this.sprite;
-    const c = document.createElement("canvas");
-    c.width = 64;
-    c.height = 64;
-    const x = c.getContext("2d");
-    if (x) {
-      const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-      g.addColorStop(0, "rgba(255,214,150,1)");
-      g.addColorStop(0.1, "rgba(255,170,90,0.4)");
-      g.addColorStop(1, "rgba(255,150,70,0)");
-      x.fillStyle = g;
-      x.fillRect(0, 0, 64, 64);
-    }
-    return (this.sprite = c);
-  }
-
-  /** Warm city lights on the night side, from the same projection the aircraft use. */
-  private drawCityLights(
-    ctx: CanvasRenderingContext2D,
-    view: { radius: number; camera: number },
-    sun: { sx: number; sy: number; sz: number },
-    lat0: number,
-    lon0: number,
-    cx: number,
-    cy: number,
-    r: number,
-  ): void {
-    const rad = Math.PI / 180;
-    const p0 = lat0 * rad;
-    const sinP0 = Math.sin(p0);
-    const cosP0 = Math.cos(p0);
-    const A = view.camera;
-    const R = view.radius;
-    const unit = clamp(r / 420, 0.45, 1.8);
-    const sprite = this.citySprite();
-    ctx.save();
-    const base = ctx.globalAlpha;
-    ctx.globalCompositeOperation = "lighter";
-    for (const [lo, la, wgt] of CITY_LIGHTS) {
-      const p = la * rad;
-      const dl = (lo - lon0) * rad;
-      const nx = Math.cos(p) * Math.sin(dl);
-      const ny = cosP0 * Math.sin(p) - sinP0 * Math.cos(p) * Math.cos(dl);
-      const nz = sinP0 * Math.sin(p) + cosP0 * Math.cos(p) * Math.cos(dl);
-      if (nz <= R / (R + A) + 0.02) continue;
-      const light = nx * sun.sx + ny * sun.sy + nz * sun.sz;
-      const dark = smooth(0.02, -0.2, light);
-      if (dark <= 0.01) continue;
-      const k = (R * A) / (R + A - R * nz);
-      const x = cx + nx * k;
-      const y = cy - ny * k;
-      const facing = smooth(0.05, 0.4, nz); // fades out towards the limb
-      const size = (0.7 + wgt * 0.45) * unit;
-      ctx.globalAlpha = base * Math.min(1, 0.35 + wgt * 0.12) * dark * facing;
-      ctx.drawImage(sprite, x - size * 3, y - size * 3, size * 6, size * 6);
-    }
     ctx.restore();
   }
 }
