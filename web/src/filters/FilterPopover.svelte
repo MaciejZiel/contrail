@@ -334,6 +334,37 @@
     height: 28px;
     margin: 0;
   }
+  /* the native track turns near-black on a light ground: draw it in the palette instead (light only) */
+  :global(:root[data-theme="light"]) input[type="range"] {
+    appearance: none;
+    background: transparent;
+  }
+  :global(:root[data-theme="light"]) input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+  }
+  :global(:root[data-theme="light"]) input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+  }
+  :global(:root[data-theme="light"]) input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent-text);
+  }
+  :global(:root[data-theme="light"]) input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent-text);
+  }
   .check {
     display: flex;
     align-items: center;
