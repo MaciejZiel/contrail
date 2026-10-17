@@ -48,7 +48,7 @@ export class TrailLayer {
         type: "line",
         source: "trail",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#050914", "line-width": 6, "line-opacity": 0.65 },
+        paint: { "line-color": "#07080a", "line-width": 6, "line-opacity": 0.65 },
       });
       map.addLayer({
         id: "trail-line",
@@ -62,7 +62,7 @@ export class TrailLayer {
         type: "line",
         source: "trail-live",
         filter: ["==", ["get", "kind"], "ahead"],
-        paint: { "line-color": "#e6ebf5", "line-width": 2, "line-dasharray": [1.2, 2], "line-opacity": 0.8 },
+        paint: { "line-color": "#eceae6", "line-width": 2, "line-dasharray": [1.2, 2], "line-opacity": 0.8 },
       });
       map.addLayer({
         id: "trail-join",
@@ -78,7 +78,7 @@ export class TrailLayer {
         source: "route",
         filter: ["==", ["get", "kind"], "remaining"],
         layout: { "line-cap": "round" },
-        paint: { "line-color": "#e6ebf5", "line-width": 2, "line-dasharray": [2, 3], "line-opacity": 0.65 },
+        paint: { "line-color": "#eceae6", "line-width": 2, "line-dasharray": [2, 3], "line-opacity": 0.65 },
       });
       map.addLayer({
         id: "route-estimated",
@@ -86,7 +86,7 @@ export class TrailLayer {
         source: "route",
         filter: ["==", ["get", "kind"], "estimated"],
         layout: { "line-cap": "round" },
-        paint: { "line-color": "#9fb0d4", "line-width": 2, "line-dasharray": [1, 3], "line-opacity": 0.7 },
+        paint: { "line-color": "#a4abb6", "line-width": 2, "line-dasharray": [1, 3], "line-opacity": 0.7 },
       });
       this.ready = true;
     };

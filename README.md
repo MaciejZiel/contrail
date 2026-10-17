@@ -29,6 +29,7 @@
 ## Features
 
 - **Smooth live map.** Every aircraft is extrapolated each frame from its track and ground speed and eased towards each new fix, so nothing jumps and nothing fades with age. How old the data is shows in a small status chip, never by hiding aircraft. About 60 fps with 15,000 aircraft on an integrated GPU.
+- **Globe mode.** One switch turns the map into a globe (MapLibre's globe projection). Aircraft are projected by the app's own code, which agrees with MapLibre to the pixel, hidden behind the horizon and faded near the edge, so it costs the same per frame as the flat map. It is a plain dark sphere over a field of faint stars. Routes are great circles and the globe flattens into the map as you zoom in. The choice is part of the URL (`g=1`).
 - **Flight panel.** Photo, callsign, airline, type, registration, route (from and to), live altitude, speed, vertical rate, squawk, altitude / speed / vertical-rate history, the whole track coloured by altitude, the rest of the route as a dashed line, distance flown and remaining, and an arrival estimate (clearly labelled as an estimate).
 - **Recent tracks for every aircraft.** Turn on 30 or 60 minute tracks and each aircraft in view gets a line behind it, coloured by its altitude. They are drawn from the server's own record of what it has seen, so they cost no extra request to the ADS-B source; they start when the server first saw the aircraft, not at take-off, and appear from zoom 6 (below that there are too many aircraft to read).
 - **Search** by callsign, registration, ICAO24, airport or airline, with a keyboard-friendly dropdown.
@@ -55,6 +56,10 @@ Self-hosted on a home server: [contrail.maciejzielinski.dev](https://contrail.ma
 <p align="center"><sub>Aircraft photo: © Howard Wang, via <a href="https://www.planespotters.net">Planespotters.net</a>.</sub></p>
 
 Demo mode:
+
+<p align="center">
+  <img src="docs/screenshots/globe.png" alt="Globe mode: Europe and Africa on a dark sphere with aircraft" width="49%">
+</p>
 
 <p align="center">
   <img src="docs/screenshots/aircraft-panel.png" alt="Flight panel with photo, route, live values and charts" width="49%">
@@ -152,7 +157,7 @@ Read this before you rely on the map. The numbers below were measured while buil
 - The public ADSB.lol API answers a query for at most a 250 nautical mile circle, so the server works with 5 degree tiles and fetches **one request per tile**. From the machine this was developed on, **27 to 43 percent of requests were answered with HTTP 429** and the sustainable rate was roughly 0.15 to 0.2 requests per second.
 - Consequence: a **cold start of a large region is slow**. In a real 15 minute run only 67 of the 79 Europe tiles had loaded, and tile data was 4 to 5 minutes old on median. Zoomed in on a city or country the picture is fresh within seconds; zoomed out over a continent it is a mosaic of areas of different age, dead-reckoned in between. The status chip says how old the oldest area is. It does not pretend otherwise.
 - **Coverage is a plan, not a promise.** After the tiles somebody is looking at (always first, refreshed about every 10 s anywhere in the world), spare budget goes to a short list shared by weight: Europe 60 percent (target 5 minutes per tile), US East and West 30 percent (15 minutes), and eleven busy hubs (Dubai, Singapore, Hong Kong, Shanghai, Beijing, Tokyo, Delhi, Mumbai, Sao Paulo, Johannesburg, Sydney) 10 percent (30 minutes): under 200 of the 751 tiles that contain an airport. Everything else is fetched only on demand. Tiles that keep coming back empty (ocean, desert, polar) are looked at 20 to 60 times less often. At about 0.15 requests per second even this is more than one IP can keep fresh: the targets are an order and a rate, not a promise, and `/api/v1/status` reports the real median and oldest age per class.
-- **Old data is dimmed, then hidden.** Aircraft whose area was last refreshed more than 10 minutes ago are drawn faded, and beyond 15 minutes they disappear (server and client agree on the cap, and the server frees the memory). The flight panel shows both the age of the aircraft's last position and of its area.
+- **Old data is dimmed, then hidden.** Aircraft whose area was last refreshed more than 10 minutes ago are drawn as grey ghosts at their last known position, and beyond 15 minutes they disappear (server and client agree on the cap, and the server frees the memory). The flight panel shows both the age of the aircraft's last position and of its area.
 - The server is a polite client: one shared fetcher, a global budget (`UPSTREAM_BUDGET_RPS`, default 0.2), automatic back-off on 429, tiles that are usually empty (ocean, polar) are refreshed far less often, and the background plan is what it keeps warm.
 - **OpenSky Network is not used.** Its terms require a written licence for any operational use of its REST API in a live service. **airplanes.live is not used** either: its terms allow personal, non-commercial use only and forbid re-publishing the data. adsbdb.com is not used because its route data may not be copied into other databases.
 - The flight track is **our own record** of what the server has seen since it first looked at the aircraft. There is no permitted source for a complete trace from take-off, so a flight first seen mid-air gets a dashed, labelled "estimated path" from its origin airport.

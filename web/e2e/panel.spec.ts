@@ -80,7 +80,7 @@ test("a failing photo service only removes the photo", async ({ page }) => {
   await openMap(page, "c=50,10&z=7");
   await selectMover(page);
   const panel = page.getByTestId("aircraft-panel");
-  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible(); // never an empty panel
+  await expect(panel.getByText(/Illustration/).or(panel.getByRole("img", { name: /Representative photo/ }))).toBeVisible(); // never an empty panel
   await expect(panel.getByRole("region", { name: "Route" }).locator("strong").first()).toBeVisible();
   await expect(panel.getByText("Ground speed").first()).toBeVisible();
 });
@@ -141,7 +141,7 @@ test("without an airframe photo the panel shows a representative type photo with
   // only types that really are in the gallery: a type without a photo correctly shows the illustration
   await selectByType(page, (t) => t in manifest, manifest);
   const panel = page.getByTestId("aircraft-panel");
-  await expect(panel.getByText("Representative photo, not this aircraft")).toBeVisible();
+  await expect(panel.getByRole("img", { name: /Representative photo/ })).toBeVisible();
   const img = panel.locator("figure img");
   await expect(img).toHaveAttribute("src", /type-photos\/[A-Z0-9]+\.jpg$/);
   await expect(panel.locator("figure").getByRole("link", { name: "Wikimedia Commons" })).toHaveAttribute("href", /commons\.wikimedia\.org\/wiki\/File:/);
@@ -171,17 +171,17 @@ test("selecting an aircraft that the panel would cover pans it into view", async
     for (const p of f.store.planes) {
       if (p.onGround || !p.callsign) continue;
       const pos = f.layer.screenPosition(p.hex);
-      if (pos && pos.x > 60 && pos.x < 330 && pos.y > 150 && pos.y < 650) return { hex: p.hex, ...pos };
+      if (pos && pos.x > window.innerWidth - 330 && pos.x < window.innerWidth - 60 && pos.y > 150 && pos.y < 650) return { hex: p.hex, ...pos };
     }
     return null;
   });
   const target = (await handle.jsonValue()) as { hex: number; x: number; y: number };
   await page.mouse.click(target.x, target.y);
   await expect(page.getByTestId("aircraft-panel")).toBeVisible();
-  const panelRight = await page.locator(".side, .sheet").first().evaluate((el) => el.getBoundingClientRect().right);
+  const panelLeft = await page.locator(".side, .sheet").first().evaluate((el) => el.getBoundingClientRect().left);
   await expect
-    .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 0)
-    .toBeGreaterThan(panelRight);
+    .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 1e9)
+    .toBeLessThan(panelLeft);
 });
 
 test("a failing identity lookup is retried and the panel recovers", async ({ page }) => {
@@ -201,7 +201,7 @@ test("a failing identity lookup is retried and the panel recovers", async ({ pag
   await expect(panel.getByText(/Details are temporarily unavailable, retrying/)).toBeVisible();
   await expect(panel.getByText("Registration")).toBeVisible();
   await expect(panel.locator(".details dd").first()).not.toHaveText("–", { timeout: 20_000 });
-  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  await expect(panel.getByText(/Illustration/).or(panel.getByRole("img", { name: /Representative photo/ }))).toBeVisible();
   expect(failures).toBe(2);
 });
 
@@ -214,9 +214,32 @@ test("a client that Planespotters blocks (no CORS headers) asks once and falls b
   await openMap(page, "c=50,10&z=7");
   await selectMover(page);
   const panel = page.getByTestId("aircraft-panel");
-  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  await expect(panel.getByText(/Illustration/).or(panel.getByRole("img", { name: /Representative photo/ }))).toBeVisible();
   await page.keyboard.press("Escape");
   await selectMover(page);
-  await expect(panel.getByText(/Representative photo|Illustration/)).toBeVisible();
+  await expect(panel.getByText(/Illustration/).or(panel.getByRole("img", { name: /Representative photo/ }))).toBeVisible();
   expect(calls).toBe(1); // one failed request in the whole visit, not several per aircraft
+});
+
+test("moving the pointer over a chart steps by whole minutes and never changes the card's size", async ({ page }) => {
+  await stubPlanespotters(page);
+  await openMap(page, "c=50,10&z=7");
+  await selectMover(page);
+  const charts = page.locator(".spark svg");
+  await expect(charts.first()).toBeVisible({ timeout: 20_000 });
+  const count = await charts.count();
+  for (let i = 0; i < count; i++) {
+    const card = page.locator(".spark").nth(i);
+    const before = await card.boundingBox();
+    const box = (await charts.nth(i).boundingBox())!;
+    const seen = new Set<string>();
+    for (let k = 0; k <= 20; k++) {
+      await page.mouse.move(box.x + (box.width * k) / 20, box.y + box.height / 2);
+      const after = await card.boundingBox();
+      expect(Math.round(after!.height)).toBe(Math.round(before!.height));
+      seen.add((await card.locator(".head").innerText()).replace(/\s+/g, " "));
+    }
+    // every reading is a whole minute ("-N min" or "now")
+    for (const text of seen) if (text.includes("·")) expect(text).toMatch(/· (−\d+ min|now)/);
+  }
 });

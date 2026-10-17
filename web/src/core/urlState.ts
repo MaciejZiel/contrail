@@ -10,6 +10,8 @@ export interface ViewState {
   filters: Filters;
   /** Minutes of recent track drawn behind every aircraft; 0 is off. */
   trails: TrailMinutes;
+  /** Globe projection instead of the flat map. */
+  globe: boolean;
 }
 
 export type TrailMinutes = 0 | 30 | 60;
@@ -22,6 +24,7 @@ export const DEFAULT_VIEW: ViewState = {
   airport: null,
   filters: DEFAULT_FILTERS,
   trails: 0,
+  globe: false,
 };
 
 const HEX = /^[0-9a-f]{6}$/;
@@ -37,7 +40,7 @@ export function parseUrlState(search: string): ViewState {
     view.lon = clamp(c[1] as number, -180, 180);
   }
   const z = Number(p.get("z"));
-  if (p.has("z") && Number.isFinite(z)) view.zoom = clamp(z, 1, 17);
+  if (p.has("z") && Number.isFinite(z)) view.zoom = clamp(z, 0.5, 17);
   const s = p.get("s")?.toLowerCase();
   if (s && HEX.test(s)) view.selected = s;
   const a = p.get("a")?.toUpperCase();
@@ -58,6 +61,7 @@ export function parseUrlState(search: string): ViewState {
   view.filters = filters;
   const tr = Number(p.get("tr"));
   if (tr === 30 || tr === 60) view.trails = tr;
+  if (p.get("g") === "1") view.globe = true;
   return view;
 }
 
@@ -73,12 +77,13 @@ export function serializeUrlState(v: ViewState): string {
   if (v.filters.callsigns.length) p.set("cs", v.filters.callsigns.join(","));
   if (v.filters.types.length) p.set("ty", v.filters.types.join(","));
   if (v.trails) p.set("tr", String(v.trails));
+  if (v.globe) p.set("g", "1");
   return p.toString();
 }
 
 /** Parameters that are not view state (kept when we rewrite the URL). */
 export function preservedParams(search: string): URLSearchParams {
   const p = new URLSearchParams(search);
-  for (const k of ["c", "z", "s", "a", "alt", "air", "gnd", "cs", "ty", "tr"]) p.delete(k);
+  for (const k of ["c", "z", "s", "a", "alt", "air", "gnd", "cs", "ty", "tr", "g"]) p.delete(k);
   return p;
 }

@@ -143,7 +143,7 @@
     aria-controls="search-list"
     aria-autocomplete="list"
     aria-activedescendant={active >= 0 ? idFor(active) : undefined}
-    placeholder="Search callsign, registration, airport…"
+    placeholder="Search flights, airports, airlines"
     autocomplete="off"
     autocapitalize="off"
     spellcheck="false"
@@ -208,12 +208,17 @@
   .search {
     position: relative;
     flex: 1 1 260px;
-    max-width: 440px;
+    max-width: 460px;
     min-width: 0;
+  }
+  @media (max-width: 640px) {
+    .search {
+      flex-basis: 140px;
+    }
   }
   .icon {
     position: absolute;
-    left: 13px;
+    left: 14px;
     top: 50%;
     width: 18px;
     height: 18px;
@@ -228,16 +233,17 @@
   input {
     width: 100%;
     height: 44px;
-    padding: 0 40px 0 40px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
+    padding: 0 40px 0 42px;
+    border-radius: var(--radius);
+    border: 0;
     background: var(--surface);
     color: var(--text);
     font: inherit;
-    font-size: 15px;
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(8px);
+    font-size: var(--fs-m);
     appearance: none;
+  }
+  input:hover {
+    background: var(--surface-2);
   }
   input::placeholder {
     color: var(--text-dim);
@@ -258,58 +264,66 @@
     font-size: 22px;
     cursor: pointer;
   }
+  .clear:hover {
+    color: var(--text);
+  }
   .results {
     position: absolute;
-    top: 50px;
+    top: 52px;
     left: 0;
     right: 0;
     max-height: min(60vh, 420px);
     overflow-y: auto;
     padding: 6px;
     border-radius: var(--radius);
-    background: var(--surface-solid);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
+    background: var(--surface);
+    box-shadow: var(--shadow); /* taste-skill-ignore: results float over the map */
   }
   .group {
-    padding: 8px 10px 4px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    padding: 10px 10px 4px;
+    font-size: var(--fs-s);
+    font-weight: 600;
     color: var(--text-dim);
   }
   .row {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 64px 1fr auto;
     gap: 10px;
     align-items: center;
     min-height: 44px;
     padding: 6px 10px;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
+  }
+  .row strong {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
   }
   .row:hover,
   .row.active {
     background: var(--surface-2);
   }
+  .row.active {
+    box-shadow: inset 3px 0 0 var(--accent); /* taste-skill-ignore: active row marker, not a shadow */
+  }
   .mono {
-    font-family: var(--mono);
-    min-width: 54px;
+    font-family: var(--font);
   }
   .meta {
     color: var(--text-dim);
-    font-size: 13px;
+    font-size: var(--fs-s);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .side {
-    font: 12px var(--mono);
+    font-size: var(--fs-s);
+    font-variant-numeric: tabular-nums;
     color: var(--text-dim);
   }
   .state {
     padding: 14px 12px;
     color: var(--text-dim);
-    font-size: 13px;
+    font-size: var(--fs-s);
   }
 </style>

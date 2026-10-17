@@ -20,6 +20,7 @@
   import AirportCard from "./panel/AirportCard.svelte";
   import SearchBox from "./search/SearchBox.svelte";
   import AltitudeLegend from "./ui/AltitudeLegend.svelte";
+  import ProjectionToggle from "./ui/ProjectionToggle.svelte";
   import FilterChip from "./ui/FilterChip.svelte";
   import ViewList from "./ui/ViewList.svelte";
   import FreshnessChip from "./ui/FreshnessChip.svelte";
@@ -50,7 +51,7 @@
     if (x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin) return;
     const sidePanel = box.height > mapBox.height * 0.75;
     const target = sidePanel
-      ? { x: box.right + (mapBox.right - box.right) / 2, y }
+      ? { x: mapBox.left + (box.left - mapBox.left) / 2, y }
       : { x, y: mapBox.top + (box.top - mapBox.top) / 2 };
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     ctl.map.panBy([x - target.x, y - target.y], { duration: reduced ? 0 : 450 });
@@ -134,6 +135,7 @@
     ui.airport = view.airport;
     ui.filters = view.filters;
     ui.trails = view.trails;
+    ui.globe = view.globe;
     typeHexes.setTypes(view.filters.types);
     ui.zoom = view.zoom;
     const params = new URLSearchParams(location.search);
@@ -165,7 +167,7 @@
           view,
           offline: params.get("bm") === "offline",
           workerUrl: worker.url,
-          getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters, trails: ui.trails }),
+          getUrlSelection: () => ({ selected: ui.selected, airport: ui.airport, filters: ui.filters, trails: ui.trails, globe: ui.globe }),
           accepts: accept,
           onTrailsStatus: (st) => (ui.trailsStatus = st),
           getSelected: () => (ui.selected ? parseInt(ui.selected, 16) : null),
@@ -237,8 +239,19 @@
 
   <!-- search and filters come before the map in the DOM, so they are first in the tab order, ahead of the attribution links inside the map -->
   <div class="topbar">
+    <div class="brand" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="26" height="26">
+        <g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none">
+          <path d="M3 27 L13 17" opacity="0.35" />
+          <path d="M7 30 L15 22" opacity="0.6" />
+        </g>
+        <path fill="var(--accent)" transform="translate(19.5 12.5) rotate(45) scale(0.36) translate(-32 -32)" d="M32 4C34 4 35 8 35 14L35 26L58 40L58 45L35 38L35 50L42 56L42 59L32 57L22 59L22 56L29 50L29 38L6 45L6 40L29 26L29 14C29 8 30 4 32 4Z" />
+      </svg>
+      <span>Contrail</span>
+    </div>
     <SearchBox onAircraft={onSearchAircraft} onAirport={onSearchAirport} onAirline={onSearchAirline} />
     <FilterPopover bind:filters={ui.filters} {store} onTrails={setTrails} />
+    <ProjectionToggle globe={ui.globe} onChange={(g) => { ui.globe = g; ctl?.setGlobe(g, true); }} />
     <FreshnessChip status={ui.status} count={ui.aircraftCount} />
     {#if ui.filters.airline}
       <FilterChip
@@ -318,6 +331,24 @@
   .topbar > :global(*) {
     pointer-events: auto;
   }
+  .brand {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 16px 0 12px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: var(--fs-m);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    user-select: none;
+  }
+  @media (min-width: 900px) {
+    .brand {
+      display: inline-flex;
+    }
+  }
   .legend-slot {
     position: absolute;
     right: var(--gutter);
@@ -325,8 +356,15 @@
     z-index: 4;
   }
   @media (min-width: 900px) {
+    /* the panel sits on the right: the top bar and the bottom-right map furniture make room for it */
     .has-panel .topbar {
-      left: calc(var(--gutter) + 392px);
+      right: calc(var(--gutter) + 392px);
+    }
+    .has-panel .legend-slot {
+      right: calc(var(--gutter) + 392px);
+    }
+    .has-panel :global(.maplibregl-ctrl-bottom-right) {
+      right: 392px;
     }
   }
   /* on phones the bottom sheet covers the lower part of the map: lift the map controls above it */
@@ -344,11 +382,10 @@
     top: calc(64px + env(safe-area-inset-top));
     transform: translateX(-50%);
     margin: 0;
-    padding: 6px 14px;
-    border-radius: 999px;
+    padding: 8px 14px;
+    border-radius: var(--radius);
     background: var(--surface);
-    border: 1px solid var(--border);
-    font-size: 13px;
+    font-size: var(--fs-s);
     z-index: 8;
     max-width: calc(100vw - 24px);
   }

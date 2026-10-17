@@ -16,33 +16,33 @@
 <section class="route" aria-label="Route">
   {#if route.state === "ok"}
     {@const r = route.value}
-    <div class="ends">
+    <div class="strip">
       <div class="end">
-        <strong>{code(r.origin)}</strong>
+        <strong class="num">{code(r.origin)}</strong>
         <span title={r.origin.name}>{r.origin.city || r.origin.name}</span>
       </div>
+      <div class="track" role="img" aria-label={progress === null ? "Progress unknown" : `${Math.round(progress * 100)} percent of the route flown`}>
+        <div class="line"></div>
+        {#if progress !== null}
+          <div class="done" style={`width:${progress * 100}%`}></div>
+          <svg class="plane" style={`left:${progress * 100}%`} viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M32 4C34 4 35 8 35 14L35 26L58 40L58 45L35 38L35 50L42 56L42 59L32 57L22 59L22 56L29 50L29 38L6 45L6 40L29 26L29 14C29 8 30 4 32 4Z" />
+          </svg>
+        {/if}
+      </div>
       <div class="end right">
-        <strong>{code(r.destination)}</strong>
+        <strong class="num">{code(r.destination)}</strong>
         <span title={r.destination.name}>{r.destination.city || r.destination.name}</span>
       </div>
     </div>
-    <div class="track" role="img" aria-label={progress === null ? "Progress unknown" : `${Math.round(progress * 100)} percent of the route flown`}>
-      <div class="line"></div>
-      {#if progress !== null}
-        <div class="done" style={`width:${progress * 100}%`}></div>
-        <svg class="plane" style={`left:${progress * 100}%`} viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M32 4C34 4 35 8 35 14L35 26L58 40L58 45L35 38L35 50L42 56L42 59L32 57L22 59L22 56L29 50L29 38L6 45L6 40L29 26L29 14C29 8 30 4 32 4Z" />
-        </svg>
-      {/if}
-    </div>
     {#if r.plausible && flownKm !== null && remainingKm !== null}
       <dl class="legs">
-        <div><dt>Flown</dt><dd>{fmtDistance(flownKm)}</dd></div>
-        <div><dt>Remaining</dt><dd>{fmtDistance(remainingKm)}</dd></div>
+        <div><dt>Flown</dt><dd class="num">{fmtDistance(flownKm)}</dd></div>
+        <div><dt>Remaining</dt><dd class="num">{fmtDistance(remainingKm)}</dd></div>
         {#if eta}
           <div class="eta" title="Estimate: remaining great-circle distance divided by the current ground speed. Wind, routing and the approach are not considered.">
             <dt>Arrival <em>estimate</em></dt>
-            <dd>in {fmtDuration(eta.minutes)} · {fmtUtc(eta.arrivalUtc)}</dd>
+            <dd class="num">in {fmtDuration(eta.minutes)} · {fmtUtc(eta.arrivalUtc)}</dd>
           </div>
         {/if}
       </dl>
@@ -63,13 +63,14 @@
 
 <style>
   .route {
-    padding: 10px 12px;
-    border-radius: 12px;
+    padding: 14px;
+    border-radius: var(--radius);
     background: var(--surface-2);
   }
-  .ends {
-    display: flex;
-    justify-content: space-between;
+  .strip {
+    display: grid;
+    grid-template-columns: auto minmax(40px, 1fr) auto;
+    align-items: start;
     gap: 12px;
   }
   .end {
@@ -82,34 +83,33 @@
     align-items: flex-end;
   }
   strong {
-    font: 700 22px var(--mono);
-    letter-spacing: 0.03em;
+    font: 700 var(--fs-xl) / 1.05 var(--font);
+    letter-spacing: -0.02em;
   }
   .end span {
-    font-size: 12px;
+    margin-top: 4px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
-    max-width: 150px;
+    max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .track {
     position: relative;
-    height: 22px;
-    margin: 4px 10px 0;
+    height: 24px;
+    margin-top: 4px;
   }
   .line,
   .done {
     position: absolute;
     top: 10px;
-    height: 2px;
-    border-radius: 1px;
+    height: 4px;
   }
   .line {
     left: 0;
     right: 0;
-    background: repeating-linear-gradient(90deg, var(--text-dim) 0 4px, transparent 4px 8px);
-    opacity: 0.6;
+    background: var(--surface-3);
   }
   .done {
     left: 0;
@@ -118,12 +118,13 @@
   .plane {
     position: absolute;
     top: 0;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     transform: translateX(-50%) rotate(90deg);
     fill: var(--accent);
     stroke: var(--surface-2);
-    stroke-width: 3;
+    stroke-width: 4;
+    paint-order: stroke;
   }
   /* distances and the estimate need room: they appear once the sheet is expanded */
   :global(.sheet:not(.expanded)) .legs,
@@ -132,8 +133,11 @@
   }
   .legs {
     display: grid;
-    gap: 4px;
-    margin: 8px 0 0;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
   }
   .legs div {
     display: flex;
@@ -141,44 +145,48 @@
     gap: 10px;
   }
   .legs dt {
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .legs dt em {
     font-style: normal;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0 4px;
-    margin-left: 4px;
   }
   .legs dd {
     margin: 0;
-    font: 600 13px var(--mono);
+    font-weight: 600;
+    font-size: var(--fs-s);
     text-align: right;
   }
   .fine {
-    margin: 6px 0 0;
-    font-size: 11px;
+    margin: 8px 0 0;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .note {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .skeleton {
-    height: 44px;
-    border-radius: 8px;
-    background: linear-gradient(100deg, var(--surface-2) 30%, #223052 50%, var(--surface-2) 70%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite linear;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    animation: pulse 1.4s ease-in-out infinite;
   }
-  @keyframes shimmer {
-    to {
-      background-position: -200% 0;
+  @keyframes pulse {
+    50% {
+      opacity: 0.45;
     }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
+  }
+  :global(.sheet) strong {
+    font-size: 24px;
+  }
+  :global(.sheet) .route {
+    padding: 10px 14px;
   }
 </style>

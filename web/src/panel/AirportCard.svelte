@@ -75,23 +75,23 @@
 </script>
 
 <aside class="panel" aria-label="Airport details" data-testid="airport-card">
-  <header>
+  <header style="--i: 0">
     <div class="titles">
       <h2 tabindex="-1" bind:this={heading}>{airport ? airport.iata || airport.icao : code}</h2>
-      <p class="sub">
+      <p class="name">
         {#if airport}{airport.name}{:else if detail.state === "none"}Unknown airport{:else}&nbsp;{/if}
       </p>
       {#if airport}
-        <p class="sub small">
+        <p class="sub num">
           {airport.icao}{airport.iata ? ` · ${airport.iata}` : ""} · {[airport.city, airport.country].filter(Boolean).join(", ")}{airport.elevation_ft !== null ? ` · ${airport.elevation_ft.toLocaleString("en")} ft` : ""}
         </p>
-        <p class="sub small">{airport.type}{airport.scheduled_service ? ", scheduled service" : ""}{airport.region ? ` · ${airport.region}` : ""}</p>
+        <p class="sub">{airport.type}{airport.scheduled_service ? ", scheduled service" : ""}{airport.region ? ` · ${airport.region}` : ""}</p>
       {/if}
     </div>
     <button class="close" onclick={onClose} aria-label="Close airport details">×</button>
   </header>
 
-  <section class="block" aria-label="Weather">
+  <section class="block" aria-label="Weather" style="--i: 1">
     <h3>Weather (METAR)</h3>
     {#if !weather}
       <div class="skeleton" aria-hidden="true"></div>
@@ -99,17 +99,17 @@
       {@const m = weather.metar.value}
       <div class="cat" data-cat={m.flight_category || "none"}>
         <strong>{m.flight_category || "n/a"}</strong>
-        <span>{CATEGORY_LABEL[m.flight_category] ?? "Flight category unknown"}</span>
-        <span class="age">observed {fmtAge(Math.max(0, now - m.observed_at))}</span>
+        <span class="catname">{CATEGORY_LABEL[m.flight_category] ?? "Flight category unknown"}</span>
+        <span class="age num">observed {fmtAge(Math.max(0, now - m.observed_at))}</span>
       </div>
-      <dl class="wx">
+      <dl class="wx num">
         <div><dt>Wind</dt><dd>{windText(m)}</dd></div>
         <div><dt>Visibility</dt><dd>{visibilityText(m)}</dd></div>
         <div><dt>Clouds</dt><dd>{cloudsText(m)}</dd></div>
         <div><dt>Temperature</dt><dd>{tempText(m)}</dd></div>
         <div><dt>Pressure</dt><dd>{pressureText(m)}</dd></div>
       </dl>
-      <code class="raw">{m.raw}</code>
+      <code class="raw num">{m.raw}</code>
     {:else if weather.metar.state === "error"}
       <p class="muted">Weather is temporarily unavailable.</p>
     {:else if weather.metar.state === "none" && weather.metar.reason === "no_station"}
@@ -120,15 +120,15 @@
     {#if weather?.taf.state === "ok"}
       <details>
         <summary>Forecast (TAF)</summary>
-        <code class="raw">{weather.taf.value}</code>
+        <code class="raw num">{weather.taf.value}</code>
       </details>
     {/if}
   </section>
 
-  <section class="block" aria-label="Traffic">
+  <section class="block" aria-label="Traffic" style="--i: 2">
     <h3>Traffic within 10 nm</h3>
     {#if detail.state === "ok"}
-      <p class="summary" data-testid="airport-summary">
+      <p class="summary num" data-testid="airport-summary">
         <span><b>{detail.value.counts.arriving}</b> arriving</span>
         <span><b>{detail.value.counts.departing}</b> departing</span>
         <span><b>{detail.value.counts.ground}</b> on the ground</span>
@@ -141,7 +141,7 @@
     {:else}
       {#each LABELS as [key, label] (key)}
         {#if groups[key].length}
-          <h4>{label} <small>{groups[key].length}</small></h4>
+          <h4>{label} <small class="num">{groups[key].length}</small></h4>
           <ul data-group={key}>
             {#each groups[key] as n (n.hex)}
               {@render row(n)}
@@ -154,10 +154,10 @@
   </section>
 
   {#if airport}
-    <section class="block" aria-label="Airport information" data-testid="airport-info">
+    <section class="block" aria-label="Airport information" data-testid="airport-info" style="--i: 3">
       <h3>Airport</h3>
       {#if airport.runways.length}
-        <table aria-label="Runways">
+        <table aria-label="Runways" class="num">
           <thead><tr><th scope="col">Runway</th><th scope="col">Length</th><th scope="col">Surface</th></tr></thead>
           <tbody>
             {#each airport.runways as r, i (i)}
@@ -174,9 +174,9 @@
       {/if}
       {#if airport.frequencies.length}
         <h4>Frequencies</h4>
-        <ul class="freqs" aria-label="Frequencies">
+        <ul class="freqs num" aria-label="Frequencies">
           {#each airport.frequencies as f, i (`${f.type}${f.mhz}${i}`)}
-            <li><span>{FREQ_NAMES[f.type] ?? f.type}</span><b class="mono">{f.mhz.toFixed(3)}</b></li>
+            <li><span>{FREQ_NAMES[f.type] ?? f.type}</span><b>{f.mhz.toFixed(3)}</b></li>
           {/each}
         </ul>
       {/if}
@@ -194,9 +194,9 @@
 {#snippet row(n: NearbyAircraft)}
   <li>
     <button class="plane" onclick={() => onPick(n.hex)}>
-      <strong class="mono">{n.callsign || n.registration || n.hex.toUpperCase()}</strong>
+      <strong>{n.callsign || n.registration || n.hex.toUpperCase()}</strong>
       <span class="meta">{[n.origin && n.destination ? `${n.origin} → ${n.destination}` : null, n.airline, n.type_code].filter(Boolean).join(" · ")}</span>
-      <span class="side">{n.state === "ground" ? `${n.distance_nm} nm` : `${fmtAlt(n.altitude_ft)} · ${fmtVrate(n.vertical_rate_fpm)}`}</span>
+      <span class="side num">{n.state === "ground" ? `${n.distance_nm} nm` : `${fmtAlt(n.altitude_ft)} · ${fmtVrate(n.vertical_rate_fpm)}`}</span>
     </button>
   </li>
 {/snippet}
@@ -205,134 +205,186 @@
   .panel {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 14px;
+    gap: 8px;
+    padding: 8px;
     overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--surface);
-    border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow); /* taste-skill-ignore: the desktop card floats over the map */
   }
   .panel > :global(*) {
     flex: none;
+  }
+  /* each part rises in turn */
+  header,
+  .block {
+    animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    header,
+    .block {
+      animation: none;
+    }
+    .skeleton {
+      animation: none;
+    }
   }
   header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    padding: 10px 8px 6px 10px;
   }
   h2 {
     margin: 0;
-    font: 700 24px var(--mono);
+    font: 700 var(--fs-xl)/1.05 var(--font);
+    letter-spacing: -0.02em;
+    outline: none;
+  }
+  .name {
+    margin: 6px 0 0;
+    font-size: var(--fs-l);
+    font-weight: 500;
+    line-height: 1.25;
   }
   .sub {
-    margin: 2px 0 0;
-    font-size: 14px;
-  }
-  .small {
-    font-size: 12px;
+    margin: 4px 0 0;
+    font-size: var(--fs-s);
     color: var(--text-dim);
+  }
+  .name + .sub {
+    margin-top: 8px;
   }
   .close {
     width: 44px;
     height: 44px;
-    margin: -8px -8px 0 0;
+    margin: -4px -4px 0 8px;
     border: 0;
+    border-radius: var(--radius);
     background: none;
     font-size: 26px;
     color: var(--text-dim);
     cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+  }
+  .close:hover {
+    background: var(--surface-2);
+    color: var(--text);
   }
   .block {
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
+    padding: 14px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
   }
   h3 {
-    margin: 0 0 8px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
+    margin: 0 0 12px;
+    font-size: var(--fs-m);
+    font-weight: 600;
   }
   h4 {
-    margin: 10px 0 4px;
-    font-size: 13px;
+    margin: 16px 0 4px;
+    font-size: var(--fs-s);
+    font-weight: 600;
+    color: var(--text-dim);
   }
   h4 small {
-    color: var(--text-dim);
     font-weight: 400;
   }
   .cat {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 4px 10px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: var(--surface-2);
-    border-left: 4px solid var(--text-dim);
-  }
-  .cat[data-cat="VFR"] {
-    border-color: #4ade80;
-  }
-  .cat[data-cat="MVFR"] {
-    border-color: #60a5fa;
-  }
-  .cat[data-cat="IFR"] {
-    border-color: #f87171;
-  }
-  .cat[data-cat="LIFR"] {
-    border-color: #e879f9;
+    gap: 4px 12px;
   }
   .cat strong {
-    font: 700 16px var(--mono);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    font-size: var(--fs-m);
+    font-weight: 700;
   }
-  .cat span {
-    font-size: 13px;
+  .cat[data-cat="VFR"] strong {
+    background: var(--good);
+    color: #08170d;
+  }
+  .cat[data-cat="MVFR"] strong {
+    background: #60a5fa;
+    color: #08121f;
+  }
+  .cat[data-cat="IFR"] strong {
+    background: var(--bad);
+    color: #1f0a0a;
+  }
+  .cat[data-cat="LIFR"] strong {
+    background: #e879f9;
+    color: #1e0a21;
+  }
+  .catname {
+    font-size: var(--fs-s);
   }
   .age {
     margin-left: auto;
     color: var(--text-dim);
-    font-size: 12px !important;
+    font-size: var(--fs-s);
   }
   .wx {
-    margin: 10px 0 6px;
+    margin: 14px 0 0;
     display: grid;
-    gap: 6px;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
   .wx div {
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    min-width: 0;
+  }
+  .wx div:nth-child(5) {
+    grid-column: 1 / -1;
   }
   dt {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   dd {
     margin: 0;
-    text-align: right;
-    font-size: 14px;
+    font-size: var(--fs-m);
+    font-weight: 600;
+    overflow-wrap: anywhere;
   }
   .raw {
     display: block;
-    margin-top: 6px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.25);
-    font: 12px/1.5 var(--mono);
+    font-family: var(--font);
+    margin: 12px 0 0;
+    font-size: var(--fs-s);
+    line-height: 1.5;
     overflow-wrap: anywhere;
     color: var(--text-dim);
   }
   details {
-    margin-top: 8px;
+    margin-top: 12px;
   }
   summary {
     cursor: pointer;
     min-height: 32px;
-    font-size: 13px;
+    display: flex;
+    align-items: center;
+    font-size: var(--fs-s);
+    font-weight: 600;
+  }
+  details .raw {
+    margin-top: 4px;
   }
   ul {
     list-style: none;
@@ -341,90 +393,133 @@
   }
   .plane {
     display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 10px;
+    grid-template-columns: minmax(64px, auto) 1fr auto;
+    gap: 12px;
     align-items: center;
     width: 100%;
     min-height: 44px;
-    padding: 6px 8px;
+    padding: 6px 10px;
+    margin-bottom: 2px;
     border: 0;
-    border-radius: 8px;
-    background: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
     text-align: left;
     cursor: pointer;
+    transition: background-color 0.15s;
   }
   .plane:hover {
-    background: var(--surface-2);
+    background: #3b4452;
   }
-  .mono {
-    font-family: var(--mono);
-    min-width: 60px;
+  .plane strong {
+    font-size: var(--fs-m);
+    font-weight: 700;
   }
   .meta {
     color: var(--text-dim);
-    font-size: 13px;
+    font-size: var(--fs-s);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .side {
-    font: 12px var(--mono);
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     margin: 0 0 4px;
-    font-size: 13px;
+    font-size: var(--fs-s);
+    color: var(--text-dim);
+  }
+  .summary span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
   }
   .summary b {
-    font-family: var(--mono);
+    font-size: var(--fs-xl);
+    line-height: 1.05;
+    font-weight: 700;
+    color: var(--text);
   }
   table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
+    border-collapse: separate;
+    border-spacing: 0 2px;
+    font-size: var(--fs-s);
   }
   th,
   td {
-    padding: 5px 4px;
+    padding: 9px 10px;
     text-align: left;
     vertical-align: top;
-    border-bottom: 1px solid var(--border);
     font-weight: 400;
+    background: var(--surface-3);
+  }
+  tr > :first-child {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  }
+  tr > :last-child {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
   thead th {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    background: none;
+    padding-block: 4px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   tbody th {
-    font: 600 13px var(--mono);
+    font-weight: 700;
     white-space: nowrap;
   }
   td small {
     color: var(--text-dim);
   }
+  .freqs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 8px;
+  }
   .freqs li {
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    padding: 4px 4px;
-    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    font-size: var(--fs-s);
+  }
+  @media (max-width: 400px) {
+    .freqs {
+      grid-template-columns: 1fr;
+    }
+  }
+  .freqs b {
+    font-weight: 700;
+    font-size: var(--fs-m);
   }
   .links {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 16px;
-    margin: 10px 0 0;
+    gap: 4px 20px;
+    margin: 12px 0 0;
   }
   .links a {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
     color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .links a:hover,
+  .note a:hover {
+    text-decoration: underline;
   }
   .note a {
     color: var(--accent);
@@ -432,22 +527,21 @@
   .muted,
   .note {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .note {
-    margin-top: 10px;
+    margin-top: 14px;
   }
   .skeleton {
-    height: 64px;
-    border-radius: 10px;
-    background: linear-gradient(100deg, var(--surface-2) 30%, #223052 50%, var(--surface-2) 70%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite linear;
+    height: 72px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    animation: breathe 1.4s ease-in-out infinite;
   }
-  @keyframes shimmer {
-    to {
-      background-position: -200% 0;
+  @keyframes breathe {
+    50% {
+      opacity: 0.45;
     }
   }
 </style>

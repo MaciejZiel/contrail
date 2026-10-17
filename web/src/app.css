@@ -1,21 +1,39 @@
 :root {
   color-scheme: dark;
-  --bg: #0b1020;
-  --surface: rgba(17, 24, 42, 0.92);
-  --surface-solid: #111a2e;
-  --surface-2: #19243d;
-  --border: rgba(148, 163, 184, 0.22);
-  --text: #e6ebf5;
-  --text-dim: #a3afc6;
-  --accent: #5eead4;
+  /* ground, surfaces: separated by a step in tone, never by a line */
+  --bg: #0d0f12;
+  --surface: #1e232b;
+  --surface-solid: #1e232b;
+  --surface-2: #272d37;
+  --surface-3: #323a46;
+  --border: transparent;
+  --text: #eceae6;
+  --text-dim: #a0a7b2;
+  /* the one accent: the primary action and the selected flight */
+  --accent: #ff8a3d;
+  --accent-ink: #1b0f05;
+  --accent-soft: rgba(255, 138, 61, 0.16);
   --good: #4ade80;
-  --warn: #fbbf24;
+  --warn: #f5b84a;
   --bad: #f87171;
-  --radius: 14px;
-  --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* near-square corners, decided once */
+  --radius: 4px;
+  --radius-sm: 3px;
+  /* elevation only for layers that truly float (menus, search results) */
+  --shadow: 0 14px 36px rgba(0, 0, 0, 0.5); /* taste-skill-ignore: shadow tokens for floating overlays */
+  --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: var(--font);
+  /* type: one large size, one body size, one small size */
+  --fs-xl: 30px;
+  --fs-l: 18px;
+  --fs-m: 15px;
+  --fs-s: 13px;
   --gutter: max(12px, env(safe-area-inset-left));
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
 }
 
 * {
@@ -29,7 +47,8 @@ body,
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.4 var(--font);
+  font: 400 var(--fs-m)/1.45 var(--font);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
@@ -53,26 +72,33 @@ button {
   white-space: nowrap;
 }
 
-/* MapLibre controls restyled for the dark UI */
+/* MapLibre controls restyled for the interface */
 .maplibregl-ctrl-group {
   background: var(--surface) !important;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow) !important;
-  border-radius: 12px !important;
+  border: 0 !important;
+  box-shadow: none !important; /* taste-skill-ignore: reset */
+  border-radius: var(--radius) !important;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .maplibregl-ctrl-group button {
   width: 40px !important;
   height: 40px !important;
+  background-color: var(--surface) !important;
+}
+.maplibregl-ctrl-group button:hover {
+  background-color: var(--surface-2) !important;
 }
 .maplibregl-ctrl-group button + button {
-  border-top: 1px solid var(--border) !important;
+  border-top: 0 !important;
 }
 .maplibregl-ctrl-icon {
-  filter: invert(1) opacity(0.85);
+  filter: invert(1) opacity(0.9);
 }
 .maplibregl-ctrl-attrib {
-  background: rgba(11, 16, 32, 0.78) !important;
+  background: rgba(13, 15, 18, 0.82) !important;
   color: var(--text-dim) !important;
   font-size: 11px;
 }
@@ -96,24 +122,46 @@ button {
 
 /* origin and destination pins on the map */
 .route-pin {
-  padding: 3px 8px;
-  border-radius: 8px;
-  font: 700 12px/1 var(--mono);
-  color: #04201c;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font: 700 12px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
   background: var(--accent);
-  border: 2px solid #0b1020;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
 .route-pin.destination {
-  background: #fbbf24;
-  color: #2a1c02;
+  background: var(--text);
+  color: #15181d;
 }
 .route-est-label {
   padding: 2px 6px;
-  border-radius: 6px;
-  font: italic 11px/1.2 var(--font);
-  color: #cdd6e8;
-  background: rgba(11, 16, 32, 0.8);
+  border-radius: var(--radius-sm);
+  font: 500 11px/1.2 var(--font);
+  color: var(--text);
+  background: var(--surface);
   pointer-events: none;
+}
+
+/* Scrollbars: a slim rounded thumb that only shows as a soft bar, in the palette */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-dim) 40%, transparent) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-dim) 40%, transparent);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-dim) 75%, transparent);
+  background-clip: content-box;
 }

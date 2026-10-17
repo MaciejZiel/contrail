@@ -32,7 +32,7 @@ void main() {
   vec4 t = texture(u_atlas, v_uv);
   float any = t.g;
   if (any < 0.02) discard;
-  vec3 rgb = mix(vec3(0.02, 0.04, 0.09), v_color.rgb, clamp(t.r / max(any, 0.001), 0.0, 1.0));
+  vec3 rgb = mix(vec3(0.03, 0.04, 0.05), v_color.rgb, clamp(t.r / max(any, 0.001), 0.0, 1.0));
   float a = any * v_color.a;
   outColor = vec4(rgb * a, a);
 }`;

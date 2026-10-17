@@ -1,3 +1,4 @@
+import "./fonts.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { mount } from "svelte";
 import "./app.css";
