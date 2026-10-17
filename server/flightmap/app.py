@@ -668,6 +668,7 @@ class Api:
             "last_error",
             "prefetch_active",
             "coverage",
+            "upstream_10min",
         }
     )
 
@@ -722,6 +723,7 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
         hot_window_s=settings.hot_window_s,
         evict_after_s=settings.evict_after_s,
         max_age_s=settings.max_tile_age_s,
+        ghost_age_s=settings.ghost_age_s,
         prefetch_plan=plan,
         prefetch_idle_s=settings.prefetch_idle_s,
         prefetch_always=settings.prefetch_always,
