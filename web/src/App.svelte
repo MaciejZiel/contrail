@@ -218,6 +218,7 @@
           layer: c.aircraft,
           select: selectAircraft,
           recentTrails: c.recentTrails,
+          ctl: c,
         };
       }
     })();

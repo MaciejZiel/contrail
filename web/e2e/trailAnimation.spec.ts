@@ -37,7 +37,22 @@ test("a selected aircraft's track is revealed progressively, then holds steady",
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(e.message));
-  await selectAndWaitForTrail(page);
+  await openMap(page, "c=50,10&z=7");
+  await recordTrailCalls(page);
+  // a synthetic track of 40 points, so the test does not depend on how much history the demo traffic has
+  await page.evaluate(() => {
+    const n = 40;
+    const t0 = Date.now() / 1000 - 3600;
+    const track = {
+      t: Array.from({ length: n }, (_, i) => t0 + i * 60),
+      lat: Array.from({ length: n }, (_, i) => 48 + i * 0.1),
+      lon: Array.from({ length: n }, (_, i) => 8 + i * 0.15),
+      alt: Array.from({ length: n }, (_, i) => 1000 * i),
+      gs: Array.from({ length: n }, () => 400),
+      vr: Array.from({ length: n }, () => 0),
+    };
+    (window as any).__flights.ctl.setTrail(track);
+  });
   await page.waitForTimeout(1200); // 700 ms reveal plus margin
   const done = await calls(page);
   const first = done.findIndex((n) => n > 0);
