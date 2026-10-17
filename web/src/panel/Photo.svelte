@@ -99,7 +99,6 @@
     </figcaption>
   {:else if shown.tier === "type"}
     <img src={shown.url} width="640" height="427" alt={`Representative photo of ${typeName ?? typeCode}`} onerror={typeFallback} />
-    <span class="chip">Representative photo, not this aircraft</span>
     <figcaption>
       {shown.photo.author} ·
       <a href={shown.photo.license_url || shown.photo.source_url} target="_blank" rel="noopener">{shown.photo.license}</a> ·
@@ -160,9 +159,6 @@
     line-height: 1.35;
     color: var(--text);
     background: var(--surface-2);
-  }
-  .chip + figcaption {
-    padding-top: 0;
   }
   .skeleton {
     aspect-ratio: 16 / 9;

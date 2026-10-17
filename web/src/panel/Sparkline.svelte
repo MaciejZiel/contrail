@@ -31,10 +31,11 @@
   const pts = $derived(
     times.map((t, i) => ({ t, v: values[i] ?? null })).filter((p): p is { t: number; v: number } => p.v !== null),
   );
-  const span = $derived(Math.max(60, now - (times[0] ?? now)));
+  const t0 = $derived(pts[0]?.t ?? times[0] ?? now);
+  const span = $derived(Math.max(60, now - t0));
   const lo = $derived(pts.length ? Math.min(...pts.map((p) => p.v), zero ? 0 : Infinity) : 0);
   const hi = $derived(pts.length ? Math.max(...pts.map((p) => p.v), zero ? 0 : -Infinity) : 1);
-  const x = (t: number) => PAD + ((t - (times[0] ?? now)) / span) * (W - 2 * PAD);
+  const x = (t: number) => PAD + ((t - t0) / span) * (W - 2 * PAD);
   const y = (v: number) => (hi - lo < 1e-9 ? H / 2 : H - PAD - ((v - lo) / (hi - lo)) * (H - 2 * PAD));
   const line = $derived(pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(""));
   const area = $derived(
@@ -57,19 +58,24 @@
     return { t, v: a.v + (b.v - a.v) * f };
   });
 
+  const whenLabel = (t: number): string => {
+    const m = Math.round((now - t) / 60);
+    return m === 0 ? "now" : `−${m} min`;
+  };
+
   function onMove(e: PointerEvent): void {
     const r = (e.currentTarget as SVGElement).getBoundingClientRect();
-    const t = (times[0] ?? now) + ((e.clientX - r.left) / r.width) * span;
+    const t = t0 + ((e.clientX - r.left) / r.width) * span;
     hoverT = now - Math.round((now - t) / 60) * 60;
   }
 </script>
 
 <div class="spark" class:big>
   <div class="head">
-    <span class="title">{title}</span>
+    <span class="title">{title}{#if hoverPoint}<small class="when"> · {whenLabel(hoverPoint.t)}</small>{/if}</span>
     <span class="val num">
       {#if hoverPoint}
-        {format(hoverPoint.v)} {unit} <small>· {Math.round((now - hoverPoint.t) / 60) === 0 ? "now" : `${Math.round((now - hoverPoint.t) / 60)} min ago`}</small>
+        {format(hoverPoint.v)} {unit}
       {:else if last !== null}
         {format(last)} {unit}
       {:else}
@@ -108,11 +114,21 @@
   }
   .head {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* one line always, so the card does not change height while the pointer moves */
     justify-content: space-between;
     align-items: baseline;
     gap: 2px 8px;
     margin-bottom: 8px;
+    min-height: 1.5em;
+  }
+  .val {
+    white-space: nowrap;
+  }
+  .title {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .title {
     color: var(--text-dim);

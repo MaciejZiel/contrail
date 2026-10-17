@@ -43,9 +43,9 @@ export function label(status: FeedStatus, count: number): string {
     case "offline":
       return "Can't reach the traffic feed, retrying";
     default: {
-      const head = status.pending > 0 ? "Loading areas" : status.medianAgeS < LIVE_MEDIAN_S ? "Live, refreshing coverage" : `Refreshing coverage, median age ${age(status.medianAgeS)}`;
-      const oldest = status.oldestAgeS > OLDEST_WARN_S ? ` · oldest area ${age(status.oldestAgeS)}` : "";
-      return `${head} · ${n}${oldest}`;
+      // short on purpose: the amber tone says the oldest area is behind, the tooltip has the exact ages
+      const head = status.pending > 0 ? "Loading areas" : status.medianAgeS < LIVE_MEDIAN_S ? "Live" : `${age(status.medianAgeS)} behind`;
+      return `${head} · ${n}`;
     }
   }
 }
