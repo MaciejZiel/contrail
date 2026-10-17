@@ -206,9 +206,9 @@
     {#if trail.state === "error"}
       <p class="muted">History is temporarily unavailable.</p>
     {:else}
-      <Sparkline title="Altitude" times={series?.t ?? []} values={series?.alt ?? []} color="#7cbeee" unit="ft" {now} fill big format={(v) => Math.round(v).toLocaleString("en")} />
-      <Sparkline title="Ground speed" times={series?.t ?? []} values={series?.gs ?? []} color="#c9d1dc" unit="kt" {now} format={(v) => Math.round(v).toString()} />
-      <Sparkline title="Vertical rate" times={series?.t ?? []} values={series?.vr ?? []} color="#c9d1dc" unit="ft/min" {now} zero format={(v) => Math.round(v).toLocaleString("en")} />
+      <Sparkline title="Altitude" times={series?.t ?? []} values={series?.alt ?? []} color="var(--spark-1)" unit="ft" {now} fill big format={(v) => Math.round(v).toLocaleString("en")} />
+      <Sparkline title="Ground speed" times={series?.t ?? []} values={series?.gs ?? []} color="var(--spark-2)" unit="kt" {now} format={(v) => Math.round(v).toString()} />
+      <Sparkline title="Vertical rate" times={series?.t ?? []} values={series?.vr ?? []} color="var(--spark-2)" unit="ft/min" {now} zero format={(v) => Math.round(v).toLocaleString("en")} />
       {#if series && series.t.length > 0}
         <p class="muted since" data-testid="history-since">
           History starts {fmtAge(now - (series.t[0] as number))}, when this server first saw the flight. It is not the whole flight.
@@ -354,7 +354,7 @@
     margin: 0;
     padding: 10px 12px;
     border-radius: var(--radius);
-    background: rgba(248, 113, 113, 0.18);
+    background: color-mix(in srgb, var(--bad) 18%, transparent);
     font-weight: 600;
   }
   .stats {
@@ -441,7 +441,7 @@
     transition: background-color 120ms, transform 120ms;
   }
   .ghost:hover {
-    background: #3d4756;
+    background: var(--track);
   }
   .ghost:active {
     transform: translateY(1px);

@@ -1,33 +1,98 @@
 import { clamp } from "../core/geo";
+import type { Theme } from "../core/theme";
+
+type Rgb = readonly [number, number, number];
+type Stops = ReadonlyArray<readonly [number, Rgb]>;
+
+interface Ramp {
+  stops: Stops;
+  ground: Rgb;
+  unknown: Rgb;
+  /** Aircraft whose area has not been refreshed for a while: a grey ghost at the last known position. */
+  ghost: Rgb;
+  /** The one accent of the interface: the selected flight. */
+  accent: Rgb;
+  /** The halo that separates an aircraft from the map under it, and its labels. */
+  outline: Rgb;
+  labelText: string;
+  labelHalo: string;
+  /** Dark (or light) edge under the selected trail, and the colour of the dashed projections. */
+  casing: string;
+  trailLine: string;
+  trailMuted: string;
+}
 
 /**
- * Altitude ramp (feet -> colour): one hue family, and the higher the aircraft, the lighter it gets, like a
- * contrail against the sky. Lightness carries the order, so it reads for colour-blind viewers and stays calm
- * with thousands of aircraft on screen. The accent colour is kept for the selected flight only.
+ * Altitude ramp (feet -> colour): one hue family. Lightness carries the order, so it reads for colour-blind viewers
+ * and stays calm with thousands of aircraft on screen. On the dark map the higher the aircraft, the lighter it gets,
+ * like a contrail against the sky; on the light map the order is mirrored (higher is deeper), so the aircraft keep
+ * at least 3:1 against land and water. The accent colour is kept for the selected flight only.
  */
-const STOPS: ReadonlyArray<readonly [number, readonly [number, number, number]]> = [
-  [0, [67, 118, 214]],
-  [5000, [84, 150, 228]],
-  [15000, [124, 190, 238]],
-  [28000, [168, 212, 242]],
-  [40000, [222, 236, 248]],
-];
-const GROUND: readonly [number, number, number] = [107, 114, 128];
-const UNKNOWN_ALT: readonly [number, number, number] = [150, 160, 172];
+const RAMPS: Record<Theme, Ramp> = {
+  dark: {
+    stops: [
+      [0, [67, 118, 214]],
+      [5000, [84, 150, 228]],
+      [15000, [124, 190, 238]],
+      [28000, [168, 212, 242]],
+      [40000, [222, 236, 248]],
+    ],
+    ground: [107, 114, 128],
+    unknown: [150, 160, 172],
+    ghost: [150, 158, 170],
+    accent: [255, 138, 61],
+    outline: [8, 10, 13],
+    labelText: "#eceae6",
+    labelHalo: "rgba(10,12,15,0.92)",
+    casing: "#07080a",
+    trailLine: "#eceae6",
+    trailMuted: "#a4abb6",
+  },
+  light: {
+    stops: [
+      [0, [40, 100, 200]],
+      [5000, [32, 82, 178]],
+      [15000, [26, 62, 150]],
+      [28000, [22, 44, 118]],
+      [40000, [16, 26, 84]],
+    ],
+    ground: [104, 110, 122],
+    unknown: [96, 106, 122],
+    ghost: [108, 116, 128],
+    accent: [200, 72, 0],
+    outline: [255, 255, 255],
+    labelText: "#1a1d22",
+    labelHalo: "rgba(255,255,255,0.92)",
+    casing: "#ffffff",
+    trailLine: "#1a1d22",
+    trailMuted: "#5d646f",
+  },
+};
 
-/** Aircraft whose area has not been refreshed for a while: a grey ghost at the last known position. */
-export const GHOST_RGB: readonly [number, number, number] = [150, 158, 170];
+/** The theme the map currently shows (the globe is always dark); set by the map controller. */
+let current: Theme = "dark";
+export function setPaletteTheme(theme: Theme): void {
+  current = theme;
+}
+export function paletteTheme(): Theme {
+  return current;
+}
+export function ramp(theme: Theme = current): Ramp {
+  return RAMPS[theme];
+}
 
-/** The one accent of the interface: the selected flight, the primary action. */
-export const ACCENT_RGB: readonly [number, number, number] = [255, 138, 61];
+export const GHOST_RGB: Rgb = RAMPS.dark.ghost;
+export const ACCENT_RGB: Rgb = RAMPS.dark.accent;
 
-export function altitudeRgb(altFt: number | null, onGround: boolean): [number, number, number] {
-  if (onGround) return [...GROUND];
-  if (altFt === null) return [...UNKNOWN_ALT];
+export function altitudeRgb(altFt: number | null, onGround: boolean, theme: Theme = current): [number, number, number] {
+  const r = RAMPS[theme];
+  if (onGround) return [...r.ground];
+  if (altFt === null) return [...r.unknown];
   const a = clamp(altFt, 0, 40000);
-  for (let i = 1; i < STOPS.length; i++) {
-    const hi = STOPS[i]!;
-    const lo = STOPS[i - 1]!;
+  const stops = r.stops;
+  for (let i = 1; i < stops.length; i++) {
+    const hi = stops[i]!;
+    const lo = stops[i - 1]!;
     if (a <= hi[0]) {
       const t = (a - lo[0]) / (hi[0] - lo[0]);
       return [
@@ -37,7 +102,7 @@ export function altitudeRgb(altFt: number | null, onGround: boolean): [number, n
       ];
     }
   }
-  return [...STOPS[STOPS.length - 1]![1]];
+  return [...stops[stops.length - 1]![1]];
 }
 
 /** Legend entries for the UI. */

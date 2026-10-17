@@ -97,6 +97,11 @@ export class RecentTrailsLayer {
     void this.refresh();
   }
 
+  /** The palette changed: the track colours are data, so fetch and colour them again. */
+  applyTheme(): void {
+    if (this.minutes) void this.refresh();
+  }
+
   /** The filters changed: redraw from the server with the new ones. */
   filtersChanged(): void {
     if (this.minutes) void this.refresh();

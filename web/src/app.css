@@ -12,6 +12,8 @@
   /* the one accent: the primary action and the selected flight */
   --accent: #ff8a3d;
   --accent-ink: #1b0f05;
+  /* the accent where it is text, a focus ring or a thin mark: a deeper orange on light grounds to stay readable */
+  --accent-text: #ff8a3d;
   --accent-soft: rgba(255, 138, 61, 0.16);
   --good: #4ade80;
   --warn: #f5b84a;
@@ -29,6 +31,38 @@
   --fs-m: 15px;
   --fs-s: 13px;
   --gutter: max(12px, env(safe-area-inset-left));
+  --attrib-bg: rgba(13, 15, 18, 0.82);
+  --ctrl-icon-filter: invert(1) opacity(0.9);
+  --spark-1: #7cbeee;
+  --spark-2: #c9d1dc;
+  --track: #3d4756;
+  --sheet-shadow: 0 -12px 36px rgba(0, 0, 0, 0.5); /* taste-skill-ignore: shadow token for the phone sheet */
+}
+
+/* the light palette: same roles, same single accent */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f1ed;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-2: #ece9e3;
+  --surface-3: #ddd9d1;
+  --text: #1a1d22;
+  --text-dim: #565d68;
+  --accent: #ff8a3d;
+  --accent-ink: #1b0f05;
+  --accent-text: #b44700;
+  --accent-soft: rgba(255, 138, 61, 0.2);
+  --good: #1f9d55;
+  --warn: #c07f06;
+  --bad: #d23f3f;
+  --shadow: 0 14px 36px rgba(26, 29, 34, 0.18); /* taste-skill-ignore: shadow tokens for floating overlays */
+  --attrib-bg: rgba(255, 255, 255, 0.85);
+  --ctrl-icon-filter: opacity(0.85);
+  --spark-1: #2a64c4;
+  --spark-2: #4b535f;
+  --track: #c9c4ba;
+  --sheet-shadow: 0 -12px 36px rgba(26, 29, 34, 0.16); /* taste-skill-ignore: the phone sheet floats over the map */
 }
 
 .num {
@@ -59,7 +93,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 
@@ -95,10 +129,10 @@ button {
   border-top: 0 !important;
 }
 .maplibregl-ctrl-icon {
-  filter: invert(1) opacity(0.9);
+  filter: var(--ctrl-icon-filter);
 }
 .maplibregl-ctrl-attrib {
-  background: rgba(13, 15, 18, 0.82) !important;
+  background: var(--attrib-bg) !important;
   color: var(--text-dim) !important;
   font-size: 11px;
 }
@@ -110,7 +144,7 @@ button {
   line-height: 12px;
 }
 .maplibregl-ctrl-attrib-button {
-  filter: invert(1);
+  filter: var(--ctrl-icon-filter);
 }
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -132,7 +166,7 @@ button {
 }
 .route-pin.destination {
   background: var(--text);
-  color: #15181d;
+  color: var(--bg);
 }
 .route-est-label {
   padding: 2px 6px;

@@ -1,11 +1,45 @@
 import type { Feature, FeatureCollection, Point } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
 import type { AirportRow } from "../core/api";
+import type { Theme } from "../core/theme";
+import { paletteTheme } from "./palette";
 
 const SOURCE = "airports";
 
-/** The airport marker: a rounded diamond, ringed in cool grey, with a small bright core. Drawn once as an image. */
-function airportIcon(): ImageData {
+interface AirportColors {
+  fill: string;
+  ring: string;
+  core: string;
+  label: string;
+  halo: string;
+  selectedFill: string;
+  selected: string;
+}
+
+const COLORS: Record<Theme, AirportColors> = {
+  dark: {
+    fill: "rgba(22,26,34,0.95)",
+    ring: "#7f8ba3",
+    core: "#cfd6e3",
+    label: "#a4abb6",
+    halo: "#0d0f12",
+    selectedFill: "rgba(255,138,61,0.16)",
+    selected: "#ff8a3d",
+  },
+  light: {
+    fill: "rgba(255,255,255,0.96)",
+    ring: "#5f6b82",
+    core: "#2b3445",
+    label: "#4b525d",
+    halo: "#f3f1ed",
+    selectedFill: "rgba(255,138,61,0.22)",
+    selected: "#e0600a",
+  },
+};
+
+/** The airport marker: a rounded diamond, ringed in cool grey, with a small core. Drawn as an image per theme. */
+function airportIcon(theme: Theme): ImageData {
+  const c0 = COLORS[theme];
   const n = 40; // 20 css px at pixel ratio 2
   const c = document.createElement("canvas");
   c.width = n;
@@ -19,13 +53,13 @@ function airportIcon(): ImageData {
     g.roundRect(-size / 2, -size / 2, size, size, radius);
   };
   diamond(23, 6);
-  g.fillStyle = "rgba(22,26,34,0.95)";
+  g.fillStyle = c0.fill;
   g.fill();
   g.lineWidth = 2;
-  g.strokeStyle = "#7f8ba3";
+  g.strokeStyle = c0.ring;
   g.stroke();
   diamond(8.5, 2.5);
-  g.fillStyle = "#cfd6e3";
+  g.fillStyle = c0.core;
   g.fill();
   return g.getImageData(0, 0, n, n);
 }
@@ -55,7 +89,7 @@ export class AirportLayer {
     }
     map.addSource(SOURCE, { type: "geojson", data });
     const hasGlyphs = Boolean(map.getStyle().glyphs);
-    if (!map.hasImage("airport-icon")) map.addImage("airport-icon", airportIcon(), { pixelRatio: 2 });
+    if (!map.hasImage("airport-icon")) map.addImage("airport-icon", airportIcon(paletteTheme()), { pixelRatio: 2 });
     const badge = (id: string, kind: string, minzoom: number, size: [number, number]) =>
       map.addLayer({
         id,
@@ -78,7 +112,7 @@ export class AirportLayer {
       type: "circle",
       source: SOURCE,
       filter: ["==", ["get", "icao"], ""],
-      paint: { "circle-radius": 13, "circle-color": "rgba(255,138,61,0.16)", "circle-stroke-color": "#ff8a3d", "circle-stroke-width": 2 },
+      paint: { "circle-radius": 13, "circle-color": COLORS[paletteTheme()].selectedFill, "circle-stroke-color": COLORS[paletteTheme()].selected, "circle-stroke-width": 2 },
     });
     if (hasGlyphs) {
       const label = (id: string, kind: string, minzoom: number) =>
@@ -96,7 +130,7 @@ export class AirportLayer {
             "text-anchor": "top",
             "text-optional": true,
           },
-          paint: { "text-color": "#a4abb6", "text-halo-color": "#0d0f12", "text-halo-width": 1.5 },
+          paint: { "text-color": COLORS[paletteTheme()].label, "text-halo-color": COLORS[paletteTheme()].halo, "text-halo-width": 1.5 },
         });
       label("airports-large-label", "L", 5.5);
       label("airports-medium-label", "M", 8);
@@ -106,6 +140,21 @@ export class AirportLayer {
     map.on("mouseenter", "airports-medium", this.hover(true));
     map.on("mouseleave", "airports-medium", this.hover(false));
     this.installed = true;
+  }
+
+  /** Redraw the marker image and recolour the selection ring and the labels for the current palette. */
+  applyTheme(): void {
+    if (!this.installed) return;
+    const map = this.map;
+    const c = COLORS[paletteTheme()];
+    if (map.hasImage("airport-icon")) map.updateImage("airport-icon", airportIcon(paletteTheme()));
+    map.setPaintProperty("airport-selected", "circle-color", c.selectedFill);
+    map.setPaintProperty("airport-selected", "circle-stroke-color", c.selected);
+    for (const id of ["airports-large-label", "airports-medium-label"]) {
+      if (!map.getLayer(id)) continue;
+      map.setPaintProperty(id, "text-color", c.label);
+      map.setPaintProperty(id, "text-halo-color", c.halo);
+    }
   }
 
   private hover(on: boolean) {

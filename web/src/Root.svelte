@@ -65,7 +65,7 @@
     background: var(--surface-3);
   }
   button:first-child:hover {
-    background: #ff9c58;
+    background: color-mix(in srgb, var(--accent) 88%, white);
   }
   code {
     max-width: 60ch;

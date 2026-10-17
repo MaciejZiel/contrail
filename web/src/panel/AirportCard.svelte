@@ -513,7 +513,7 @@
     display: inline-flex;
     align-items: center;
     min-height: 44px;
-    color: var(--accent);
+    color: var(--accent-text);
     font-weight: 600;
     text-decoration: none;
   }
@@ -522,7 +522,7 @@
     text-decoration: underline;
   }
   .note a {
-    color: var(--accent);
+    color: var(--accent-text);
   }
   .muted,
   .note {

@@ -25,6 +25,7 @@ void main() {
 const FRAG = `#version 300 es
 precision mediump float;
 uniform sampler2D u_atlas;
+uniform vec3 u_outline;
 in vec2 v_uv;
 in vec4 v_color;
 out vec4 outColor;
@@ -32,7 +33,7 @@ void main() {
   vec4 t = texture(u_atlas, v_uv);
   float any = t.g;
   if (any < 0.02) discard;
-  vec3 rgb = mix(vec3(0.03, 0.04, 0.05), v_color.rgb, clamp(t.r / max(any, 0.001), 0.0, 1.0));
+  vec3 rgb = mix(u_outline, v_color.rgb, clamp(t.r / max(any, 0.001), 0.0, 1.0));
   float a = any * v_color.a;
   outColor = vec4(rgb * a, a);
 }`;
@@ -55,6 +56,8 @@ export class AircraftGl {
   private program: WebGLProgram;
   private instanceBuffer: WebGLBuffer;
   private uView: WebGLUniformLocation;
+  private uOutline: WebGLUniformLocation;
+  private outline: [number, number, number] = [0.03, 0.04, 0.05];
   private capacityBytes = 0;
   private cssW = 1;
   private cssH = 1;
@@ -74,6 +77,7 @@ export class AircraftGl {
     }
     this.program = program;
     this.uView = gl.getUniformLocation(program, "u_view") as WebGLUniformLocation;
+    this.uOutline = gl.getUniformLocation(program, "u_outline") as WebGLUniformLocation;
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -112,6 +116,11 @@ export class AircraftGl {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
 
+  /** The edge colour drawn around every aircraft (0..255 per channel). */
+  setOutline(rgb: readonly [number, number, number]): void {
+    this.outline = [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
+  }
+
   /** Match the drawing buffer to the CSS size and device pixel ratio. */
   resize(cssW: number, cssH: number, dpr: number): void {
     this.cssW = Math.max(1, cssW);
@@ -132,6 +141,7 @@ export class AircraftGl {
     if (count === 0) return;
     gl.useProgram(this.program);
     gl.uniform2f(this.uView, this.cssW, this.cssH);
+    gl.uniform3f(this.uOutline, this.outline[0], this.outline[1], this.outline[2]);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
     const bytes = count * STRIDE_FLOATS * 4;
     if (bytes > this.capacityBytes) {
