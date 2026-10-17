@@ -12,11 +12,10 @@ import { rectForBounds } from "../core/tiles";
 import { preservedParams, serializeUrlState, type TrailMinutes, type ViewState } from "../core/urlState";
 import { AircraftLayer } from "./aircraftLayer";
 import { AirportLayer } from "./airportLayer";
-import { COLORS, offlineStyle, onlineStyle } from "./style";
+import { offlineStyle, onlineStyle } from "./style";
 import { RecentTrailsLayer, type TrailsStatus } from "./recentTrailsLayer";
 import { TrailLayer } from "./trailLayer";
 import { GlobeShading } from "./globeShading";
-import { PlanetLayer } from "./planet";
 
 export interface UrlSelection {
   selected: string | null;
@@ -180,7 +179,6 @@ export class MapController {
   private globe = false;
   private flatZoom = 5;
   private shading: GlobeShading | null = null;
-  private planet: PlanetLayer | null = null;
 
   /** Zoom at which the globe is as big as the screen allows: its outline spans 88% of the shorter side. */
   private globeFitZoom(): number {
@@ -221,54 +219,16 @@ export class MapController {
     this.o.container.style.background = on ? "#050608" : "";
     if (animate && on && m.getZoom() > 3) m.easeTo({ zoom: this.globeFitZoom(), duration: 900, essential: false });
     this.aircraft?.setGlobe(on);
-    this.paintGlobe(on);
     if (on && !this.shading) {
-      // between the basemap canvas and the aircraft canvas
-      this.shading = new GlobeShading(m, this.o.container.querySelector(".aircraft-canvas"));
+      // faint stars behind the basemap
+      this.shading = new GlobeShading(m);
       this.shading.start();
-      try {
-        // the Earth itself: NASA pictures of the day and the night side, lit by the real Sun
-        this.planet = new PlanetLayer(m, this.shading.starsCanvas);
-        this.planet.start();
-        this.shading.planet = true;
-      } catch (e) {
-        console.warn("globe planet unavailable", e);
-        this.planet = null; // no WebGL2: the vector globe with its night mask still works
-      }
-      this.paintGlobe(true);
     } else if (!on && this.shading) {
-      this.planet?.stop();
-      this.planet = null;
       this.shading.stop();
       this.shading = null;
     }
     this.syncUrl();
     this.poller.refreshNow();
-  }
-
-  /** The globe shows daylight colours (blue ocean, slate land) so the night shading has something to darken. */
-  private paintGlobe(on: boolean): void {
-    const m = this.map;
-    const set = (id: string, prop: string, value: unknown): void => {
-      if (m.getLayer(id)) m.setPaintProperty(id, prop as "fill-color", value as string);
-    };
-    const ocean = on ? "#123a66" : COLORS.water;
-    const land = on ? "#4a5646" : COLORS.land;
-    const online = !!m.getLayer("water");
-    set("water", "fill-color", ocean);
-    set("waterway", "line-color", ocean);
-    set("landuse", "fill-color", on ? "#53604d" : COLORS.landUse);
-    set(online ? "background" : "land", online ? "background-color" : "fill-color", land);
-    if (!online) set("background", "background-color", ocean);
-    for (const id of ["boundary-country", "boundary-state", "borders"]) set(id, "line-color", on ? "#8a98a2" : COLORS.boundary);
-    // with the textured planet underneath, the vector fills fade in only once the picture fades out
-    const fadeIn = this.planet ? (["interpolate", ["linear"], ["zoom"], 4.2, 0, 5.6, 1] as unknown) : 1;
-    const base = on ? fadeIn : 1;
-    set("water", "fill-opacity", base);
-    set("boundary-state", "line-opacity", on ? ["interpolate", ["linear"], ["zoom"], 4, 0, 6, 0.7] : 0.7);
-    set("landuse", "fill-opacity", on ? (this.planet ? ["interpolate", ["linear"], ["zoom"], 4.2, 0, 5.6, 0.8] : 0.8) : 0.8);
-    set(online ? "background" : "land", online ? "background-opacity" : "fill-opacity", base);
-    if (!online) set("background", "background-opacity", base);
   }
 
   destroy(): void {
@@ -280,7 +240,6 @@ export class MapController {
     this.recentTrails.destroy();
     this.poller.stop();
     this.aircraft?.stop();
-    this.planet?.stop();
     this.shading?.stop();
     this.map.remove();
   }

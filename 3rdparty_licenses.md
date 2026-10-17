@@ -193,5 +193,3 @@
 | https://www.npmjs.com/package/tinyqueue/v/3.0.0 | tinyqueue (bundled in the web app) | ISC | https://github.com/mourner/tinyqueue |
 | https://adsb.lol | ADSB.lol aircraft data (live API output; shown on the map and re-published through /api/v1 with an ODbL notice) | ODbL-1.0 | https://opendatacommons.org/licenses/odbl/1-0/ |
 | https://www.npmjs.com/package/@fontsource-variable/inter/v/5.3.0 | @fontsource-variable/inter (Inter variable font, self-hosted woff2, compiled into the app; Inter by The Inter Project Authors) | OFL-1.1 | https://github.com/rsms/inter/blob/master/LICENSE.txt |
-| https://gibs.earthdata.nasa.gov/ (layer BlueMarble_ShadedRelief_Bathymetry) | NASA Blue Marble, shaded relief and bathymetry (4096x2048 JPEG, daytime Earth on the globe) | LicenseRef-NASA-Public-Domain | https://www.nasa.gov/nasa-brand-center/images-and-media/ |
-| https://gibs.earthdata.nasa.gov/ (layer VIIRS_Black_Marble) | NASA Black Marble night lights (4096x2048 JPEG, night side of the globe) | LicenseRef-NASA-Public-Domain | https://www.nasa.gov/nasa-brand-center/images-and-media/ |
