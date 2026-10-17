@@ -14,9 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from flightmap.regions import DEFAULT_REGIONS, build_plan  # noqa: E402
-from flightmap.tiles import MAX_RADIUS_NM, TILE_DEG  # noqa: E402
-from flightmap.trafficmask import load_traffic_tiles  # noqa: E402
+from flightmap.regions import DEFAULT_REGIONS, build_plan
+from flightmap.tiles import MAX_RADIUS_NM, TILE_DEG
+from flightmap.trafficmask import load_traffic_tiles
 
 
 def radius_nm(row: int, cols: int, rows: int = 1) -> float:
@@ -42,7 +42,9 @@ def main() -> None:
             else:
                 done.add(t)
             reqs += 1
-        print(f"{cols}x{rows} tiles per request: eligible block rows {sorted(ok)}; plan requests {len(plan)} -> {reqs}")
+        print(
+            f"{cols}x{rows} tiles per request: eligible block rows {sorted(ok)}; plan requests {len(plan)} -> {reqs}"
+        )
 
 
 if __name__ == "__main__":
