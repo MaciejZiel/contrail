@@ -9,6 +9,7 @@ const OFM_GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf"
 export interface MapColors {
   land: string;
   landUse: string;
+  green: string;
   water: string;
   boundary: string;
   road: string;
@@ -23,6 +24,7 @@ export const COLORS: Record<Theme, MapColors> = {
   dark: {
     land: "#171a20",
     landUse: "#1b1f26",
+    green: "#1a2024",
     water: "#0c1017",
     boundary: "#3b424d",
     road: "#252a33",
@@ -33,16 +35,17 @@ export const COLORS: Record<Theme, MapColors> = {
     halo: "#0d0f12",
   },
   light: {
-    land: "#eceae4",
-    landUse: "#e3e1da",
-    water: "#c5d5e4",
-    boundary: "#a6a39a",
-    road: "#d9d6ce",
-    roadMajor: "#c6c2b8",
-    aeroway: "#c4c0b5",
-    label: "#555c67",
-    labelStrong: "#262a31",
-    halo: "#f3f1ed",
+    land: "#f5f3ee",
+    landUse: "#ebe7dd",
+    green: "#e0ead2",
+    water: "#b7d6ee",
+    boundary: "#b4afa2",
+    road: "#ffffff",
+    roadMajor: "#f9e9c3",
+    aeroway: "#d6d1c4",
+    label: "#5a616c",
+    labelStrong: "#272b32",
+    halo: "#fbfaf7",
   },
 };
 
@@ -59,6 +62,8 @@ function themedPaint(offline: boolean, c: MapColors): Array<[layer: string, prop
   return [
     ["background", "background-color", c.land],
     ["landuse", "fill-color", c.landUse],
+    ["landcover", "fill-color", c.green],
+    ["park", "fill-color", c.green],
     ["water", "fill-color", c.water],
     ["waterway", "line-color", c.water],
     ["aeroway", "line-color", c.aeroway],
@@ -108,6 +113,23 @@ export function onlineStyle(theme: Theme = "dark"): StyleSpecification {
         minzoom: 7,
         filter: ["in", ["get", "class"], ["literal", ["residential", "industrial", "commercial", "retail"]]],
         paint: { "fill-color": colors.landUse, "fill-opacity": 0.8 },
+      },
+      {
+        id: "landcover",
+        type: "fill",
+        source: "ofm",
+        "source-layer": "landcover",
+        minzoom: 3,
+        filter: ["in", ["get", "class"], ["literal", ["wood", "grass"]]],
+        paint: { "fill-color": colors.green, "fill-opacity": ["interpolate", ["linear"], ["zoom"], 3, 0.5, 9, 0.9] },
+      },
+      {
+        id: "park",
+        type: "fill",
+        source: "ofm",
+        "source-layer": "park",
+        minzoom: 8,
+        paint: { "fill-color": colors.green, "fill-opacity": 0.9 },
       },
       {
         id: "water",
