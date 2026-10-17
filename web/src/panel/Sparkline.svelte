@@ -42,22 +42,25 @@
   );
   const last = $derived(pts.length ? pts[pts.length - 1]!.v : null);
 
-  let hover = $state<number | null>(null);
-  const hoverPoint = $derived(hover === null ? null : pts[hover] ?? null);
+  /** The time under the pointer, snapped to whole minutes, so the readout steps by one minute instead of jumping between samples. */
+  let hoverT = $state<number | null>(null);
+  const hoverPoint = $derived.by(() => {
+    if (hoverT === null || pts.length < 2) return null;
+    const first = pts[0]!;
+    const lastPt = pts[pts.length - 1]!;
+    const t = Math.min(lastPt.t, Math.max(first.t, hoverT));
+    let i = pts.findIndex((p) => p.t >= t);
+    if (i <= 0) i = 1;
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+    return { t, v: a.v + (b.v - a.v) * f };
+  });
 
   function onMove(e: PointerEvent): void {
     const r = (e.currentTarget as SVGElement).getBoundingClientRect();
     const t = (times[0] ?? now) + ((e.clientX - r.left) / r.width) * span;
-    let best = -1;
-    let bestD = Infinity;
-    pts.forEach((p, i) => {
-      const d = Math.abs(p.t - t);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    });
-    hover = best >= 0 ? best : null;
+    hoverT = now - Math.round((now - t) / 60) * 60;
   }
 </script>
 
@@ -66,7 +69,7 @@
     <span class="title">{title}</span>
     <span class="val num">
       {#if hoverPoint}
-        {format(hoverPoint.v)} {unit} <small>· {Math.round((now - hoverPoint.t) / 60)} min ago</small>
+        {format(hoverPoint.v)} {unit} <small>· {Math.round((now - hoverPoint.t) / 60) === 0 ? "now" : `${Math.round((now - hoverPoint.t) / 60)} min ago`}</small>
       {:else if last !== null}
         {format(last)} {unit}
       {:else}
@@ -82,7 +85,7 @@
       role="img"
       aria-label={`${title} over the last ${Math.max(1, Math.round(span / 60))} minutes, from ${format(pts[0]!.v)} to ${format(pts[pts.length - 1]!.v)} ${unit}`}
       onpointermove={onMove}
-      onpointerleave={() => (hover = null)}
+      onpointerleave={() => (hoverT = null)}
     >
       {#if zero}<line x1="0" x2={W} y1={y(0)} y2={y(0)} class="zero" />{/if}
       {#if fill}<path d={area} fill={color} opacity="0.2" />{/if}
