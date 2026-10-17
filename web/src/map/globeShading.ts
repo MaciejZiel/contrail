@@ -62,7 +62,6 @@ export class GlobeShading {
   private starList = makeStars();
   private starsKey = "";
   private running = false;
-  private light = false;
 
   constructor(private map: MapLibreMap) {
     const c = document.createElement("canvas");
@@ -74,13 +73,6 @@ export class GlobeShading {
     this.stars = c;
     this.starsCtx = ctx;
     map.getContainer().insertBefore(c, map.getContainer().firstChild); // behind the basemap
-  }
-
-  /** Stars belong to the dark sky only. */
-  setTheme(theme: "light" | "dark"): void {
-    this.light = theme === "light";
-    this.starsKey = "";
-    this.draw();
   }
 
   start(): void {
@@ -128,11 +120,8 @@ export class GlobeShading {
     const w = c.clientWidth;
     const h = c.clientHeight;
     const dpr = Math.min(1.25, window.devicePixelRatio || 1);
-    const zoom = this.map.getZoom();
-    const lat = this.map.getCenter().lat;
-    const near = zoom < 5.5;
-    // the light sky has no stars but a soft shadow around the globe, so the pale sphere does not glare against it
-    const key = this.light ? `${w}x${h}@${dpr}|L|${near}|${zoom.toFixed(3)}|${lat.toFixed(2)}` : `${w}x${h}@${dpr}|${near}`;
+    const visible = this.map.getZoom() < 5.5;
+    const key = `${w}x${h}@${dpr}|${visible}`;
     if (key === this.starsKey) return;
     this.starsKey = key;
     const cv = this.stars;
@@ -143,19 +132,7 @@ export class GlobeShading {
     const ctx = this.starsCtx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    if (!near) return;
-    if (this.light) {
-      const r = GlobeShading.view(zoom, lat, h).rim;
-      if (r > 3 * Math.max(w, h)) return;
-      const reach = r * 1.16;
-      const g = ctx.createRadialGradient(w / 2, h / 2, r * 0.97, w / 2, h / 2, reach);
-      g.addColorStop(0, "rgba(52,72,104,0.30)");
-      g.addColorStop(0.35, "rgba(52,72,104,0.12)");
-      g.addColorStop(1, "rgba(52,72,104,0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, h);
-      return;
-    }
+    if (!visible) return;
     for (const s of this.starList) {
       ctx.fillStyle = `rgba(${s.rgb},${s.a})`;
       ctx.beginPath();

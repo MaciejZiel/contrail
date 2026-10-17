@@ -61,7 +61,7 @@ test("switching to light restyles the map without a reload, and the choice is re
   expect(problems.filter((p) => !/planespotters|Failed to load resource/.test(p))).toEqual([]);
 });
 
-test("the globe follows the light theme too", async ({ page }) => {
+test("the globe sphere follows the light theme, in a dark sky with stars", async ({ page }) => {
   await openMap(page, "c=50,10&z=2");
   await choose(page, "Light");
   await expect.poll(() => theme(page)).toBe("light");
@@ -70,12 +70,11 @@ test("the globe follows the light theme too", async ({ page }) => {
   await expect(page.getByRole("img", { name: /Altitude colour legend.*darker is higher/ })).toBeVisible();
   expect(await mapBg(page)).toBe(flatLight); // the sphere uses the light palette
   const space = await page.evaluate(() => getComputedStyle(document.querySelector(".maplibregl-map") as HTMLElement).backgroundColor);
-  expect(space).toBe("rgb(207, 215, 225)"); // pale sky, not black
+  expect(space).toBe("rgb(5, 6, 8)"); // outer space stays dark, with stars
   await page.waitForTimeout(500);
   expect(await covered(page)).toBeGreaterThan(300);
   await page.screenshot({ path: "test-results/theme-globe.png" });
   await choose(page, "Dark");
-  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector(".maplibregl-map") as HTMLElement).backgroundColor)).toBe("rgb(5, 6, 8)");
   await page.getByRole("button", { name: "Map" }).click();
   await expect.poll(() => mapBg(page)).not.toBe(flatLight);
 });

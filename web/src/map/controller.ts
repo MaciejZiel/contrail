@@ -52,8 +52,7 @@ export interface ControllerOptions {
 
 const toLat = (y: number) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - 2 * Math.PI * y));
 
-const SPACE_DARK = "#050608";
-const SPACE_LIGHT = "#cfd7e1";
+const SPACE = "#050608";
 
 /** Owns the MapLibre map, the aircraft/trail/airport layers, the poller and URL syncing. */
 export class MapController {
@@ -199,10 +198,9 @@ export class MapController {
     return this.theme;
   }
 
-  /** Outer space behind the globe: near black in the dark theme, a pale cool grey in the light one. */
+  /** Outer space behind the globe is dark with stars in both themes; only the sphere follows the theme. */
   private paintSpace(): void {
-    this.o.container.style.background = this.globe ? (this.theme === "light" ? SPACE_LIGHT : SPACE_DARK) : "";
-    this.shading?.setTheme(this.theme);
+    this.o.container.style.background = this.globe ? SPACE : "";
   }
 
   private applyMapTheme(): void {
