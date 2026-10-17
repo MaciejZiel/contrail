@@ -128,7 +128,7 @@
   .side {
     position: absolute;
     z-index: 6;
-    left: var(--gutter);
+    right: var(--gutter);
     top: calc(12px + env(safe-area-inset-top));
     bottom: 12px;
     width: 380px;

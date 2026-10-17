@@ -171,17 +171,17 @@ test("selecting an aircraft that the panel would cover pans it into view", async
     for (const p of f.store.planes) {
       if (p.onGround || !p.callsign) continue;
       const pos = f.layer.screenPosition(p.hex);
-      if (pos && pos.x > 60 && pos.x < 330 && pos.y > 150 && pos.y < 650) return { hex: p.hex, ...pos };
+      if (pos && pos.x > window.innerWidth - 330 && pos.x < window.innerWidth - 60 && pos.y > 150 && pos.y < 650) return { hex: p.hex, ...pos };
     }
     return null;
   });
   const target = (await handle.jsonValue()) as { hex: number; x: number; y: number };
   await page.mouse.click(target.x, target.y);
   await expect(page.getByTestId("aircraft-panel")).toBeVisible();
-  const panelRight = await page.locator(".side, .sheet").first().evaluate((el) => el.getBoundingClientRect().right);
+  const panelLeft = await page.locator(".side, .sheet").first().evaluate((el) => el.getBoundingClientRect().left);
   await expect
-    .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 0)
-    .toBeGreaterThan(panelRight);
+    .poll(async () => (await page.evaluate((h) => (window as any).__flights.layer.screenPosition(h), target.hex))?.x ?? 1e9)
+    .toBeLessThan(panelLeft);
 });
 
 test("a failing identity lookup is retried and the panel recovers", async ({ page }) => {

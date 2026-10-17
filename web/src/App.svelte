@@ -51,7 +51,7 @@
     if (x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin) return;
     const sidePanel = box.height > mapBox.height * 0.75;
     const target = sidePanel
-      ? { x: box.right + (mapBox.right - box.right) / 2, y }
+      ? { x: mapBox.left + (box.left - mapBox.left) / 2, y }
       : { x, y: mapBox.top + (box.top - mapBox.top) / 2 };
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     ctl.map.panBy([x - target.x, y - target.y], { duration: reduced ? 0 : 450 });
@@ -356,8 +356,15 @@
     z-index: 4;
   }
   @media (min-width: 900px) {
+    /* the panel sits on the right: the top bar and the bottom-right map furniture make room for it */
     .has-panel .topbar {
-      left: calc(var(--gutter) + 392px);
+      right: calc(var(--gutter) + 392px);
+    }
+    .has-panel .legend-slot {
+      right: calc(var(--gutter) + 392px);
+    }
+    .has-panel :global(.maplibregl-ctrl-bottom-right) {
+      right: 392px;
     }
   }
   /* on phones the bottom sheet covers the lower part of the map: lift the map controls above it */

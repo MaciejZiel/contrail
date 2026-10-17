@@ -4,7 +4,7 @@ import type { AirportRow } from "../core/api";
 
 const SOURCE = "airports";
 
-/** The airport badge: a dark disc with a thin grey ring and two crossing runways, drawn once as an image. */
+/** The airport marker: a rounded diamond, ringed in cool grey, with a small bright core. Drawn once as an image. */
 function airportIcon(): ImageData {
   const n = 40; // 20 css px at pixel ratio 2
   const c = document.createElement("canvas");
@@ -13,24 +13,20 @@ function airportIcon(): ImageData {
   const g = c.getContext("2d");
   if (!g) return new ImageData(n, n);
   g.translate(n / 2, n / 2);
-  g.beginPath();
-  g.arc(0, 0, 17, 0, Math.PI * 2);
-  g.fillStyle = "rgba(20,24,31,0.94)";
+  g.rotate(Math.PI / 4);
+  const diamond = (size: number, radius: number) => {
+    g.beginPath();
+    g.roundRect(-size / 2, -size / 2, size, size, radius);
+  };
+  diamond(23, 6);
+  g.fillStyle = "rgba(22,26,34,0.95)";
   g.fill();
   g.lineWidth = 2;
-  g.strokeStyle = "#8f98a5";
+  g.strokeStyle = "#7f8ba3";
   g.stroke();
-  const runway = (angle: number, len: number, w: number, color: string) => {
-    g.save();
-    g.rotate(angle);
-    g.fillStyle = color;
-    g.beginPath();
-    g.roundRect(-w / 2, -len / 2, w, len, w / 2);
-    g.fill();
-    g.restore();
-  };
-  runway((-35 * Math.PI) / 180, 22, 5, "#e4e7ec");
-  runway((55 * Math.PI) / 180, 14, 4, "#8f98a5");
+  diamond(8.5, 2.5);
+  g.fillStyle = "#cfd6e3";
+  g.fill();
   return g.getImageData(0, 0, n, n);
 }
 
@@ -75,8 +71,8 @@ export class AirportLayer {
         },
         paint: { "icon-opacity": kind === "L" ? 1 : 0.85 },
       });
-    badge("airports-large", "L", 3, [0.8, 1.25]);
-    badge("airports-medium", "M", 6, [0.7, 1.05]);
+    badge("airports-large", "L", 3, [0.85, 1.3]);
+    badge("airports-medium", "M", 6, [0.72, 1.05]);
     map.addLayer({
       id: "airport-selected",
       type: "circle",
