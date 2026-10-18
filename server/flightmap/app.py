@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import logging
 import math
@@ -52,6 +54,7 @@ log = logging.getLogger("flightmap")
 
 WIDE_REQUEST_TILES = 12  # above this many tiles only traffic tiles are fetched
 SNAPSHOT_CACHE_SIZE = 128
+SNAPSHOT_EVERY_S = 60.0  # how often the tile cache is written to disk
 CACHE_CONTROL = "public, max-age=2, stale-while-revalidate=5"
 # Lookups of aircraft outside every cached tile may use this share of the upstream budget.
 TRAILS_MAX_LIMIT = 400  # aircraft per /trails response
@@ -752,14 +755,38 @@ def create_app(settings: Settings | None = None, provider: TileProvider | None =
     )
     api = Api(settings, cache, index, trails, route_lookup, weather)
 
+    snapshot_path = (
+        os.path.join(settings.data_dir, "tiles.json.gz")
+        if settings.data_dir and provider is None and not settings.demo_mode
+        else None
+    )
+
+    async def snapshot_loop() -> None:
+        while True:
+            await asyncio.sleep(SNAPSHOT_EVERY_S)
+            try:
+                await asyncio.to_thread(cache.save_snapshot, snapshot_path or "")
+            except OSError:
+                log.warning("could not save the tile snapshot", exc_info=True)
+
     @asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncGenerator[None]:
         await trails.start()
+        saver: asyncio.Task[None] | None = None
+        if snapshot_path:
+            for tile, aircraft, fetched_at in cache.load_snapshot(snapshot_path):
+                index.update(tile, aircraft, fetched_at)
+            saver = asyncio.ensure_future(snapshot_loop())
         cache.start()
         try:
             yield
         finally:
+            if saver:
+                saver.cancel()
             await cache.stop()
+            if snapshot_path:
+                with contextlib.suppress(OSError):
+                    cache.save_snapshot(snapshot_path)
             await trails.stop()
             for c in {tile_client, side_client}:
                 if c:

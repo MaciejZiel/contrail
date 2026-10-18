@@ -7,17 +7,22 @@ per refresh interval, whatever the number of viewers, under one global request b
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import gzip
+import json
 import logging
 import math
+import os
 import random
 import re
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
+from typing import Any, cast
 
-from .codec import encode_aircraft
+from .codec import decode_records, encode_aircraft
 from .models import Aircraft
 from .providers import TileProvider
 from .regions import CLASS_WEIGHTS, PrefetchSpec
@@ -573,6 +578,60 @@ class TileCache:
             step = PROBE_STEP_RPS if near else RECOVERY_STEP_RPS
             self._bucket.rate = min(self.budget_rps, self._bucket.rate + step)
             self._last_rate_change = now
+
+    def save_snapshot(self, path: str) -> int:
+        """Write the tiles that are still worth showing to ``path`` (gzip JSON, replaced atomically), so a restart
+        does not begin with an empty map. Returns the number of tiles written."""
+        wall = self._wall()
+        rows = [
+            {"x": t[0], "y": t[1], "t": e.fetched_at, "p": base64.b64encode(e.payload).decode("ascii")}
+            for t, st in self._states.items()
+            if (e := st.entry) is not None and wall - e.fetched_at <= self._ghost
+        ]
+        tmp = f"{path}.tmp"
+        with gzip.open(tmp, "wt", encoding="utf-8", compresslevel=3) as f:
+            json.dump({"v": 1, "tiles": rows}, f, separators=(",", ":"))
+        os.replace(tmp, path)
+        return len(rows)
+
+    def load_snapshot(self, path: str) -> list[tuple[Tile, list[Aircraft], float]]:
+        """Restore tiles saved by ``save_snapshot`` that are not older than the ghost age. They are served with
+        their real age (so old aircraft show as ghosts) and are refreshed first because they are the oldest.
+        A missing or damaged file is ignored. Returns what was restored, for the search index."""
+        wall = self._wall()
+        restored: list[tuple[Tile, list[Aircraft], float]] = []
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                data = cast(dict[str, Any], json.load(f))
+            rows = cast(list[dict[str, Any]], data["tiles"]) if data.get("v") == 1 else []
+        except (OSError, ValueError, KeyError, TypeError, EOFError):
+            return restored
+        for row in rows:
+            try:
+                tile: Tile = (int(row["x"]), int(row["y"]))
+                fetched_at = float(row["t"])
+                payload = base64.b64decode(str(row["p"]))
+                aircraft = decode_records(payload)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if wall - fetched_at > self._ghost or fetched_at > wall + 60:
+                continue
+            self._version += 1
+            st = self._states.setdefault(tile, TileState())
+            st.entry = TileEntry(
+                tile=tile,
+                aircraft=aircraft,
+                fetched_at=fetched_at,
+                version=self._version,
+                payload=payload,
+                source=self.provider.source_id,
+            )
+            if aircraft:
+                st.ever_had_traffic = True
+            st.avg_count = float(len(aircraft))
+            st.observations = 1
+            restored.append((tile, aircraft, fetched_at))
+        return restored
 
     async def tick(self) -> int:
         """One scheduling pass: start as many fetches as budget and slots allow. Returns how many."""
